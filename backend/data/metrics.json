@@ -1,0 +1,44 @@
+{
+  "model": "YOLO11n",
+  "dataset": "HRSID (2857 train / 715 val)",
+  "epochs": 50,
+  "map50": 0.838,
+  "map50_95": 0.579,
+  "precision": 0.83,
+  "recall": 0.818,
+  "confidence_threshold": 0.45,
+  "validation_scene": "xView3 590dd08f71056cacv",
+  "detections_on_real_scene": 122,
+  "training_history": [
+    {
+      "epoch": 1,
+      "map50": 0.61,
+      "loss": 1.8
+    },
+    {
+      "epoch": 10,
+      "map50": 0.72,
+      "loss": 1.2
+    },
+    {
+      "epoch": 20,
+      "map50": 0.78,
+      "loss": 0.9
+    },
+    {
+      "epoch": 30,
+      "map50": 0.81,
+      "loss": 0.7
+    },
+    {
+      "epoch": 40,
+      "map50": 0.83,
+      "loss": 0.6
+    },
+    {
+      "epoch": 50,
+      "map50": 0.838,
+      "loss": 0.55
+    }
+  ]
+}
