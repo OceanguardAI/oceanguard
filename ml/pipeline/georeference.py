@@ -1,6 +1,5 @@
-"""Convert tile pixel coordinates to WGS84 lat/lon."""
+"""Convert detection pixel locations to WGS84 latitude/longitude."""
 from __future__ import annotations
-from pyproj import Transformer
 
 
 def georeference_detections(
@@ -11,33 +10,27 @@ def georeference_detections(
     src_crs: str = "EPSG:32631",
     dst_crs: str = "EPSG:4326",
 ) -> list[dict]:
-    """
-    Adds 'lat' and 'lon' to each detection dict. Returns updated list.
+    """Add `lat` and `lon` values to each detection dictionary."""
+    try:
+        from pyproj import Transformer
+    except ImportError as exc:  # pragma: no cover - depends on optional dependency
+        raise ImportError(
+            "pyproj is required for georeference_detections(). Install ml/requirements.txt first."
+        ) from exc
 
-    Formula:
-        utm_x = geo_transform_x + (col_off + x_center_px) * pixel_size
-        utm_y = geo_transform_y - (row_off + y_center_px) * pixel_size
-        lon, lat = transform(utm_x, utm_y)
-
-    The xView3 scene (590dd08f71056cacv) is EPSG:32631 (UTM zone 31N).
-    Origin: x=477060.79, y=793583.94 (upper-left corner of the image).
-    Pixel size: 10 m.
-    """
     transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
 
-    for det in detections:
-        utm_x = geo_transform_x + (det["col_off"] + det["x_center_px"]) * pixel_size
-        utm_y = geo_transform_y - (det["row_off"] + det["y_center_px"]) * pixel_size
+    for detection in detections:
+        utm_x = geo_transform_x + (detection["col_off"] + detection["x_center_px"]) * pixel_size
+        utm_y = geo_transform_y - (detection["row_off"] + detection["y_center_px"]) * pixel_size
         lon, lat = transformer.transform(utm_x, utm_y)
-        det["lon"] = round(lon, 6)
-        det["lat"] = round(lat, 6)
+        detection["lon"] = round(lon, 6)
+        detection["lat"] = round(lat, 6)
 
     return detections
 
 
 if __name__ == "__main__":
-    # Smoke test: a detection at tile origin should georef near scene origin
     test = [{"col_off": 0, "row_off": 0, "x_center_px": 0, "y_center_px": 0}]
     result = georeference_detections(test)
     print(f"Origin: lat={result[0]['lat']}, lon={result[0]['lon']}")
-    # Should be approximately lat=7.17, lon=4.31 (Gulf of Guinea)

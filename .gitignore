@@ -20,6 +20,7 @@ ml/data/
 ml/outputs/detections_scene1_georef.json
 ml/outputs/risk_events.json
 ml/tiles/
+ml/Temprary/
 
 # Node
 node_modules/

@@ -1,14 +1,17 @@
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
+
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.store.repository import repo
-from app.api.routes import events, geo, metrics
+
 from app.api.routes import agents as agents_router
+from app.api.routes import events, geo, metrics
+from app.store.repository import repo
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    """Load risk events on startup."""
     repo.load()
     yield
 
@@ -35,5 +38,5 @@ app.include_router(agents_router.router)
 
 
 @app.get("/health")
-def health():
+def health() -> dict[str, object]:
     return {"status": "ok", "events_loaded": len(repo.all())}

@@ -1,4 +1,7 @@
-"""Risk scoring engine — exact formula from BUILD_PLAN.md. DO NOT MODIFY."""
+"""Deterministic risk scoring engine. Formula is fixed — changes require updating
+docs/data-dictionary.md and test_risk.py."""
+
+from __future__ import annotations
 
 
 def calculate_risk(
@@ -7,26 +10,19 @@ def calculate_risk(
     ais_data_available: bool,
     inside_mpa: bool,
     near_mpa: bool,
-    image_quality_score: float,  # 0..1
+    image_quality_score: float,
     fishing_score: float = 0.0,
     repeated_activity_score: float = 0.0,
 ) -> tuple[float, str]:
-    """Deterministic risk scoring formula.
+    """Return (risk_score, risk_level) for a single detection.
 
-    Weights:
-        0.30 * effective_conf   (SAR detection confidence × image quality)
-        0.25 * ais_score        (1.0 if unmatched+available, 0.3 if unavailable, 0.0 if matched)
-        0.25 * mpa_score        (1.0 inside, 0.6 near ≤5km, 0.0 otherwise)
-        0.10 * fishing_score
-        0.10 * repeated_activity_score
-
-    Returns:
-        (risk_score rounded to 3dp, risk_level string)
+    AIS matching rule: spatial ≤2 km + time window ±3 h.
+    Near-MPA threshold: ≤5 km from MPA boundary.
     """
     effective_conf = detection_conf * image_quality_score
 
     if not ais_data_available:
-        ais_score = 0.3        # neutral — absence of data ≠ guilt
+        ais_score = 0.3  # neutral — absence of data ≠ guilt
     else:
         ais_score = 0.0 if ais_matched else 1.0
 
@@ -50,3 +46,18 @@ def calculate_risk(
         level = "LOW"
 
     return round(risk, 3), level
+
+
+if __name__ == "__main__":
+    # Worked example from BUILD_PLAN.md §4 — must yield 0.61 / HIGH
+    score, level = calculate_risk(
+        detection_conf=0.70,
+        ais_matched=False,
+        ais_data_available=True,
+        inside_mpa=False,
+        near_mpa=True,
+        image_quality_score=1.0,
+    )
+    print(f"bar-reef-003 example: {score} / {level}")
+    assert score == 0.61 and level == "HIGH", f"Unexpected: {score} / {level}"
+    print("OK")

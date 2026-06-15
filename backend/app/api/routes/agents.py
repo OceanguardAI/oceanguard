@@ -1,33 +1,37 @@
+from __future__ import annotations
+
 from fastapi import APIRouter
+
+from app.agents import ask as ask_agent
+from app.agents import briefing as briefing_agent
+from app.agents import narrator, patrol as patrol_agent
 from app.models.schemas import (
-    RiskEvent, NarrateResponse, BriefingResponse,
-    PatrolItem, AskRequest, AskResponse,
+    AskRequest,
+    AskResponse,
+    BriefingResponse,
+    NarrateResponse,
+    PatrolItem,
+    RiskEvent,
 )
-from app.agents import narrator, briefing as briefing_agent
-from app.agents import patrol as patrol_agent, ask as ask_agent
 
 router = APIRouter(prefix="/agents")
 
 
 @router.post("/narrate", response_model=NarrateResponse)
-async def narrate(event: RiskEvent):
-    """Explain why a single vessel was flagged. Deterministic fallback always available."""
+async def narrate_event(event: RiskEvent) -> NarrateResponse:
     return await narrator.narrate(event)
 
 
 @router.post("/briefing", response_model=BriefingResponse)
-async def daily_briefing(events: list[RiskEvent]):
-    """Generate a daily situation summary for all provided events."""
+async def daily_briefing(events: list[RiskEvent]) -> BriefingResponse:
     return await briefing_agent.briefing(events)
 
 
 @router.post("/patrol", response_model=list[PatrolItem])
-async def patrol(events: list[RiskEvent]):
-    """Rank events by patrol priority. Deterministic fallback always available."""
+async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
     return await patrol_agent.patrol(events)
 
 
 @router.post("/ask", response_model=AskResponse)
-async def ask(body: AskRequest):
-    """Answer a natural language question using tool-augmented agentic loop."""
+async def ask_question(body: AskRequest) -> AskResponse:
     return await ask_agent.ask(body.question)

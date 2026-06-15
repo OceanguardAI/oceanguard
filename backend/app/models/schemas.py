@@ -1,5 +1,7 @@
 from __future__ import annotations
-from typing import Literal, Optional
+
+from typing import Literal
+
 from pydantic import BaseModel
 
 
@@ -17,21 +19,27 @@ class RiskEvent(BaseModel):
     matching_method: str
     inside_mpa: bool
     near_mpa: bool
-    mpa_name: Optional[str]
-    distance_to_mpa_km: Optional[float]
-    distance_from_port_km: Optional[float]
-    nearest_port: Optional[str]
+    mpa_name: str | None
+    distance_to_mpa_km: float | None
+    distance_from_port_km: float | None
+    nearest_port: str | None
     timestamp: str
     review_status: str
     why_flagged: str
     uncertainty: str
     confidence_threshold: float
     recommended_action: str
-    thumbnail: Optional[str]
+    thumbnail: str | None
 
 
 class ReviewUpdate(BaseModel):
     review_status: Literal["Pending", "Confirmed Risk", "False Positive", "Resolved"]
+
+
+class ModelHistoryPoint(BaseModel):
+    epoch: int
+    map50: float
+    loss: float
 
 
 class ModelMetrics(BaseModel):
@@ -45,7 +53,7 @@ class ModelMetrics(BaseModel):
     confidence_threshold: float
     validation_scene: str
     detections_on_real_scene: int
-    training_history: list[dict]
+    training_history: list[ModelHistoryPoint]
 
 
 class NarrateResponse(BaseModel):
@@ -61,7 +69,7 @@ class PatrolItem(BaseModel):
     id: str
     rank: int
     risk_level: str
-    distance_to_mpa_km: Optional[float]
+    distance_to_mpa_km: float | None
     justification: str
 
 

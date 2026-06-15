@@ -1,13 +1,16 @@
+from __future__ import annotations
+
 import json
+
 from fastapi import APIRouter
-from app.models.schemas import ModelMetrics
+
 from app.core.config import settings
+from app.models.schemas import ModelMetrics
 
 router = APIRouter()
 
 
 @router.get("/model-metrics", response_model=ModelMetrics)
-def get_model_metrics():
-    """YOLO11n training and validation metrics."""
+def get_model_metrics() -> ModelMetrics:
     path = settings.data_dir / "metrics.json"
-    return ModelMetrics(**json.loads(path.read_text()))
+    return ModelMetrics(**json.loads(path.read_text(encoding="utf-8")))
