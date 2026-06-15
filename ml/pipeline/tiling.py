@@ -3,11 +3,6 @@ from __future__ import annotations
 
 import os
 
-import numpy as np
-import rasterio
-from PIL import Image
-from rasterio.windows import Window
-
 
 def tile_sar(
     tif_path: str,
@@ -19,6 +14,16 @@ def tile_sar(
     min_valid_frac: float = 0.50,
 ) -> list[tuple[int, int, str]]:
     """Return `(row_off, col_off, tile_path)` entries for written tiles."""
+    try:
+        import numpy as np
+        import rasterio
+        from PIL import Image
+        from rasterio.windows import Window
+    except ImportError as exc:  # pragma: no cover - depends on optional dependency
+        raise ImportError(
+            "numpy, rasterio, and pillow are required for tile_sar(). Install ml/requirements.txt first."
+        ) from exc
+
     os.makedirs(output_dir, exist_ok=True)
     results: list[tuple[int, int, str]] = []
     skipped = 0

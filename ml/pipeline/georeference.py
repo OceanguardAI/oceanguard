@@ -1,8 +1,6 @@
 """Convert detection pixel locations to WGS84 latitude/longitude."""
 from __future__ import annotations
 
-from pyproj import Transformer
-
 
 def georeference_detections(
     detections: list[dict],
@@ -13,6 +11,13 @@ def georeference_detections(
     dst_crs: str = "EPSG:4326",
 ) -> list[dict]:
     """Add `lat` and `lon` values to each detection dictionary."""
+    try:
+        from pyproj import Transformer
+    except ImportError as exc:  # pragma: no cover - depends on optional dependency
+        raise ImportError(
+            "pyproj is required for georeference_detections(). Install ml/requirements.txt first."
+        ) from exc
+
     transformer = Transformer.from_crs(src_crs, dst_crs, always_xy=True)
 
     for detection in detections:

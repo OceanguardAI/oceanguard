@@ -5,9 +5,6 @@ import json
 import os
 from pathlib import Path
 
-import torch
-from ultralytics import YOLO
-
 
 def _parse_offsets(tile_path: str) -> tuple[int, int]:
     """Extract row/column offsets from tile filenames."""
@@ -26,6 +23,14 @@ def detect_tiles(
     checkpoint_path: str | None = None,
 ) -> list[dict]:
     """Return YOLO detections, optionally resuming from a checkpoint."""
+    try:
+        import torch
+        from ultralytics import YOLO
+    except ImportError as exc:  # pragma: no cover - depends on optional dependency
+        raise ImportError(
+            "ultralytics and torch are required for detect_tiles(). Install ml/requirements.txt first."
+        ) from exc
+
     torch.set_num_threads(2)
     model = YOLO(model_path)
 
