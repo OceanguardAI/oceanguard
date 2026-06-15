@@ -7,6 +7,39 @@ from pathlib import Path
 
 from build_risk_events import DEFAULT_SOURCE_ROOT
 
+STANDARD_ROOT = Path(__file__).resolve().parent
+
+
+def build_file_map(source_root: Path, target_root: Path) -> dict[Path, Path]:
+    """Return the known artifact copy plan for the ML workspace."""
+    return {
+        source_root / "data" / "bar_reef.geojson": target_root / "data" / "bar_reef.geojson",
+        source_root
+        / "data"
+        / "gfw_bar_reef_sar_unmatched.json": target_root / "data" / "gfw_bar_reef_sar_unmatched.json",
+        source_root
+        / "data"
+        / "overpass_bar_reef_ports.json": target_root / "data" / "overpass_bar_reef_ports.json",
+        source_root / "models" / "best.pt": target_root / "models" / "best.pt",
+        source_root
+        / "outputs"
+        / "detections_scene1_georef.json": target_root / "outputs" / "detections_scene1_georef.json",
+    }
+
+
+def find_missing_standard_artifacts(
+    target_root: Path = STANDARD_ROOT,
+    source_root: Path = DEFAULT_SOURCE_ROOT,
+) -> list[str]:
+    """Return the standard artifact paths that are still missing."""
+    target_root = target_root.resolve()
+    source_root = source_root.resolve()
+    missing: list[str] = []
+    for target_path in build_file_map(source_root, target_root).values():
+        if not target_path.exists():
+            missing.append(target_path.relative_to(target_root).as_posix())
+    return missing
+
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
@@ -41,19 +74,7 @@ def materialize_artifacts(
     source_root = source_root.resolve()
     target_root = target_root.resolve()
 
-    file_map = {
-        source_root / "data" / "bar_reef.geojson": target_root / "data" / "bar_reef.geojson",
-        source_root
-        / "data"
-        / "gfw_bar_reef_sar_unmatched.json": target_root / "data" / "gfw_bar_reef_sar_unmatched.json",
-        source_root
-        / "data"
-        / "overpass_bar_reef_ports.json": target_root / "data" / "overpass_bar_reef_ports.json",
-        source_root / "models" / "best.pt": target_root / "models" / "best.pt",
-        source_root
-        / "outputs"
-        / "detections_scene1_georef.json": target_root / "outputs" / "detections_scene1_georef.json",
-    }
+    file_map = build_file_map(source_root, target_root)
 
     copied: list[str] = []
     skipped: list[str] = []

@@ -5,7 +5,11 @@ import argparse
 import json
 from pathlib import Path
 
-from build_risk_events import build_events, resolve_source_root
+from build_risk_events import BASE_DIR, DEFAULT_SOURCE_ROOT, build_events, resolve_source_root
+from materialize_temporary_artifacts import (
+    find_missing_standard_artifacts,
+    materialize_artifacts,
+)
 from sync_outputs_to_backend import sync_outputs
 from validate_artifacts import inspect_artifacts
 from validate_model import inspect_model
@@ -36,21 +40,82 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Skip loading best.pt before building outputs.",
     )
+    parser.add_argument(
+        "--skip-materialize",
+        action="store_true",
+        help="Do not auto-copy missing standard artifacts from ml/Temprary/ml.",
+    )
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    output_dir = args.output_dir.resolve()
-    output_dir.mkdir(parents=True, exist_ok=True)
+def prepare_standard_artifacts(
+    source_root: Path | None = None,
+    skip_materialize: bool = False,
+) -> dict | None:
+    """Populate the standard ml/ layout from the temporary cache when needed."""
+    if source_root is not None:
+        return None
 
-    artifact_summary = inspect_artifacts(args.source_root)
-    data_dir, detections_dir = resolve_source_root(args.source_root)
+    missing_before = find_missing_standard_artifacts(
+        target_root=BASE_DIR,
+        source_root=DEFAULT_SOURCE_ROOT,
+    )
+    if not missing_before:
+        return {
+            "attempted": False,
+            "source_root": str(DEFAULT_SOURCE_ROOT.resolve()),
+            "target_root": str(BASE_DIR.resolve()),
+            "missing_before": [],
+            "missing_after": [],
+            "reason": "standard_artifacts_present",
+        }
+
+    if skip_materialize:
+        return {
+            "attempted": False,
+            "source_root": str(DEFAULT_SOURCE_ROOT.resolve()),
+            "target_root": str(BASE_DIR.resolve()),
+            "missing_before": missing_before,
+            "missing_after": missing_before,
+            "reason": "skipped_by_flag",
+        }
+
+    summary = materialize_artifacts(
+        source_root=DEFAULT_SOURCE_ROOT,
+        target_root=BASE_DIR,
+        overwrite=False,
+    )
+    summary["attempted"] = True
+    summary["missing_before"] = missing_before
+    summary["missing_after"] = find_missing_standard_artifacts(
+        target_root=BASE_DIR,
+        source_root=DEFAULT_SOURCE_ROOT,
+    )
+    return summary
+
+
+def run_workflow(
+    source_root: Path | None = None,
+    output_dir: Path | None = None,
+    backend_data_dir: Path | None = None,
+    skip_model_check: bool = False,
+    skip_materialize: bool = False,
+) -> dict:
+    output_dir = (output_dir or BASE_DIR / "outputs").resolve()
+    output_dir.mkdir(parents=True, exist_ok=True)
+    backend_data_dir = (backend_data_dir or BASE_DIR.parent / "backend" / "data").resolve()
+
+    materialize_summary = prepare_standard_artifacts(
+        source_root=source_root,
+        skip_materialize=skip_materialize,
+    )
+    artifact_summary = inspect_artifacts(source_root)
+    data_dir, _ = resolve_source_root(source_root)
     source_root = data_dir.parent
 
     model_summary = None
     model_path = source_root / "models" / "best.pt"
-    if not args.skip_model_check and model_path.exists():
+    if not skip_model_check and model_path.exists():
         model_summary = inspect_model(model_path)
 
     events = build_events(source_root=source_root, output_dir=output_dir)
@@ -59,7 +124,7 @@ def main() -> None:
         json.dump(events, f, indent=2)
 
     source_geojson = data_dir / "bar_reef.geojson"
-    risk_dest, geo_dest = sync_outputs(risk_events_path, source_geojson, args.backend_data_dir)
+    risk_dest, geo_dest = sync_outputs(risk_events_path, source_geojson, backend_data_dir)
 
     gfw_count = sum(1 for event in events if event["source"] == "GFW")
     yolo_count = sum(1 for event in events if event["source"] == "YOLO_SAR")
@@ -67,6 +132,7 @@ def main() -> None:
 
     workflow_summary = {
         "source_root": str(source_root),
+        "materialize_summary": materialize_summary,
         "artifact_summary": artifact_summary,
         "model_summary": model_summary,
         "risk_events_path": str(risk_events_path),
@@ -88,11 +154,37 @@ def main() -> None:
     with summary_path.open("w", encoding="utf-8") as f:
         json.dump(workflow_summary, f, indent=2)
 
-    print(f"Workflow summary written to: {summary_path}")
-    print(f"Total events: {len(events)}")
-    print(f"GFW events: {gfw_count}")
-    print(f"YOLO events: {yolo_count}")
-    if bar003:
+    workflow_summary["summary_path"] = str(summary_path)
+    workflow_summary["total_events"] = len(events)
+
+    return workflow_summary
+
+
+def main() -> None:
+    args = parse_args()
+    workflow_summary = run_workflow(
+        source_root=args.source_root,
+        output_dir=args.output_dir,
+        backend_data_dir=args.backend_data_dir,
+        skip_model_check=args.skip_model_check,
+        skip_materialize=args.skip_materialize,
+    )
+
+    if workflow_summary["materialize_summary"]:
+        materialize_summary = workflow_summary["materialize_summary"]
+        if materialize_summary.get("attempted"):
+            print(
+                "Materialized missing standard artifacts: "
+                f"{len(materialize_summary['copied'])} copied, "
+                f"{len(materialize_summary['skipped'])} skipped"
+            )
+
+    print(f"Workflow summary written to: {workflow_summary['summary_path']}")
+    print(f"Total events: {workflow_summary['total_events']}")
+    print(f"GFW events: {workflow_summary['gfw_events']}")
+    print(f"YOLO events: {workflow_summary['yolo_events']}")
+    bar003 = workflow_summary["bar_reef_003"]
+    if bar003["risk_score"] is not None:
         print(
             "bar-reef-003: "
             f"{bar003['risk_score']} / {bar003['risk_level']} / {bar003['timestamp']}"

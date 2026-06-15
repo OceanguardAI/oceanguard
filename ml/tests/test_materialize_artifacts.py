@@ -1,6 +1,6 @@
 from pathlib import Path
 
-from materialize_temporary_artifacts import materialize_artifacts
+from materialize_temporary_artifacts import find_missing_standard_artifacts, materialize_artifacts
 
 
 def _write(path: Path, content: str) -> None:
@@ -63,3 +63,19 @@ def test_materialize_artifacts_overwrites_when_requested(tmp_path):
 
     assert str(target_root / "data" / "bar_reef.geojson") in summary["copied"]
     assert (target_root / "data" / "bar_reef.geojson").read_text(encoding="utf-8") == "new"
+
+
+def test_find_missing_standard_artifacts_reports_relative_paths(tmp_path):
+    source_root = tmp_path / "Temprary" / "ml"
+    target_root = tmp_path / "workspace_ml"
+
+    _write(target_root / "models" / "best.pt", "weights")
+
+    missing = find_missing_standard_artifacts(
+        target_root=target_root,
+        source_root=source_root,
+    )
+
+    assert "data/bar_reef.geojson" in missing
+    assert "outputs/detections_scene1_georef.json" in missing
+    assert "models/best.pt" not in missing
