@@ -19,15 +19,9 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    data_dir, outputs_dir = resolve_source_root(args.source_root)
-
-    print(f"Resolved source root data dir: {data_dir}")
-    print(f"Resolved source root outputs dir: {outputs_dir}")
-    if data_dir.parent == DEFAULT_SOURCE_ROOT:
-        print("Using temporary ML artifact cache.")
-
+def inspect_artifacts(source_root: Path | None = None) -> dict:
+    """Return a compact summary of the resolved ML artifact set."""
+    data_dir, outputs_dir = resolve_source_root(source_root)
     required = {
         "bar_reef.geojson": data_dir / "bar_reef.geojson",
         "gfw_bar_reef_sar_unmatched.json": data_dir / "gfw_bar_reef_sar_unmatched.json",
@@ -57,19 +51,39 @@ def main() -> None:
                 gfw_entries = gfw[key]
                 break
 
-    print(f"GFW detections: {len(gfw_entries)}")
-    print(f"Port elements: {len(ports.get('elements', []))}")
-    print(f"GeoJSON type: {geojson.get('type')}")
-    print(f"YOLO detections: {len(detections)}")
+    return {
+        "data_dir": str(data_dir),
+        "outputs_dir": str(outputs_dir),
+        "using_temporary_cache": data_dir.parent == DEFAULT_SOURCE_ROOT,
+        "gfw_detections": len(gfw_entries),
+        "port_elements": len(ports.get("elements", [])),
+        "geojson_type": geojson.get("type"),
+        "yolo_detections": len(detections),
+        "first_gfw_keys": sorted(gfw_entries[0].keys()) if gfw_entries else [],
+        "first_yolo_keys": sorted(detections[0].keys()) if detections else [],
+    }
 
-    if gfw_entries:
-        first_gfw = gfw_entries[0]
-        print(f"First GFW keys: {sorted(first_gfw.keys())}")
-    if detections:
-        first_detection = detections[0]
-        print(f"First YOLO detection keys: {sorted(first_detection.keys())}")
 
-    if len(detections) != 122:
+def main() -> None:
+    args = parse_args()
+    summary = inspect_artifacts(args.source_root)
+
+    print(f"Resolved source root data dir: {summary['data_dir']}")
+    print(f"Resolved source root outputs dir: {summary['outputs_dir']}")
+    if summary["using_temporary_cache"]:
+        print("Using temporary ML artifact cache.")
+
+    print(f"GFW detections: {summary['gfw_detections']}")
+    print(f"Port elements: {summary['port_elements']}")
+    print(f"GeoJSON type: {summary['geojson_type']}")
+    print(f"YOLO detections: {summary['yolo_detections']}")
+
+    if summary["first_gfw_keys"]:
+        print(f"First GFW keys: {summary['first_gfw_keys']}")
+    if summary["first_yolo_keys"]:
+        print(f"First YOLO detection keys: {summary['first_yolo_keys']}")
+
+    if summary["yolo_detections"] != 122:
         print("Warning: expected 122 YOLO detections for the xView3 validation scene.")
 
 

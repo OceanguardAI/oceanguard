@@ -29,21 +29,35 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
-def main() -> None:
-    args = parse_args()
-    backend_data_dir = args.backend_data_dir.resolve()
+def sync_outputs(
+    risk_events: Path,
+    bar_reef_geojson: Path,
+    backend_data_dir: Path,
+) -> tuple[Path, Path]:
+    """Copy ML outputs into backend/data and return destination paths."""
+    backend_data_dir = backend_data_dir.resolve()
     backend_data_dir.mkdir(parents=True, exist_ok=True)
 
-    if not args.risk_events.exists():
-        raise FileNotFoundError(f"risk_events.json not found at {args.risk_events}")
-    if not args.bar_reef_geojson.exists():
-        raise FileNotFoundError(f"bar_reef.geojson not found at {args.bar_reef_geojson}")
+    if not risk_events.exists():
+        raise FileNotFoundError(f"risk_events.json not found at {risk_events}")
+    if not bar_reef_geojson.exists():
+        raise FileNotFoundError(f"bar_reef.geojson not found at {bar_reef_geojson}")
 
     risk_dest = backend_data_dir / "risk_events.json"
     geo_dest = backend_data_dir / "bar_reef.geojson"
 
-    shutil.copy2(args.risk_events, risk_dest)
-    shutil.copy2(args.bar_reef_geojson, geo_dest)
+    shutil.copy2(risk_events, risk_dest)
+    shutil.copy2(bar_reef_geojson, geo_dest)
+    return risk_dest, geo_dest
+
+
+def main() -> None:
+    args = parse_args()
+    risk_dest, geo_dest = sync_outputs(
+        args.risk_events,
+        args.bar_reef_geojson,
+        args.backend_data_dir,
+    )
 
     print(f"Copied risk events to: {risk_dest}")
     print(f"Copied Bar Reef geojson to: {geo_dest}")

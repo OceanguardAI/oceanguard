@@ -19,6 +19,7 @@ ml/models/best.pt
 ml/data/
 ml/outputs/detections_scene1_georef.json
 ml/outputs/risk_events.json
+ml/outputs/ml_workflow_summary.json
 ml/tiles/
 ml/Temprary/
 
