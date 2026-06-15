@@ -30,6 +30,8 @@ pip install -r requirements.txt
 uvicorn app.main:app --reload --port 8000
 ```
 
+See `backend/README.md` for the full backend route map, review persistence behavior, agent endpoints, and verification steps.
+
 ### 3. Run Frontend
 ```bash
 cd frontend
