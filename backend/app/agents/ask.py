@@ -1,9 +1,11 @@
-"""Ask agent with simple tool-backed loop and deterministic fallback."""
+"""Ask agent with tool-backed answers and deterministic fallbacks."""
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from app.agents.client import get_client
+from app.core.config import settings
 from app.models.schemas import AskResponse
 from app.store.repository import repo
 
@@ -11,15 +13,19 @@ SYSTEM_PROMPT = """You are OceanGuard AI, a marine conservation decision-support
 Use the provided tools to answer questions accurately from the loaded detection data.
 Never speculate beyond the data and never make accusations."""
 
+MAX_TOOL_EVENTS = 10
+
 TOOLS = [
     {
         "name": "query_detections",
-        "description": "Query detections by source and risk level.",
+        "description": "Query detections by source, risk level, and review status.",
         "input_schema": {
             "type": "object",
             "properties": {
                 "source": {"type": "string"},
                 "risk_level": {"type": "string"},
+                "review_status": {"type": "string"},
+                "limit": {"type": "integer"},
             },
         },
     },
@@ -32,19 +38,55 @@ TOOLS = [
             "required": ["id"],
         },
     },
+    {
+        "name": "get_risk_summary",
+        "description": "Get aggregate event counts and highest-risk summary from the loaded store.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_model_metrics",
+        "description": "Get backend model metrics such as map50, precision, recall, and validation scene.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
+    {
+        "name": "get_ports",
+        "description": "Get nearby monitored port or marina locations from backend data.",
+        "input_schema": {
+            "type": "object",
+            "properties": {},
+        },
+    },
 ]
+
+
+def _load_json(path: Path) -> object:
+    return json.loads(path.read_text(encoding="utf-8"))
 
 
 def _run_tool(name: str, inputs: dict) -> str:
     if name == "query_detections":
-        events = repo.all(source=inputs.get("source"), level=inputs.get("risk_level"))
+        limit = int(inputs.get("limit", MAX_TOOL_EVENTS) or MAX_TOOL_EVENTS)
+        limit = max(1, min(limit, 50))
+        events = repo.all(
+            source=inputs.get("source"),
+            level=inputs.get("risk_level"),
+            review_status=inputs.get("review_status"),
+        )
         if not events:
             return "No events found."
         lines = [
-            f"{event.id}: {event.risk_level} ({event.risk_score:.2f}), dist={event.distance_to_mpa_km}"
-            for event in events[:10]
+            f"{event.id}: {event.risk_level} ({event.risk_score:.2f}), "
+            f"review={event.review_status}, near_mpa={event.near_mpa}, "
+            f"dist={event.distance_to_mpa_km}"
+            for event in events[:limit]
         ]
-        return "\n".join(lines)
+        return f"Found {len(events)} event(s):\n" + "\n".join(lines)
 
     if name == "get_event":
         event = repo.get(inputs["id"])
@@ -52,31 +94,100 @@ def _run_tool(name: str, inputs: dict) -> str:
             return f"Event {inputs['id']} not found."
         return json.dumps(event.model_dump(), indent=2)
 
+    if name == "get_risk_summary":
+        return json.dumps(repo.summary().model_dump(), indent=2)
+
+    if name == "get_model_metrics":
+        path = settings.data_dir / "metrics.json"
+        if not path.exists():
+            return "metrics.json not found."
+        return json.dumps(_load_json(path), indent=2)
+
+    if name == "get_ports":
+        path = settings.data_dir / "ports.json"
+        if not path.exists():
+            return "ports.json not found."
+        return json.dumps(_load_json(path), indent=2)
+
     return "Unknown tool."
 
 
 def _fallback(question: str) -> AskResponse:
     lowered = question.lower()
+
     if "highest" in lowered or "most" in lowered or "bar-reef-003" in lowered:
+        summary = repo.summary()
         return AskResponse(
             answer=(
-                "bar-reef-003 is the highest-risk detection in the bootstrap dataset. "
+                f"{summary.highest_risk_event_id} is the highest-risk detection in the current backend dataset. "
                 "It has score 0.61 (HIGH), no matching AIS broadcast, and sits 0.4 km from the Bar Reef boundary."
             )
         )
+
     if "how many" in lowered or "count" in lowered or "total" in lowered:
-        gfw = repo.all(source="GFW")
-        yolo = repo.all(source="YOLO_SAR")
+        summary = repo.summary()
         return AskResponse(
             answer=(
-                f"The current backend bootstrap data includes {len(gfw)} GFW detections "
-                f"and {len(yolo)} YOLO_SAR detections."
+                f"The current backend dataset includes {summary.source_counts.get('GFW', 0)} GFW detections "
+                f"and {summary.source_counts.get('YOLO_SAR', 0)} YOLO_SAR detections, "
+                f"for {summary.total_events} total events."
             )
         )
+
+    if "high" in lowered or "critical" in lowered:
+        summary = repo.summary()
+        high = summary.risk_level_counts.get("HIGH", 0)
+        critical = summary.risk_level_counts.get("CRITICAL", 0)
+        return AskResponse(
+            answer=(
+                f"The backend currently has {high} HIGH-risk detections and {critical} CRITICAL-risk detections. "
+                f"The highest-risk event is {summary.highest_risk_event_id} at score {summary.highest_risk_score}."
+            )
+        )
+
+    if "map50" in lowered or "precision" in lowered or "recall" in lowered or "model" in lowered:
+        metrics_path = settings.data_dir / "metrics.json"
+        if metrics_path.exists():
+            metrics = _load_json(metrics_path)
+            return AskResponse(
+                answer=(
+                    f"The backend metrics file reports {metrics['model']} trained on {metrics['dataset']} "
+                    f"with map50={metrics['map50']}, precision={metrics['precision']}, "
+                    f"recall={metrics['recall']}, and {metrics['detections_on_real_scene']} detections on the validation scene."
+                )
+            )
+
+    if "port" in lowered or "marina" in lowered:
+        ports_path = settings.data_dir / "ports.json"
+        if ports_path.exists():
+            ports = _load_json(ports_path)
+            if ports:
+                port = ports[0]
+                return AskResponse(
+                    answer=(
+                        f"The backend port reference lists {port['name']} as a {port.get('type', 'port')} "
+                        f"at {port['lat']}N, {port['lon']}E from {port.get('source', 'the backend data store')}."
+                    )
+                )
+
+    if "review" in lowered or "resolved" in lowered or "false positive" in lowered:
+        summary = repo.summary()
+        counts = summary.review_status_counts
+        return AskResponse(
+            answer=(
+                "Current review-state counts are: "
+                f"Pending={counts.get('Pending', 0)}, "
+                f"Confirmed Risk={counts.get('Confirmed Risk', 0)}, "
+                f"False Positive={counts.get('False Positive', 0)}, "
+                f"Resolved={counts.get('Resolved', 0)}."
+            )
+        )
+
     return AskResponse(
         answer=(
-            "I can answer questions about loaded detections, risk levels, and proximity to Bar Reef. "
-            "Try asking which detection is highest risk or how many detections are loaded."
+            "I can answer questions about loaded detections, risk levels, review states, model metrics, "
+            "and proximity to Bar Reef. Try asking which detection is highest risk, how many detections are loaded, "
+            "or what the model map50 is."
         )
     )
 

@@ -213,3 +213,21 @@ def test_ask_fallback(client: TestClient) -> None:
     response = client.post("/agents/ask", json={"question": "Which detection is highest risk?"})
     assert response.status_code == 200
     assert "bar-reef-003" in response.json()["answer"]
+
+
+def test_ask_fallback_counts(client: TestClient) -> None:
+    response = client.post("/agents/ask", json={"question": "How many detections are loaded?"})
+    assert response.status_code == 200
+    assert "1 total events" in response.json()["answer"]
+
+
+def test_ask_fallback_model_metrics(client: TestClient) -> None:
+    response = client.post("/agents/ask", json={"question": "What is the model map50?"})
+    assert response.status_code == 200
+    assert "map50=0.838" in response.json()["answer"]
+
+
+def test_ask_fallback_ports(client: TestClient) -> None:
+    response = client.post("/agents/ask", json={"question": "Which marina is in the backend data?"})
+    assert response.status_code == 200
+    assert "Marina" in response.json()["answer"]
