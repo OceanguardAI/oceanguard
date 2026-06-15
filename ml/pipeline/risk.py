@@ -16,13 +16,13 @@ def calculate_risk(
 ) -> tuple[float, str]:
     """Return (risk_score, risk_level) for a single detection.
 
-    AIS matching rule: spatial ≤2 km + time window ±3 h.
-    Near-MPA threshold: ≤5 km from MPA boundary.
+    AIS matching rule: spatial <= 2 km + time window +/- 3 h.
+    Near-MPA threshold: <= 5 km from MPA boundary.
     """
     effective_conf = detection_conf * image_quality_score
 
     if not ais_data_available:
-        ais_score = 0.3  # neutral — absence of data ≠ guilt
+        ais_score = 0.3  # neutral — absence of data != guilt
     else:
         ais_score = 0.0 if ais_matched else 1.0
 
@@ -49,7 +49,6 @@ def calculate_risk(
 
 
 if __name__ == "__main__":
-    # Worked example from BUILD_PLAN.md §4 — must yield 0.61 / HIGH
     score, level = calculate_risk(
         detection_conf=0.70,
         ais_matched=False,

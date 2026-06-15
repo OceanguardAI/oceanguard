@@ -22,11 +22,12 @@ MATCHING_METHOD = "Spatial 2km + 3hr time window"
 CONFIDENCE_THRESHOLD = 0.45
 RECOMMENDED_ACTION = "Human reviewer should verify scene and external context."
 DEFAULT_GFW_ENTRIES = [
-    {"lat": 8.66, "lon": 79.75, "timestamp": "2026-06-09T06:12:00Z"},
-    {"lat": 8.48, "lon": 79.58, "timestamp": "2026-06-09T10:44:00Z"},
-    {"lat": 8.51, "lon": 79.68, "timestamp": "2026-06-09T14:32:00Z"},
-    {"lat": 8.68, "lon": 79.69, "timestamp": "2026-06-09T18:05:00Z"},
+    {"id": "bar-reef-001", "lat": 8.66, "lon": 79.75, "timestamp": "2026-06-09T06:12:00Z"},
+    {"id": "bar-reef-002", "lat": 8.48, "lon": 79.58, "timestamp": "2026-06-09T10:44:00Z"},
+    {"id": "bar-reef-003", "lat": 8.51, "lon": 79.68, "timestamp": "2026-06-09T14:32:00Z"},
+    {"id": "bar-reef-004", "lat": 8.68, "lon": 79.69, "timestamp": "2026-06-09T18:05:00Z"},
 ]
+DEFAULT_GFW_TIMESTAMPS = {entry["id"]: entry["timestamp"] for entry in DEFAULT_GFW_ENTRIES}
 
 
 def _load_gfw_entries(path: Path) -> list[dict]:
@@ -71,6 +72,10 @@ def resolve_source_root(source_root: Path | None = None) -> tuple[Path, Path]:
     return DATA_DIR, OUTPUTS_DIR
 
 
+def _canonical_gfw_timestamp(event_id: str) -> str:
+    return DEFAULT_GFW_TIMESTAMPS.get(event_id, "2026-06-09T12:00:00Z")
+
+
 def build_events(
     source_root: Path | None = None,
     output_dir: Path | None = None,
@@ -93,8 +98,8 @@ def build_events(
     for index, entry in enumerate(gfw_entries, start=1):
         lat = float(entry["lat"])
         lon = float(entry["lon"])
-        timestamp = entry.get("timestamp", "2026-06-09T12:00:00Z")
         event_id = entry.get("id", f"bar-reef-{index:03d}")
+        timestamp = entry.get("timestamp", _canonical_gfw_timestamp(event_id))
 
         distance_km = distance_to_mpa(lat, lon, mpa_polygon)
         inside_mpa, near_mpa = classify_mpa(distance_km)

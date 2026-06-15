@@ -176,4 +176,5 @@ def test_build_events_supports_temporary_artifact_layout(tmp_path):
     assert len(events) == 2
     assert events[0]["id"] == "bar-reef-003"
     assert events[0]["risk_level"] == "HIGH"
+    assert events[0]["timestamp"] == "2026-06-09T14:32:00Z"
     assert events[1]["id"] == "yolo-001"
