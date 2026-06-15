@@ -1,6 +1,7 @@
 """Build risk_events.json from cached GFW data and YOLO detections."""
 from __future__ import annotations
 
+import argparse
 import json
 import os
 import sys
@@ -14,6 +15,7 @@ from pipeline.risk import calculate_risk
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 OUTPUTS_DIR = BASE_DIR / "outputs"
+DEFAULT_SOURCE_ROOT = BASE_DIR / "Temprary" / "ml"
 
 MPA_NAME = "Bar Reef Marine Sanctuary"
 MATCHING_METHOD = "Spatial 2km + 3hr time window"
@@ -33,7 +35,7 @@ def _load_gfw_entries(path: Path) -> list[dict]:
 
     if isinstance(raw, list):
         return raw
-    for key in ("entries", "results", "data"):
+    for key in ("entries", "results", "data", "detections"):
         if key in raw and isinstance(raw[key], list):
             return raw[key]
 
@@ -41,22 +43,58 @@ def _load_gfw_entries(path: Path) -> list[dict]:
     return DEFAULT_GFW_ENTRIES
 
 
-def build_events() -> list[dict]:
-    OUTPUTS_DIR.mkdir(exist_ok=True)
+def resolve_source_root(source_root: Path | None = None) -> tuple[Path, Path]:
+    """Return data/output directories for the chosen artifact root."""
+    candidate_roots = [source_root] if source_root is not None else []
+    candidate_roots.extend([BASE_DIR, DEFAULT_SOURCE_ROOT])
 
-    mpa_polygon = load_mpa(DATA_DIR / "bar_reef.geojson")
-    ports_json = DATA_DIR / "overpass_bar_reef_ports.json"
+    seen: set[Path] = set()
+    for root in candidate_roots:
+        if root is None:
+            continue
+        root = root.resolve()
+        if root in seen:
+            continue
+        seen.add(root)
+
+        data_dir = root / "data"
+        outputs_dir = root / "outputs"
+        required = [
+            data_dir / "bar_reef.geojson",
+            data_dir / "gfw_bar_reef_sar_unmatched.json",
+            data_dir / "overpass_bar_reef_ports.json",
+            outputs_dir / "detections_scene1_georef.json",
+        ]
+        if all(path.exists() for path in required):
+            return data_dir, outputs_dir
+
+    return DATA_DIR, OUTPUTS_DIR
+
+
+def build_events(
+    source_root: Path | None = None,
+    output_dir: Path | None = None,
+) -> list[dict]:
+    data_dir, source_outputs_dir = resolve_source_root(source_root)
+    target_output_dir = (output_dir or OUTPUTS_DIR).resolve()
+    target_output_dir.mkdir(parents=True, exist_ok=True)
+
+    print(f"Using data dir: {data_dir}")
+    print(f"Using detections dir: {source_outputs_dir}")
+
+    mpa_polygon = load_mpa(data_dir / "bar_reef.geojson")
+    ports_json = data_dir / "overpass_bar_reef_ports.json"
     events: list[dict] = []
 
     print("Loading GFW data...")
-    gfw_entries = _load_gfw_entries(DATA_DIR / "gfw_bar_reef_sar_unmatched.json")
+    gfw_entries = _load_gfw_entries(data_dir / "gfw_bar_reef_sar_unmatched.json")
     print(f"  Found {len(gfw_entries)} GFW detections")
 
     for index, entry in enumerate(gfw_entries, start=1):
         lat = float(entry["lat"])
         lon = float(entry["lon"])
         timestamp = entry.get("timestamp", "2026-06-09T12:00:00Z")
-        event_id = f"bar-reef-{index:03d}"
+        event_id = entry.get("id", f"bar-reef-{index:03d}")
 
         distance_km = distance_to_mpa(lat, lon, mpa_polygon)
         inside_mpa, near_mpa = classify_mpa(distance_km)
@@ -106,7 +144,7 @@ def build_events() -> list[dict]:
         )
 
     print("\nLoading YOLO_SAR detections...")
-    with (OUTPUTS_DIR / "detections_scene1_georef.json").open(encoding="utf-8") as f:
+    with (source_outputs_dir / "detections_scene1_georef.json").open(encoding="utf-8") as f:
         yolo_detections = json.load(f)
     print(f"  Found {len(yolo_detections)} YOLO detections")
 
@@ -153,9 +191,28 @@ def build_events() -> list[dict]:
     return events
 
 
+def parse_args() -> argparse.Namespace:
+    parser = argparse.ArgumentParser(description="Build risk_events.json from ML artifacts.")
+    parser.add_argument(
+        "--source-root",
+        type=Path,
+        default=None,
+        help="Artifact root containing data/ and outputs/ folders. "
+        "Defaults to ml/ or ml/Temprary/ml when available.",
+    )
+    parser.add_argument(
+        "--output-dir",
+        type=Path,
+        default=OUTPUTS_DIR,
+        help="Directory where risk_events.json should be written.",
+    )
+    return parser.parse_args()
+
+
 def main() -> None:
-    events = build_events()
-    out_path = OUTPUTS_DIR / "risk_events.json"
+    args = parse_args()
+    events = build_events(source_root=args.source_root, output_dir=args.output_dir)
+    out_path = args.output_dir / "risk_events.json"
     with out_path.open("w", encoding="utf-8") as f:
         json.dump(events, f, indent=2)
 
