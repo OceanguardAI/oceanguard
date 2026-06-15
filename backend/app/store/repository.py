@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import json
+from pathlib import Path
 
 from app.core.config import settings
-from app.models.schemas import RiskEvent
+from app.models.schemas import RiskEvent, RiskSummary
 
 
 class RiskEventRepository:
     def __init__(self) -> None:
         self._events: dict[str, RiskEvent] = {}
+        self._path: Path | None = None
 
     def load(self) -> None:
         path = settings.data_dir / "risk_events.json"
@@ -20,14 +22,29 @@ class RiskEventRepository:
             )
 
         raw = json.loads(path.read_text(encoding="utf-8"))
+        self._path = path
         self._events = {item["id"]: RiskEvent(**item) for item in raw}
 
-    def all(self, source: str | None = None, level: str | None = None) -> list[RiskEvent]:
+    def save(self) -> None:
+        if self._path is None:
+            self._path = settings.data_dir / "risk_events.json"
+        self._path.parent.mkdir(parents=True, exist_ok=True)
+        payload = [event.model_dump() for event in self._events.values()]
+        self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+
+    def all(
+        self,
+        source: str | None = None,
+        level: str | None = None,
+        review_status: str | None = None,
+    ) -> list[RiskEvent]:
         events = list(self._events.values())
         if source:
             events = [event for event in events if event.source == source]
         if level:
             events = [event for event in events if event.risk_level == level]
+        if review_status:
+            events = [event for event in events if event.review_status == review_status]
         return events
 
     def get(self, event_id: str) -> RiskEvent | None:
@@ -40,7 +57,33 @@ class RiskEventRepository:
 
         updated = event.model_copy(update={"review_status": status})
         self._events[event_id] = updated
+        self.save()
         return updated
+
+    def summary(self) -> RiskSummary:
+        events = list(self._events.values())
+        source_counts: dict[str, int] = {}
+        risk_level_counts: dict[str, int] = {}
+        review_status_counts: dict[str, int] = {}
+
+        for event in events:
+            source_counts[event.source] = source_counts.get(event.source, 0) + 1
+            risk_level_counts[event.risk_level] = risk_level_counts.get(event.risk_level, 0) + 1
+            review_status_counts[event.review_status] = (
+                review_status_counts.get(event.review_status, 0) + 1
+            )
+
+        highest = max(events, key=lambda item: item.risk_score, default=None)
+        return RiskSummary(
+            total_events=len(events),
+            source_counts=source_counts,
+            risk_level_counts=risk_level_counts,
+            review_status_counts=review_status_counts,
+            inside_mpa_count=sum(1 for event in events if event.inside_mpa),
+            near_mpa_count=sum(1 for event in events if event.near_mpa),
+            highest_risk_event_id=highest.id if highest else None,
+            highest_risk_score=highest.risk_score if highest else None,
+        )
 
 
 repo = RiskEventRepository()

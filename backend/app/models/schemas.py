@@ -79,3 +79,14 @@ class AskRequest(BaseModel):
 
 class AskResponse(BaseModel):
     answer: str
+
+
+class RiskSummary(BaseModel):
+    total_events: int
+    source_counts: dict[str, int]
+    risk_level_counts: dict[str, int]
+    review_status_counts: dict[str, int]
+    inside_mpa_count: int
+    near_mpa_count: int
+    highest_risk_event_id: str | None
+    highest_risk_score: float | None

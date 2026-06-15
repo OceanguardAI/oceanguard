@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.schemas import ReviewUpdate, RiskEvent
+from app.models.schemas import ReviewUpdate, RiskEvent, RiskSummary
 from app.store.repository import repo
 
 router = APIRouter()
@@ -17,8 +17,17 @@ def get_detections() -> list[RiskEvent]:
 def get_risk_events(
     source: str | None = Query(default=None, description="GFW or YOLO_SAR"),
     level: str | None = Query(default=None, description="LOW, MEDIUM, HIGH, CRITICAL"),
+    review_status: str | None = Query(
+        default=None,
+        description="Pending, Confirmed Risk, False Positive, Resolved",
+    ),
 ) -> list[RiskEvent]:
-    return repo.all(source=source, level=level)
+    return repo.all(source=source, level=level, review_status=review_status)
+
+
+@router.get("/risk-summary", response_model=RiskSummary)
+def get_risk_summary() -> RiskSummary:
+    return repo.summary()
 
 
 @router.get("/risk-events/{event_id}", response_model=RiskEvent)

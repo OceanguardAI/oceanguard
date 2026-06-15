@@ -114,6 +114,15 @@ def test_filter_level(client: TestClient) -> None:
     assert all(item["risk_level"] == "HIGH" for item in response.json())
 
 
+def test_risk_summary(client: TestClient) -> None:
+    response = client.get("/risk-summary")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["total_events"] == 1
+    assert body["source_counts"]["GFW"] == 1
+    assert body["highest_risk_event_id"] == "bar-reef-003"
+
+
 def test_update_review(client: TestClient) -> None:
     response = client.post(
         "/risk-events/bar-reef-003/review",
@@ -121,6 +130,29 @@ def test_update_review(client: TestClient) -> None:
     )
     assert response.status_code == 200
     assert response.json()["review_status"] == "Confirmed Risk"
+
+
+def test_filter_review_status(client: TestClient) -> None:
+    client.post(
+        "/risk-events/bar-reef-003/review",
+        json={"review_status": "Confirmed Risk"},
+    )
+    response = client.get("/risk-events?review_status=Confirmed Risk")
+    assert response.status_code == 200
+    assert [item["id"] for item in response.json()] == ["bar-reef-003"]
+
+
+def test_update_review_persists_to_disk(client: TestClient) -> None:
+    response = client.post(
+        "/risk-events/bar-reef-003/review",
+        json={"review_status": "Resolved"},
+    )
+    assert response.status_code == 200
+
+    from app.core.config import settings
+
+    persisted = json.loads((settings.data_dir / "risk_events.json").read_text(encoding="utf-8"))
+    assert persisted[0]["review_status"] == "Resolved"
 
 
 def test_metrics(client: TestClient) -> None:
@@ -143,14 +175,34 @@ def test_narrate_fallback(client: TestClient) -> None:
     assert "uncertainty" in body
 
 
+def test_narrate_loaded_event_fallback(client: TestClient) -> None:
+    response = client.post("/agents/narrate/bar-reef-003")
+    assert response.status_code == 200
+    assert "why_flagged" in response.json()
+
+
 def test_briefing_fallback(client: TestClient) -> None:
     response = client.post("/agents/briefing", json=[FIXTURE_EVENT])
     assert response.status_code == 200
     assert len(response.json()["briefing"]) > 10
 
 
+def test_briefing_current_from_repo(client: TestClient) -> None:
+    response = client.post("/agents/briefing/current?source=GFW")
+    assert response.status_code == 200
+    assert "bar-reef-003" in response.json()["briefing"]
+
+
 def test_patrol_fallback(client: TestClient) -> None:
     response = client.post("/agents/patrol", json=[FIXTURE_EVENT])
+    assert response.status_code == 200
+    body = response.json()
+    assert body[0]["rank"] == 1
+    assert body[0]["id"] == "bar-reef-003"
+
+
+def test_patrol_current_from_repo(client: TestClient) -> None:
+    response = client.post("/agents/patrol/current?review_status=Pending")
     assert response.status_code == 200
     body = response.json()
     assert body[0]["rank"] == 1
