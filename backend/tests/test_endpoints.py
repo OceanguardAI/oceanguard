@@ -86,6 +86,7 @@ def test_health(client: TestClient) -> None:
     response = client.get("/health")
     assert response.status_code == 200
     assert response.json()["status"] == "ok"
+    assert response.json()["events_loaded"] == 1
 
 
 def test_list_risk_events(client: TestClient) -> None:
@@ -167,6 +168,24 @@ def test_mpa(client: TestClient) -> None:
     assert response.json()["type"] == "Feature"
 
 
+def test_ports(client: TestClient) -> None:
+    response = client.get("/ports")
+    assert response.status_code == 200
+    assert response.json()[0]["name"] == "Marina"
+
+
+def test_cors_preflight_health(client: TestClient) -> None:
+    response = client.options(
+        "/health",
+        headers={
+            "Origin": "http://localhost:5173",
+            "Access-Control-Request-Method": "GET",
+        },
+    )
+    assert response.status_code == 200
+    assert response.headers["access-control-allow-origin"] == "http://localhost:5173"
+
+
 def test_narrate_fallback(client: TestClient) -> None:
     response = client.post("/agents/narrate", json=FIXTURE_EVENT)
     assert response.status_code == 200
@@ -179,6 +198,11 @@ def test_narrate_loaded_event_fallback(client: TestClient) -> None:
     response = client.post("/agents/narrate/bar-reef-003")
     assert response.status_code == 200
     assert "why_flagged" in response.json()
+
+
+def test_narrate_loaded_event_not_found(client: TestClient) -> None:
+    response = client.post("/agents/narrate/no-such")
+    assert response.status_code == 404
 
 
 def test_briefing_fallback(client: TestClient) -> None:
