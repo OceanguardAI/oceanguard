@@ -16,8 +16,11 @@ It fuses Synthetic Aperture Radar (SAR) object detection, Automatic Identificati
 ```bash
 cd ml
 pip install -r requirements.txt
-python build_risk_events.py
+python run_full_ml_workflow.py
+python report_ml_status.py
 ```
+
+See `ml/README.md` for the full ML workflow, temporary artifact handling, raw `.tif` inference, and verification commands.
 
 ### 2. Run Backend
 ```bash
