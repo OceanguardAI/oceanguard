@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
+from typing import Any
 
 from app.agents.client import get_client
 from app.agents.helpers import build_event_context, first_text_block
 from app.core.config import settings
-from app.models.schemas import AskResponse
+from app.models.schemas import AskResponse, RiskEvent
 from app.store.repository import repo
 
 SYSTEM_PROMPT = """You are OceanGuard AI, a marine conservation decision-support assistant.
@@ -15,6 +17,7 @@ Use the provided tools to answer questions accurately from the loaded detection 
 Never speculate beyond the data and never make accusations."""
 
 MAX_TOOL_EVENTS = 10
+EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
 
 TOOLS = [
     {
@@ -70,6 +73,48 @@ def _load_json(path: Path) -> object:
     return json.loads(path.read_text(encoding="utf-8"))
 
 
+def _summarise_event(event: RiskEvent) -> str:
+    distance = (
+        f"{event.distance_to_mpa_km:.1f} km from {event.mpa_name or 'the protected-area boundary'}"
+        if event.distance_to_mpa_km is not None
+        else "outside the stored MPA-distance range"
+    )
+    ais_status = (
+        "no AIS match"
+        if event.ais_data_available and not event.ais_matched
+        else "an AIS match"
+        if event.ais_data_available
+        else "no AIS coverage data"
+    )
+    return (
+        f"{event.id} is currently scored {event.risk_score:.2f} ({event.risk_level}) with review status "
+        f"{event.review_status}. It is {distance}, has SAR confidence {event.sar_confidence:.0%}, and has {ais_status}. "
+        f"Recommended action: {event.recommended_action}"
+    )
+
+
+def _find_event_from_question(question: str) -> RiskEvent | None:
+    for match in EVENT_ID_PATTERN.findall(question.lower()):
+        event = repo.get(match)
+        if event is not None:
+            return event
+    return None
+
+
+def _tool_result_blocks(content: list[Any]) -> list[dict[str, str]]:
+    results = []
+    for block in content:
+        if getattr(block, "type", None) == "tool_use":
+            results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": _run_tool(block.name, block.input),
+                }
+            )
+    return results
+
+
 def _run_tool(name: str, inputs: dict) -> str:
     if name == "query_detections":
         limit = int(inputs.get("limit", MAX_TOOL_EVENTS) or MAX_TOOL_EVENTS)
@@ -113,6 +158,10 @@ def _run_tool(name: str, inputs: dict) -> str:
 
 def _fallback(question: str) -> AskResponse:
     lowered = question.lower()
+    matched_event = _find_event_from_question(question)
+
+    if matched_event is not None:
+        return AskResponse(answer=_summarise_event(matched_event))
 
     if "highest" in lowered or "most" in lowered or "bar-reef-003" in lowered:
         summary = repo.summary()
@@ -217,16 +266,9 @@ async def ask(question: str) -> AskResponse:
                 break
 
             messages.append({"role": "assistant", "content": response.content})
-            tool_results = []
-            for block in response.content:
-                if getattr(block, "type", None) == "tool_use":
-                    tool_results.append(
-                        {
-                            "type": "tool_result",
-                            "tool_use_id": block.id,
-                            "content": _run_tool(block.name, block.input),
-                        }
-                    )
+            tool_results = _tool_result_blocks(response.content)
+            if not tool_results:
+                break
             messages.append({"role": "user", "content": tool_results})
     except Exception:
         return _fallback(question)

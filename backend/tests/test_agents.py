@@ -176,6 +176,65 @@ def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
     assert calls[0]["max_tokens"] == 321
 
 
+def test_ask_tool_loop_executes_tool_and_returns_final_answer(monkeypatch) -> None:
+    original_events = repo._events.copy()
+    calls: list[dict] = []
+    responses = [
+        SimpleNamespace(
+            stop_reason="tool_use",
+            content=[
+                SimpleNamespace(
+                    type="tool_use",
+                    id="toolu_1",
+                    name="get_event",
+                    input={"id": "bar-reef-003"},
+                )
+            ],
+        ),
+        SimpleNamespace(
+            stop_reason="end_turn",
+            content=[SimpleNamespace(text="bar-reef-003 remains the highest-risk reviewed lead.")],
+        ),
+    ]
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        return responses[len(calls) - 1]
+
+    try:
+        event = _event(review_status="Resolved")
+        repo._events = {event.id: event}
+        monkeypatch.setattr(
+            ask,
+            "get_client",
+            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+        )
+
+        result = asyncio.run(ask.ask("Give me the latest details for bar-reef-003"))
+    finally:
+        repo._events = original_events
+
+    assert result.answer == "bar-reef-003 remains the highest-risk reviewed lead."
+    assert len(calls) == 2
+    tool_results = calls[1]["messages"][-1]["content"]
+    assert tool_results[0]["type"] == "tool_result"
+    assert '"review_status": "Resolved"' in tool_results[0]["content"]
+
+
+def test_ask_fallback_specific_event_uses_repo_data() -> None:
+    original_events = repo._events.copy()
+    try:
+        event = _event(review_status="Resolved", risk_score=0.77, risk_level="CRITICAL")
+        repo._events = {event.id: event}
+        result = ask._fallback("What is the current status of bar-reef-003?")
+    finally:
+        repo._events = original_events
+
+    assert "0.77 (CRITICAL)" in result.answer
+    assert "review status Resolved" in result.answer
+    assert "Recommended action" in result.answer
+
+
 def test_event_summary_line_includes_core_context() -> None:
     line = helpers.event_summary_line(_event(review_status="Resolved"), include_review=True)
     assert "bar-reef-003" in line
