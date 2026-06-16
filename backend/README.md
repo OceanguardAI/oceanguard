@@ -74,6 +74,7 @@ curl http://localhost:8000/health
 
 Posted payload routes:
 
+- `GET /agents/status`
 - `POST /agents/narrate`
 - `POST /agents/briefing`
 - `POST /agents/patrol`

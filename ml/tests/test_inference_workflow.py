@@ -29,7 +29,7 @@ def test_run_inference_pipeline_orchestrates_all_steps(tmp_path, monkeypatch):
         calls.append(("detect", tile_dir, model, conf_threshold, chunk_size, checkpoint_path))
         return [
             {
-                "tile_path": str(tiles_dir / "tile_r0000_c0000.png"),
+                "tile": str(tiles_dir / "tile_r0000_c0000.png"),
                 "row_off": 0,
                 "col_off": 0,
                 "x_center_px": 100.0,

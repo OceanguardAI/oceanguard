@@ -7,17 +7,44 @@ import { Crosshair } from "lucide-react";
 export default function PatrolBoard({ events, onSelect }: { events: RiskEvent[]; onSelect: (e: RiskEvent) => void }) {
   const [items, setItems] = useState<PatrolItem[]>([]);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestKey = events
+    .map(
+      (event) =>
+        `${event.id}:${event.risk_score}:${event.risk_level}:${event.distance_to_mpa_km ?? "na"}:${event.inside_mpa ? 1 : 0}:${event.near_mpa ? 1 : 0}`
+    )
+    .join("|");
 
   useEffect(() => {
-    if (events.length === 0) return;
-    setLoading(true);
-    getPatrolRanking(events)
-      .then(res => setItems(res.slice(0, 3))) // Top 3
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [events]);
+    if (events.length === 0) {
+      setItems([]);
+      setError(null);
+      return;
+    }
 
-  if (!loading && items.length === 0) return null;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getPatrolRanking(events)
+      .then((res) => {
+        if (!cancelled) setItems(res.slice(0, 3));
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setItems([]);
+          setError("Couldn't load patrol priorities. Try again.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey]);
+
+  if (!loading && items.length === 0 && !error) return null;
 
   return (
     <div className="bg-ocean-800 border border-ocean-700 rounded-lg p-4 shadow-lg">
@@ -27,6 +54,8 @@ export default function PatrolBoard({ events, onSelect }: { events: RiskEvent[];
       
       {loading ? (
         <div className="text-sm text-slate-400 animate-pulse">Generating patrol priorities...</div>
+      ) : error ? (
+        <div className="text-sm text-risk-high">{error}</div>
       ) : (
         <div className="space-y-3">
           {items.map(item => (

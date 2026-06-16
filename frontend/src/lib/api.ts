@@ -1,6 +1,6 @@
 import {
   RiskEvent, ModelMetrics, NarrateResponse,
-  BriefingResponse, PatrolItem, AskResponse
+  BriefingResponse, PatrolItem, AskResponse, MPAGeoJSON
 } from "../types";
 
 const API_BASE = "/api";
@@ -21,10 +21,10 @@ export async function fetchModelMetrics(): Promise<ModelMetrics> {
   return res.json();
 }
 
-export async function fetchMPA() {
+export async function fetchMPA(): Promise<MPAGeoJSON> {
   const res = await fetch(`${API_BASE}/mpa`);
   if (!res.ok) throw new Error("Failed to fetch MPA");
-  return res.json();
+  return res.json() as Promise<MPAGeoJSON>;
 }
 
 export async function updateReviewStatus(id: string, status: string): Promise<RiskEvent> {

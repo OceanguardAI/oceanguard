@@ -1,5 +1,7 @@
 import json
 
+import pytest
+
 from pipeline.enrich import classify_mpa, distance_to_mpa, load_mpa, nearest_port_distance
 
 
@@ -44,9 +46,19 @@ def test_bar_reef_reference_points_match_expected_ranges(tmp_path):
     inside, near = classify_mpa(near_distance)
     port_distance, port_name = nearest_port_distance(8.51, 79.68, ports_path)
 
-    assert 0.2 <= near_distance <= 1.0
-    assert far_distance > 5.0
+    assert near_distance == pytest.approx(0.37, abs=0.02)
+    assert far_distance == pytest.approx(14.09, abs=0.05)
     assert inside is False
     assert near is True
-    assert 30.0 <= port_distance <= 40.0
+    assert port_distance == pytest.approx(32.9, abs=0.1)
     assert port_name == "Marina (OSM)"
+
+
+def test_nearest_port_distance_returns_none_when_port_data_is_empty(tmp_path):
+    ports_path = tmp_path / "ports.json"
+    ports_path.write_text(json.dumps({"elements": []}), encoding="utf-8")
+
+    distance, name = nearest_port_distance(8.51, 79.68, ports_path)
+
+    assert distance is None
+    assert name is None

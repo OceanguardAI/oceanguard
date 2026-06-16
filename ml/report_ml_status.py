@@ -6,36 +6,9 @@ import hashlib
 import json
 from pathlib import Path
 
-from build_risk_events import DEFAULT_SOURCE_ROOT, resolve_source_root
+from build_risk_events import DEFAULT_SOURCE_ROOT, RISK_EVENT_FIELDS, resolve_source_root
 from validate_artifacts import inspect_artifacts
 from validate_model import inspect_model
-
-REQUIRED_EVENT_FIELDS = [
-    "id",
-    "source",
-    "lat",
-    "lon",
-    "risk_score",
-    "risk_level",
-    "sar_confidence",
-    "image_quality",
-    "ais_matched",
-    "ais_data_available",
-    "matching_method",
-    "inside_mpa",
-    "near_mpa",
-    "mpa_name",
-    "distance_to_mpa_km",
-    "distance_from_port_km",
-    "nearest_port",
-    "timestamp",
-    "review_status",
-    "why_flagged",
-    "uncertainty",
-    "confidence_threshold",
-    "recommended_action",
-    "thumbnail",
-]
 
 
 def parse_args() -> argparse.Namespace:
@@ -103,7 +76,7 @@ def inspect_risk_events(risk_events_path: Path) -> dict:
         source = event.get("source", "UNKNOWN")
         source_counts[source] = source_counts.get(source, 0) + 1
 
-        missing = [field for field in REQUIRED_EVENT_FIELDS if field not in event]
+        missing = [field for field in RISK_EVENT_FIELDS if field not in event]
         if missing and len(missing_field_samples) < 5:
             missing_field_samples.append({"id": event.get("id"), "missing": missing})
 
@@ -197,6 +170,11 @@ def summarize_ml_status(
         expected_risk_events=risk_events_path,
         expected_geojson=data_dir / "bar_reef.geojson",
     )
+    workflow_summary_path = risk_events_path.parent / "ml_workflow_summary.json"
+    workflow_summary = None
+    if workflow_summary_path.exists():
+        with workflow_summary_path.open(encoding="utf-8") as f:
+            workflow_summary = json.load(f)
 
     return {
         "source_root": str(source_root),
@@ -205,6 +183,7 @@ def summarize_ml_status(
         "risk_events_summary": risk_events_summary,
         "backend_handoff": backend_summary,
         "using_temporary_cache": source_root == DEFAULT_SOURCE_ROOT.resolve(),
+        "workflow_summary": workflow_summary,
     }
 
 
@@ -213,6 +192,7 @@ def _print_report(report: dict) -> None:
     model_summary = report["model_summary"]
     risk_events_summary = report["risk_events_summary"]
     backend_summary = report["backend_handoff"]
+    workflow_summary = report.get("workflow_summary")
 
     print(f"Source root: {report['source_root']}")
     print(f"Using temporary cache: {report['using_temporary_cache']}")
@@ -254,6 +234,9 @@ def _print_report(report: dict) -> None:
                 "Null risk fields found in: "
                 f"{risk_events_summary['events_with_null_risk']}"
             )
+
+    if workflow_summary and "used_fallback_gfw_data" in workflow_summary:
+        print(f"GFW fallback data used during build: {workflow_summary['used_fallback_gfw_data']}")
 
     print(
         "Backend handoff: "

@@ -84,3 +84,4 @@ def test_run_workflow_materializes_standard_artifacts_from_temporary_cache(tmp_p
     assert saved_summary["materialize_summary"]["attempted"] is True
     assert saved_summary["gfw_events"] == 4
     assert saved_summary["yolo_events"] == 1
+    assert saved_summary["used_fallback_gfw_data"] is False

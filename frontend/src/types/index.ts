@@ -63,3 +63,23 @@ export interface PatrolItem {
 export interface AskResponse {
   answer: string;
 }
+
+export type GeoJSONPosition = [number, number];
+
+export interface GeoJSONPolygonGeometry {
+  type: "Polygon";
+  coordinates: GeoJSONPosition[][];
+}
+
+export interface GeoJSONFeature {
+  type: "Feature";
+  geometry: GeoJSONPolygonGeometry;
+  properties?: Record<string, unknown>;
+}
+
+export interface GeoJSONFeatureCollection {
+  type: "FeatureCollection";
+  features: GeoJSONFeature[];
+}
+
+export type MPAGeoJSON = GeoJSONFeature | GeoJSONFeatureCollection;

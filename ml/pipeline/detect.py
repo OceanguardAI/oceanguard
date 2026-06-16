@@ -74,7 +74,7 @@ def detect_tiles(
 
                 detections.append(
                     {
-                        "tile_path": tile_path,
+                        "tile": tile_path,
                         "row_off": row_off,
                         "col_off": col_off,
                         "x_center_px": round(x_center, 2),

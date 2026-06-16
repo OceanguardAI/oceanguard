@@ -133,9 +133,12 @@ def _run_tool(name: str, inputs: dict) -> str:
         )
 
     if name == "get_event":
-        event = repo.get(inputs["id"])
+        event_id = inputs.get("id")
+        if not event_id:
+            return "Error: get_event tool call missing required 'id' field."
+        event = repo.get(event_id)
         if event is None:
-            return f"Event {inputs['id']} not found."
+            return f"Event {event_id} not found."
         return json.dumps(event.model_dump(), indent=2)
 
     if name == "get_risk_summary":
@@ -270,7 +273,8 @@ async def ask(question: str) -> AskResponse:
             if not tool_results:
                 break
             messages.append({"role": "user", "content": tool_results})
-    except Exception:
+    except Exception as exc:
+        print(f"Ask agent error: {exc}")
         return _fallback(question)
 
     return _fallback(question)

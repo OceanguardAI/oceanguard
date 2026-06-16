@@ -16,6 +16,32 @@ BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 OUTPUTS_DIR = BASE_DIR / "outputs"
 DEFAULT_SOURCE_ROOT = BASE_DIR / "Temprary" / "ml"
+RISK_EVENT_FIELDS = [
+    "id",
+    "source",
+    "lat",
+    "lon",
+    "risk_score",
+    "risk_level",
+    "sar_confidence",
+    "image_quality",
+    "ais_matched",
+    "ais_data_available",
+    "matching_method",
+    "inside_mpa",
+    "near_mpa",
+    "mpa_name",
+    "distance_to_mpa_km",
+    "distance_from_port_km",
+    "nearest_port",
+    "timestamp",
+    "review_status",
+    "why_flagged",
+    "uncertainty",
+    "confidence_threshold",
+    "recommended_action",
+    "thumbnail",
+]
 
 MPA_NAME = "Bar Reef Marine Sanctuary"
 MATCHING_METHOD = "Spatial 2km + 3hr time window"
@@ -34,14 +60,21 @@ def _load_gfw_entries(path: Path) -> list[dict]:
     with path.open(encoding="utf-8") as f:
         raw = json.load(f)
 
-    if isinstance(raw, list):
-        return raw
-    for key in ("entries", "results", "data", "detections"):
-        if key in raw and isinstance(raw[key], list):
-            return raw[key]
+    entries, used_fallback = extract_gfw_entries(raw)
+    if used_fallback:
+        print("  Warning: unrecognised GFW format, using canonical fallback values")
+    return entries
 
-    print("  Warning: unrecognised GFW format, using canonical fallback values")
-    return DEFAULT_GFW_ENTRIES
+
+def extract_gfw_entries(raw: object) -> tuple[list[dict], bool]:
+    if isinstance(raw, list):
+        return raw, False
+    if isinstance(raw, dict):
+        for key in ("entries", "results", "data", "detections"):
+            if key in raw and isinstance(raw[key], list):
+                return raw[key], False
+
+    return DEFAULT_GFW_ENTRIES, True
 
 
 def resolve_source_root(source_root: Path | None = None) -> tuple[Path, Path]:
@@ -79,7 +112,8 @@ def _canonical_gfw_timestamp(event_id: str) -> str:
 def build_events(
     source_root: Path | None = None,
     output_dir: Path | None = None,
-) -> list[dict]:
+    return_metadata: bool = False,
+) -> list[dict] | tuple[list[dict], dict[str, bool]]:
     data_dir, source_outputs_dir = resolve_source_root(source_root)
     target_output_dir = (output_dir or OUTPUTS_DIR).resolve()
     target_output_dir.mkdir(parents=True, exist_ok=True)
@@ -90,9 +124,15 @@ def build_events(
     mpa_polygon = load_mpa(data_dir / "bar_reef.geojson")
     ports_json = data_dir / "overpass_bar_reef_ports.json"
     events: list[dict] = []
+    build_metadata = {"used_fallback_gfw_data": False}
 
     print("Loading GFW data...")
-    gfw_entries = _load_gfw_entries(data_dir / "gfw_bar_reef_sar_unmatched.json")
+    with (data_dir / "gfw_bar_reef_sar_unmatched.json").open(encoding="utf-8") as f:
+        gfw_raw = json.load(f)
+    gfw_entries, used_fallback_gfw_data = extract_gfw_entries(gfw_raw)
+    build_metadata["used_fallback_gfw_data"] = used_fallback_gfw_data
+    if used_fallback_gfw_data:
+        print("  Warning: unrecognised GFW format, using canonical fallback values")
     print(f"  Found {len(gfw_entries)} GFW detections")
 
     for index, entry in enumerate(gfw_entries, start=1):
@@ -105,6 +145,7 @@ def build_events(
         inside_mpa, near_mpa = classify_mpa(distance_km)
         port_distance_km, port_name = nearest_port_distance(lat, lon, ports_json)
 
+        # fishing_score and repeated_activity_score are reserved for future GFW activity signals.
         risk_score, risk_level = calculate_risk(
             detection_conf=0.70,
             ais_matched=False,
@@ -155,6 +196,7 @@ def build_events(
 
     for index, detection in enumerate(yolo_detections, start=1):
         confidence = float(detection.get("confidence", 0.50))
+        # Future versions may add fishing/repeat-activity signals here; demo data leaves them at 0.0.
         risk_score, risk_level = calculate_risk(
             detection_conf=confidence,
             ais_matched=False,
@@ -193,6 +235,8 @@ def build_events(
             }
         )
 
+    if return_metadata:
+        return events, build_metadata
     return events
 
 

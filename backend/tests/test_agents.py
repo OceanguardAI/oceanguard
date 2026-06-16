@@ -96,6 +96,17 @@ def test_patrol_falls_back_on_invalid_json(monkeypatch) -> None:
     assert result[0].rank == 1
 
 
+def test_patrol_zero_distance_stays_highest_priority_on_ties() -> None:
+    result = patrol._deterministic_rank(
+        [
+            _event(id="boundary", risk_score=0.61, near_mpa=True, inside_mpa=False, distance_to_mpa_km=0.0),
+            _event(id="farther", risk_score=0.61, near_mpa=True, inside_mpa=False, distance_to_mpa_km=1.2),
+        ]
+    )
+
+    assert result[0].id == "boundary"
+
+
 def test_ask_tool_query_detections_includes_review_status() -> None:
     original_events = repo._events.copy()
     try:
@@ -107,6 +118,11 @@ def test_ask_tool_query_detections_includes_review_status() -> None:
 
     assert "Found 1 event(s):" in text
     assert "review_status=Resolved" in text
+
+
+def test_ask_get_event_tool_requires_id() -> None:
+    text = ask._run_tool("get_event", {})
+    assert "missing required 'id' field" in text
 
 
 def test_ask_fallback_review_counts(monkeypatch, tmp_path: Path) -> None:

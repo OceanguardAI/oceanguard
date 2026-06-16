@@ -168,10 +168,28 @@ def test_mpa(client: TestClient) -> None:
     assert response.json()["type"] == "Feature"
 
 
+def test_mpa_missing_file_returns_503(client: TestClient) -> None:
+    from app.core.config import settings
+
+    (settings.data_dir / "bar_reef.geojson").unlink()
+    response = client.get("/mpa")
+    assert response.status_code == 503
+    assert "Run the ML sync step" in response.json()["detail"]
+
+
 def test_ports(client: TestClient) -> None:
     response = client.get("/ports")
     assert response.status_code == 200
     assert response.json()[0]["name"] == "Marina"
+
+
+def test_ports_missing_file_returns_503(client: TestClient) -> None:
+    from app.core.config import settings
+
+    (settings.data_dir / "ports.json").unlink()
+    response = client.get("/ports")
+    assert response.status_code == 503
+    assert "Run the ML sync step" in response.json()["detail"]
 
 
 def test_cors_preflight_health(client: TestClient) -> None:
@@ -267,6 +285,15 @@ def test_ask_fallback_model_metrics(client: TestClient) -> None:
     response = client.post("/agents/ask", json={"question": "What is the model map50?"})
     assert response.status_code == 200
     assert "map50=0.838" in response.json()["answer"]
+
+
+def test_metrics_missing_file_returns_503(client: TestClient) -> None:
+    from app.core.config import settings
+
+    (settings.data_dir / "metrics.json").unlink()
+    response = client.get("/model-metrics")
+    assert response.status_code == 503
+    assert "Run the ML sync step" in response.json()["detail"]
 
 
 def test_ask_fallback_ports(client: TestClient) -> None:

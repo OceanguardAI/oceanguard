@@ -2,7 +2,10 @@
 from __future__ import annotations
 
 import json
+import os
+import tempfile
 from pathlib import Path
+from threading import RLock
 
 from app.core.config import settings
 from app.models.schemas import RiskEvent, RiskSummary
@@ -12,6 +15,7 @@ class RiskEventRepository:
     def __init__(self) -> None:
         self._events: dict[str, RiskEvent] = {}
         self._path: Path | None = None
+        self._lock = RLock()
 
     def load(self) -> None:
         path = settings.data_dir / "risk_events.json"
@@ -26,11 +30,23 @@ class RiskEventRepository:
         self._events = {item["id"]: RiskEvent(**item) for item in raw}
 
     def save(self) -> None:
-        if self._path is None:
-            self._path = settings.data_dir / "risk_events.json"
-        self._path.parent.mkdir(parents=True, exist_ok=True)
-        payload = [event.model_dump() for event in self._events.values()]
-        self._path.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+        with self._lock:
+            if self._path is None:
+                self._path = settings.data_dir / "risk_events.json"
+            self._path.parent.mkdir(parents=True, exist_ok=True)
+            payload = [event.model_dump() for event in self._events.values()]
+
+            fd, tmp_path = tempfile.mkstemp(dir=self._path.parent, suffix=".tmp")
+            try:
+                with os.fdopen(fd, "w", encoding="utf-8") as handle:
+                    json.dump(payload, handle, indent=2)
+                    handle.flush()
+                    os.fsync(handle.fileno())
+                os.replace(tmp_path, self._path)
+            except Exception:
+                if os.path.exists(tmp_path):
+                    os.unlink(tmp_path)
+                raise
 
     def all(
         self,
@@ -51,14 +67,15 @@ class RiskEventRepository:
         return self._events.get(event_id)
 
     def update_review(self, event_id: str, status: str) -> RiskEvent | None:
-        event = self._events.get(event_id)
-        if event is None:
-            return None
+        with self._lock:
+            event = self._events.get(event_id)
+            if event is None:
+                return None
 
-        updated = event.model_copy(update={"review_status": status})
-        self._events[event_id] = updated
-        self.save()
-        return updated
+            updated = event.model_copy(update={"review_status": status})
+            self._events[event_id] = updated
+            self.save()
+            return updated
 
     def summary(self) -> RiskSummary:
         events = list(self._events.values())
