@@ -1,5 +1,3 @@
-version: "3.8"
-
 services:
   backend:
     build: ./backend
@@ -8,7 +6,7 @@ services:
     environment:
       - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY}
     volumes:
-      - ./backend/data:/app/data:ro
+      - ./backend/data:/app/data
 
   frontend:
     build: ./frontend
