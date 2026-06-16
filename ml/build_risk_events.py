@@ -225,6 +225,9 @@ def build_events(
                 "distance_to_mpa_km": None,
                 "distance_from_port_km": None,
                 "nearest_port": None,
+                # Placeholder: the xView3 scene's real capture date isn't carried in the
+                # cached detections file. Every YOLO_SAR event intentionally shares this
+                # value until the real per-scene capture timestamp is plumbed through.
                 "timestamp": "2024-01-15T00:00:00Z",
                 "review_status": "Pending",
                 "why_flagged": "",
