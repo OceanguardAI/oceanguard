@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from app.agents.client import get_client
 from app.agents.helpers import extract_json_object
+from app.core.config import settings
 from app.models.schemas import NarrateResponse, RiskEvent
 
 SYSTEM_PROMPT = """You are a marine conservation analyst for OceanGuard AI.
@@ -64,7 +65,7 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
 
     try:
         message = client.messages.create(
-            model="claude-opus-4-8",
+            model=settings.anthropic_model,
             max_tokens=500,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": _build_user_prompt(event)}],

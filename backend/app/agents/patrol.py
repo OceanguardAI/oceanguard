@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from app.agents.client import get_client
 from app.agents.helpers import extract_json_array
+from app.core.config import settings
 from app.models.schemas import PatrolItem, RiskEvent
 
 SYSTEM_PROMPT = """You are a patrol planning assistant for marine conservation officers.
@@ -62,7 +63,7 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
 
     try:
         message = client.messages.create(
-            model="claude-opus-4-8",
+            model=settings.anthropic_model,
             max_tokens=600,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": "\n".join(prompt_lines)}],

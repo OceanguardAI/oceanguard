@@ -194,6 +194,15 @@ def test_narrate_fallback(client: TestClient) -> None:
     assert "uncertainty" in body
 
 
+def test_agent_status_without_api_key(client: TestClient) -> None:
+    response = client.get("/agents/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert body["anthropic_enabled"] is False
+    assert body["anthropic_model"] == "claude-opus-4-8"
+    assert body["agent_max_tool_rounds"] == 5
+
+
 def test_narrate_loaded_event_fallback(client: TestClient) -> None:
     response = client.post("/agents/narrate/bar-reef-003")
     assert response.status_code == 200

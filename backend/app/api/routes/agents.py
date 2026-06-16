@@ -5,7 +5,9 @@ from fastapi import APIRouter, HTTPException, Query
 from app.agents import ask as ask_agent
 from app.agents import briefing as briefing_agent
 from app.agents import narrator, patrol as patrol_agent
+from app.core.config import settings
 from app.models.schemas import (
+    AgentStatus,
     AskRequest,
     AskResponse,
     BriefingResponse,
@@ -16,6 +18,15 @@ from app.models.schemas import (
 from app.store.repository import repo
 
 router = APIRouter(prefix="/agents")
+
+
+@router.get("/status", response_model=AgentStatus)
+async def agent_status() -> AgentStatus:
+    return AgentStatus(
+        anthropic_enabled=bool(settings.anthropic_api_key),
+        anthropic_model=settings.anthropic_model,
+        agent_max_tool_rounds=settings.agent_max_tool_rounds,
+    )
 
 
 @router.post("/narrate", response_model=NarrateResponse)

@@ -81,6 +81,12 @@ class AskResponse(BaseModel):
     answer: str
 
 
+class AgentStatus(BaseModel):
+    anthropic_enabled: bool
+    anthropic_model: str
+    agent_max_tool_rounds: int
+
+
 class RiskSummary(BaseModel):
     total_events: int
     source_counts: dict[str, int]

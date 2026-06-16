@@ -122,3 +122,31 @@ def test_ask_fallback_review_counts(monkeypatch, tmp_path: Path) -> None:
         ask.settings.data_dir = original_data_dir
 
     assert "Resolved=1" in result.answer
+
+
+def test_ask_uses_configured_model_and_tool_round_limit(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text="Configured.")])
+
+    original_model = ask.settings.anthropic_model
+    original_rounds = ask.settings.agent_max_tool_rounds
+    try:
+        ask.settings.anthropic_model = "claude-test-model"
+        ask.settings.agent_max_tool_rounds = 1
+        monkeypatch.setattr(
+            ask,
+            "get_client",
+            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+        )
+
+        result = asyncio.run(ask.ask("hello"))
+    finally:
+        ask.settings.anthropic_model = original_model
+        ask.settings.agent_max_tool_rounds = original_rounds
+
+    assert result.answer == "Configured."
+    assert len(calls) == 1
+    assert calls[0]["model"] == "claude-test-model"

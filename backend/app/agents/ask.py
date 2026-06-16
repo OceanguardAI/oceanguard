@@ -200,9 +200,9 @@ async def ask(question: str) -> AskResponse:
 
     messages = [{"role": "user", "content": question}]
     try:
-        for _ in range(5):
+        for _ in range(settings.agent_max_tool_rounds):
             response = client.messages.create(
-                model="claude-opus-4-8",
+                model=settings.anthropic_model,
                 max_tokens=700,
                 system=SYSTEM_PROMPT,
                 tools=TOOLS,
