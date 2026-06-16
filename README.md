@@ -43,3 +43,5 @@ Or run everything with Docker:
 ```bash
 docker-compose up --build
 ```
+
+The Docker setup uses `backend/data` as the shared writable runtime data directory, so ML outputs copied there and review-status updates made through the UI both persist across container restarts.

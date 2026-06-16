@@ -56,7 +56,7 @@ PORTS_DEMO = {
 
 YOLO_DEMO = [
     {
-        "tile_path": "tiles/tile_r0000_c0000.png",
+        "tile": "tiles/tile_r0000_c0000.png",
         "row_off": 0,
         "col_off": 0,
         "x_center_px": 312.4,
@@ -69,7 +69,7 @@ YOLO_DEMO = [
         "lon": 4.567890,
     },
     {
-        "tile_path": "tiles/tile_r0640_c1280.png",
+        "tile": "tiles/tile_r0640_c1280.png",
         "row_off": 640,
         "col_off": 1280,
         "x_center_px": 221.9,
@@ -82,7 +82,7 @@ YOLO_DEMO = [
         "lon": 4.574321,
     },
     {
-        "tile_path": "tiles/tile_r1280_c0640.png",
+        "tile": "tiles/tile_r1280_c0640.png",
         "row_off": 1280,
         "col_off": 640,
         "x_center_px": 144.3,

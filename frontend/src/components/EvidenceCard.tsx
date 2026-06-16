@@ -7,20 +7,39 @@ import { Navigation2, Activity, Map, Clock, CheckCircle, XCircle } from "lucide-
 export default function EvidenceCard({ event, onUpdate }: { event: RiskEvent; onUpdate: (e: RiskEvent) => void }) {
   const [narrative, setNarrative] = useState<{why_flagged: string, uncertainty: string} | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [reviewError, setReviewError] = useState<string | null>(null);
 
   useEffect(() => {
+    let cancelled = false;
+    setNarrative(null);
+    setError(null);
     setLoading(true);
     narrateEvent(event)
-      .then(res => setNarrative(res))
-      .finally(() => setLoading(false));
+      .then((res) => {
+        if (!cancelled) setNarrative(res);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setError("Could not load the AI explanation for this detection.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, [event.id]);
 
   const handleReview = async (status: string) => {
     try {
+      setReviewError(null);
       const updated = await updateReviewStatus(event.id, status);
       onUpdate(updated);
-    } catch (e) {
-      console.error(e);
+    } catch {
+      setReviewError("Could not update the review status. Try again.");
     }
   };
 
@@ -68,6 +87,8 @@ export default function EvidenceCard({ event, onUpdate }: { event: RiskEvent; on
         </h3>
         {loading ? (
           <div className="text-sm text-slate-400 animate-pulse">Agent is analysing detection context...</div>
+        ) : error ? (
+          <div className="text-sm text-risk-high">{error}</div>
         ) : narrative ? (
           <div className="space-y-3 text-sm text-slate-300 leading-relaxed">
             <p><strong className="text-slate-200">Why flagged:</strong> {narrative.why_flagged}</p>
@@ -96,6 +117,9 @@ export default function EvidenceCard({ event, onUpdate }: { event: RiskEvent; on
             </div>
           )}
         </div>
+        {reviewError && (
+          <div className="mt-3 text-xs text-risk-high">{reviewError}</div>
+        )}
       </div>
     </div>
   );

@@ -57,17 +57,21 @@ def classify_mpa(distance_km: float) -> tuple[bool, bool]:
     return inside, near
 
 
-def nearest_port_distance(lat: float, lon: float, ports_json_path: str | Path) -> tuple[float, str]:
+def nearest_port_distance(
+    lat: float,
+    lon: float,
+    ports_json_path: str | Path,
+) -> tuple[float | None, str | None]:
     """Return distance in km and name for the nearest OSM port node."""
     with Path(ports_json_path).open(encoding="utf-8") as f:
         data = json.load(f)
 
     elements = data.get("elements", [])
     if not elements:
-        return round(_haversine(lat, lon, 8.2155202, 79.7061466), 1), "Marina (OSM)"
+        return None, None
 
     best_dist = float("inf")
-    best_name = "Port (OSM)"
+    best_name: str | None = "Port (OSM)"
 
     for element in elements:
         if "lat" not in element or "lon" not in element:
@@ -78,6 +82,9 @@ def nearest_port_distance(lat: float, lon: float, ports_json_path: str | Path) -
             best_dist = distance
             tags = element.get("tags", {})
             best_name = tags.get("name", tags.get("leisure", "Port (OSM)"))
+
+    if best_dist == float("inf"):
+        return None, None
 
     return round(best_dist, 1), best_name
 

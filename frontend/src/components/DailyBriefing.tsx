@@ -6,17 +6,44 @@ import { FileText } from "lucide-react";
 export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const requestKey = events
+    .map(
+      (event) =>
+        `${event.id}:${event.risk_score}:${event.risk_level}:${event.distance_to_mpa_km ?? "na"}:${event.inside_mpa ? 1 : 0}:${event.near_mpa ? 1 : 0}`
+    )
+    .join("|");
 
   useEffect(() => {
-    if (events.length === 0) return;
-    setLoading(true);
-    getBriefing(events)
-      .then(res => setBriefing(res.briefing))
-      .catch(console.error)
-      .finally(() => setLoading(false));
-  }, [events]);
+    if (events.length === 0) {
+      setBriefing(null);
+      setError(null);
+      return;
+    }
 
-  if (!loading && !briefing) return null;
+    let cancelled = false;
+    setLoading(true);
+    setError(null);
+    getBriefing(events)
+      .then((res) => {
+        if (!cancelled) setBriefing(res.briefing);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setBriefing(null);
+          setError("Couldn't load the daily briefing. Try again.");
+        }
+      })
+      .finally(() => {
+        if (!cancelled) setLoading(false);
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [requestKey]);
+
+  if (!loading && !briefing && !error) return null;
 
   return (
     <div className="bg-ocean-800 border border-ocean-700 rounded-lg p-4 shadow-lg">
@@ -31,6 +58,8 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
             <div className="h-2 bg-ocean-700 rounded w-5/6"></div>
           </div>
         </div>
+      ) : error ? (
+        <p className="text-sm text-risk-high">{error}</p>
       ) : (
         <p className="text-sm text-slate-300 leading-relaxed">
           {briefing}

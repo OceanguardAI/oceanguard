@@ -43,19 +43,50 @@ export default function MapView({ events, selected, onSelect }: {
   onSelect: (e: RiskEvent) => void;
 }) {
   const [mpaCoords, setMpaCoords] = useState<[number, number][][]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchMPA().then(geojson => {
-      if (geojson && geojson.geometry && geojson.geometry.coordinates) {
-        // GeoJSON is [lon, lat], Leaflet needs [lat, lon]
-        const poly = geojson.geometry.coordinates[0].map((coord: number[]) => [coord[1], coord[0]]);
-        setMpaCoords([poly]);
-      }
-    });
+    let cancelled = false;
+    setError(null);
+
+    fetchMPA()
+      .then((geojson) => {
+        const geometry = geojson.type === "FeatureCollection"
+          ? geojson.features?.[0]?.geometry
+          : geojson.geometry;
+
+        if (!geometry?.coordinates?.[0]) {
+          if (!cancelled) {
+            setMpaCoords([]);
+            setError("Couldn't load the Bar Reef boundary.");
+          }
+          return;
+        }
+
+        const poly = geometry.coordinates[0].map(([lon, lat]) => [lat, lon] as [number, number]);
+        if (!cancelled) {
+          setMpaCoords([poly]);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMpaCoords([]);
+          setError("Couldn't load the Bar Reef boundary.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
   return (
     <div className="w-full h-full relative z-0">
+      {error && (
+        <div className="absolute left-4 top-4 z-[1000] rounded-md border border-risk-high/30 bg-ocean-900/90 px-3 py-2 text-xs text-slate-200">
+          {error}
+        </div>
+      )}
       <MapContainer 
         center={[8.5, 79.7]} 
         zoom={9} 

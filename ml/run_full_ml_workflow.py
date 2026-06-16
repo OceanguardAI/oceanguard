@@ -118,7 +118,11 @@ def run_workflow(
     if not skip_model_check and model_path.exists():
         model_summary = inspect_model(model_path)
 
-    events = build_events(source_root=source_root, output_dir=output_dir)
+    events, build_metadata = build_events(
+        source_root=source_root,
+        output_dir=output_dir,
+        return_metadata=True,
+    )
     risk_events_path = output_dir / "risk_events.json"
     with risk_events_path.open("w", encoding="utf-8") as f:
         json.dump(events, f, indent=2)
@@ -141,6 +145,7 @@ def run_workflow(
         "total_events": len(events),
         "gfw_events": gfw_count,
         "yolo_events": yolo_count,
+        "used_fallback_gfw_data": build_metadata["used_fallback_gfw_data"],
         "bar_reef_003": {
             "risk_score": bar003["risk_score"] if bar003 else None,
             "risk_level": bar003["risk_level"] if bar003 else None,
@@ -183,6 +188,7 @@ def main() -> None:
     print(f"Total events: {workflow_summary['total_events']}")
     print(f"GFW events: {workflow_summary['gfw_events']}")
     print(f"YOLO events: {workflow_summary['yolo_events']}")
+    print(f"GFW fallback data used: {workflow_summary['used_fallback_gfw_data']}")
     bar003 = workflow_summary["bar_reef_003"]
     if bar003["risk_score"] is not None:
         print(

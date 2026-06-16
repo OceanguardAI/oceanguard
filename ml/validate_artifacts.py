@@ -5,7 +5,7 @@ import argparse
 import json
 from pathlib import Path
 
-from build_risk_events import DEFAULT_SOURCE_ROOT, resolve_source_root
+from build_risk_events import DEFAULT_SOURCE_ROOT, extract_gfw_entries, resolve_source_root
 
 
 def parse_args() -> argparse.Namespace:
@@ -42,20 +42,14 @@ def inspect_artifacts(source_root: Path | None = None) -> dict:
     with required["detections_scene1_georef.json"].open(encoding="utf-8") as f:
         detections = json.load(f)
 
-    gfw_entries = []
-    if isinstance(gfw, list):
-        gfw_entries = gfw
-    elif isinstance(gfw, dict):
-        for key in ("entries", "results", "data", "detections"):
-            if isinstance(gfw.get(key), list):
-                gfw_entries = gfw[key]
-                break
+    gfw_entries, used_fallback_gfw_data = extract_gfw_entries(gfw)
 
     return {
         "data_dir": str(data_dir),
         "outputs_dir": str(outputs_dir),
         "using_temporary_cache": data_dir.parent == DEFAULT_SOURCE_ROOT,
         "gfw_detections": len(gfw_entries),
+        "used_fallback_gfw_data": used_fallback_gfw_data,
         "port_elements": len(ports.get("elements", [])),
         "geojson_type": geojson.get("type"),
         "yolo_detections": len(detections),
@@ -74,6 +68,7 @@ def main() -> None:
         print("Using temporary ML artifact cache.")
 
     print(f"GFW detections: {summary['gfw_detections']}")
+    print(f"GFW fallback data used: {summary['used_fallback_gfw_data']}")
     print(f"Port elements: {summary['port_elements']}")
     print(f"GeoJSON type: {summary['geojson_type']}")
     print(f"YOLO detections: {summary['yolo_detections']}")

@@ -6,11 +6,29 @@ import { Target, TrendingUp, AlertTriangle } from "lucide-react";
 
 export default function ModelMetricsComponent() {
   const [metrics, setMetrics] = useState<ModelMetrics | null>(null);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    fetchModelMetrics().then(setMetrics).catch(console.error);
+    let cancelled = false;
+    setError(null);
+
+    fetchModelMetrics()
+      .then((data) => {
+        if (!cancelled) setMetrics(data);
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setMetrics(null);
+          setError("Couldn't load model metrics. Check the backend and try again.");
+        }
+      });
+
+    return () => {
+      cancelled = true;
+    };
   }, []);
 
+  if (error) return <div className="text-risk-high p-8">{error}</div>;
   if (!metrics) return <div className="text-slate-400 p-8">Loading metrics...</div>;
 
   return (

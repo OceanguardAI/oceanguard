@@ -18,7 +18,7 @@ def _deterministic_rank(events: list[RiskEvent]) -> list[PatrolItem]:
             event.risk_score,
             event.inside_mpa,
             event.near_mpa,
-            -(event.distance_to_mpa_km or 9999),
+            -(event.distance_to_mpa_km if event.distance_to_mpa_km is not None else 9999),
         ),
         reverse=True,
     )
