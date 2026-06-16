@@ -1,9 +1,9 @@
 """Patrol prioritization agent."""
 from __future__ import annotations
 
-import json
-
 from app.agents.client import get_client
+from app.agents.helpers import build_event_context, extract_json_array
+from app.core.config import settings
 from app.models.schemas import PatrolItem, RiskEvent
 
 SYSTEM_PROMPT = """You are a patrol planning assistant for marine conservation officers.
@@ -53,25 +53,25 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
     if client is None or not events:
         return _deterministic_rank(events)
 
-    prompt_lines = ["Rank these detections for patrol priority and return JSON array only:"]
-    for event in events:
-        prompt_lines.append(
-            f"- {event.id}: score={event.risk_score}, level={event.risk_level}, "
-            f"inside_mpa={event.inside_mpa}, near_mpa={event.near_mpa}, "
-            f"distance_to_mpa_km={event.distance_to_mpa_km}"
-        )
+    prompt_lines = [
+        "Rank these detections for patrol priority and return JSON array only:",
+        "Prioritise higher risk_score first, then inside_mpa, then near_mpa, then smaller distance_to_mpa_km.",
+        "Detections:",
+        build_event_context(events, limit=20, include_review=True),
+    ]
 
     try:
         message = client.messages.create(
-            model="claude-opus-4-8",
-            max_tokens=600,
+            model=settings.anthropic_model,
+            max_tokens=settings.agent_patrol_max_tokens,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
         )
         text = message.content[0].text.strip()
-        start = text.index("[")
-        end = text.rindex("]") + 1
-        payload = json.loads(text[start:end])
-        return [PatrolItem(**item) for item in payload]
+        payload = extract_json_array(text)
+        items = [PatrolItem(**item) for item in payload]
+        if not items:
+            return _deterministic_rank(events)
+        return items
     except Exception:
         return _deterministic_rank(events)

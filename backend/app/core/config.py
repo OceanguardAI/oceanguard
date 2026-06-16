@@ -8,6 +8,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     anthropic_api_key: str = ""
+    anthropic_model: str = "claude-opus-4-8"
+    agent_max_tool_rounds: int = 5
+    agent_narrator_max_tokens: int = 500
+    agent_briefing_max_tokens: int = 400
+    agent_patrol_max_tokens: int = 600
+    agent_ask_max_tokens: int = 700
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
     cors_origins: list[str] = ["http://localhost:5173", "http://localhost:3000"]
 

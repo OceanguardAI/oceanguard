@@ -194,6 +194,24 @@ def test_narrate_fallback(client: TestClient) -> None:
     assert "uncertainty" in body
 
 
+def test_agent_status_without_api_key(client: TestClient) -> None:
+    response = client.get("/agents/status")
+    assert response.status_code == 200
+    body = response.json()
+    from app.agents.client import anthropic_importable
+
+    assert body["anthropic_enabled"] is False
+    assert body["anthropic_importable"] is anthropic_importable()
+    assert body["client_ready"] is False
+    assert body["fallback_mode"] is True
+    assert body["anthropic_model"] == "claude-opus-4-8"
+    assert body["agent_max_tool_rounds"] == 5
+    assert body["agent_narrator_max_tokens"] == 500
+    assert body["agent_briefing_max_tokens"] == 400
+    assert body["agent_patrol_max_tokens"] == 600
+    assert body["agent_ask_max_tokens"] == 700
+
+
 def test_narrate_loaded_event_fallback(client: TestClient) -> None:
     response = client.post("/agents/narrate/bar-reef-003")
     assert response.status_code == 200
