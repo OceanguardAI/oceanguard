@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import build_event_context, extract_json_array
+from app.agents.helpers import build_event_context, extract_json_array, extract_text
 from app.core.config import settings
 from app.models.schemas import PatrolItem, RiskEvent
 
@@ -61,13 +61,18 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
     ]
 
     try:
-        message = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=settings.agent_patrol_max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
+        from google.genai import types
+
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents="\n".join(prompt_lines),
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=settings.agent_patrol_max_tokens,
+                response_mime_type="application/json",
+            ),
         )
-        text = message.content[0].text.strip()
+        text = extract_text(response)
         payload = extract_json_array(text)
         items = [PatrolItem(**item) for item in payload]
         if not items:

@@ -4,7 +4,12 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.agents import ask as ask_agent
 from app.agents import briefing as briefing_agent
-from app.agents.client import anthropic_importable, get_client
+from app.agents.client import (
+    gemini_provider_enabled,
+    gemini_provider_mode,
+    genai_importable,
+    get_client,
+)
 from app.agents import narrator, patrol as patrol_agent
 from app.core.config import settings
 from app.models.schemas import (
@@ -25,11 +30,13 @@ router = APIRouter(prefix="/agents")
 async def agent_status() -> AgentStatus:
     client = get_client()
     return AgentStatus(
-        anthropic_enabled=bool(settings.anthropic_api_key),
-        anthropic_importable=anthropic_importable(),
+        provider="gemini",
+        provider_mode=gemini_provider_mode(),
+        provider_enabled=gemini_provider_enabled(),
+        provider_importable=genai_importable(),
         client_ready=client is not None,
         fallback_mode=client is None,
-        anthropic_model=settings.anthropic_model,
+        model=settings.gemini_model,
         agent_max_tool_rounds=settings.agent_max_tool_rounds,
         agent_narrator_max_tokens=settings.agent_narrator_max_tokens,
         agent_briefing_max_tokens=settings.agent_briefing_max_tokens,

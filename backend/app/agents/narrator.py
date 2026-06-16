@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import event_summary_line, extract_json_object
+from app.agents.helpers import event_summary_line, extract_json_object, extract_text
 from app.core.config import settings
 from app.models.schemas import NarrateResponse, RiskEvent
 
@@ -65,13 +65,18 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
         return _fallback(event)
 
     try:
-        message = client.messages.create(
-            model=settings.anthropic_model,
-            max_tokens=settings.agent_narrator_max_tokens,
-            system=SYSTEM_PROMPT,
-            messages=[{"role": "user", "content": _build_user_prompt(event)}],
+        from google.genai import types
+
+        response = client.models.generate_content(
+            model=settings.gemini_model,
+            contents=_build_user_prompt(event),
+            config=types.GenerateContentConfig(
+                system_instruction=SYSTEM_PROMPT,
+                max_output_tokens=settings.agent_narrator_max_tokens,
+                response_mime_type="application/json",
+            ),
         )
-        text = message.content[0].text.strip()
+        text = extract_text(response)
         payload = extract_json_object(text)
         response = NarrateResponse(
             why_flagged=payload.get("why_flagged", "").strip(),

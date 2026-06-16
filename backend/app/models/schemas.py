@@ -82,11 +82,13 @@ class AskResponse(BaseModel):
 
 
 class AgentStatus(BaseModel):
-    anthropic_enabled: bool
-    anthropic_importable: bool
+    provider: str
+    provider_mode: str
+    provider_enabled: bool
+    provider_importable: bool
     client_ready: bool
     fallback_mode: bool
-    anthropic_model: str
+    model: str
     agent_max_tool_rounds: int
     agent_narrator_max_tokens: int
     agent_briefing_max_tokens: int

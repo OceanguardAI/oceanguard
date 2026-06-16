@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from app.agents.client import get_client
-from app.agents.helpers import build_event_context, first_text_block
+from app.agents.helpers import build_event_context, extract_text
 from app.core.config import settings
 from app.models.schemas import AskResponse, RiskEvent
 from app.store.repository import repo
@@ -19,11 +19,13 @@ Never speculate beyond the data and never make accusations."""
 MAX_TOOL_EVENTS = 10
 EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
 
+# Gemini function declarations use standard JSON-Schema under the
+# "parameters" key expected by the Gemini SDK.
 TOOLS = [
     {
         "name": "query_detections",
         "description": "Query detections by source, risk level, and review status.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {
                 "source": {"type": "string"},
@@ -36,7 +38,7 @@ TOOLS = [
     {
         "name": "get_event",
         "description": "Get one event by id.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {"id": {"type": "string"}},
             "required": ["id"],
@@ -45,7 +47,7 @@ TOOLS = [
     {
         "name": "get_risk_summary",
         "description": "Get aggregate event counts and highest-risk summary from the loaded store.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {},
         },
@@ -53,7 +55,7 @@ TOOLS = [
     {
         "name": "get_model_metrics",
         "description": "Get backend model metrics such as map50, precision, recall, and validation scene.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {},
         },
@@ -61,7 +63,7 @@ TOOLS = [
     {
         "name": "get_ports",
         "description": "Get nearby monitored port or marina locations from backend data.",
-        "input_schema": {
+        "parameters": {
             "type": "object",
             "properties": {},
         },
@@ -101,18 +103,14 @@ def _find_event_from_question(question: str) -> RiskEvent | None:
     return None
 
 
-def _tool_result_blocks(content: list[Any]) -> list[dict[str, str]]:
-    results = []
-    for block in content:
-        if getattr(block, "type", None) == "tool_use":
-            results.append(
-                {
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": _run_tool(block.name, block.input),
-                }
-            )
-    return results
+def _function_calls(response: Any) -> list[Any]:
+    """Return every function_call part in the response's first candidate, if any."""
+    candidates = getattr(response, "candidates", None) or []
+    if not candidates:
+        return []
+    content = getattr(candidates[0], "content", None)
+    parts = getattr(content, "parts", None) or []
+    return [part.function_call for part in parts if getattr(part, "function_call", None) is not None]
 
 
 def _run_tool(name: str, inputs: dict) -> str:
@@ -248,31 +246,43 @@ async def ask(question: str) -> AskResponse:
     if client is None:
         return _fallback(question)
 
-    messages = [{"role": "user", "content": question}]
     try:
+        from google.genai import types
+
+        config = types.GenerateContentConfig(
+            system_instruction=SYSTEM_PROMPT,
+            tools=[types.Tool(function_declarations=TOOLS)],
+            max_output_tokens=settings.agent_ask_max_tokens,
+        )
+
+        contents: list[Any] = [question]
         for _ in range(settings.agent_max_tool_rounds):
-            response = client.messages.create(
-                model=settings.anthropic_model,
-                max_tokens=settings.agent_ask_max_tokens,
-                system=SYSTEM_PROMPT,
-                tools=TOOLS,
-                messages=messages,
+            response = client.models.generate_content(
+                model=settings.gemini_model,
+                contents=contents,
+                config=config,
             )
 
-            if response.stop_reason == "end_turn":
-                text = first_text_block(response.content)
+            function_calls = _function_calls(response)
+            if not function_calls:
+                text = extract_text(response)
                 if text:
                     return AskResponse(answer=text)
                 break
 
-            if response.stop_reason != "tool_use":
-                break
+            contents.append(response.candidates[0].content)
 
-            messages.append({"role": "assistant", "content": response.content})
-            tool_results = _tool_result_blocks(response.content)
-            if not tool_results:
-                break
-            messages.append({"role": "user", "content": tool_results})
+            function_response_parts = []
+            for call in function_calls:
+                inputs = dict(call.args) if call.args else {}
+                result_text = _run_tool(call.name, inputs)
+                function_response_parts.append(
+                    types.Part.from_function_response(
+                        name=call.name,
+                        response={"result": result_text},
+                    )
+                )
+            contents.append(types.Content(role="user", parts=function_response_parts))
     except Exception as exc:
         print(f"Ask agent error: {exc}")
         return _fallback(question)

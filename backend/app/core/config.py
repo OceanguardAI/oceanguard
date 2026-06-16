@@ -7,8 +7,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
 class Settings(BaseSettings):
-    anthropic_api_key: str = ""
-    anthropic_model: str = "claude-opus-4-8"
+    gemini_api_key: str = ""
+    gemini_use_gcp: bool = False
+    google_genai_use_vertexai: bool = False
+    google_cloud_project: str = ""
+    google_cloud_location: str = "global"
+    gemini_model: str = "gemini-3.5-flash"
     agent_max_tool_rounds: int = 5
     agent_narrator_max_tokens: int = 500
     agent_briefing_max_tokens: int = 400

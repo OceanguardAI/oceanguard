@@ -41,17 +41,15 @@ def _event(**overrides) -> RiskEvent:
 
 
 class _FakeClient:
+    """Mimics genai.Client's `.models.generate_content(...)` surface."""
+
     def __init__(self, response):
-        self.messages = SimpleNamespace(create=lambda **_: response)
+        self.models = SimpleNamespace(generate_content=lambda **_: response)
 
 
 def test_narrator_parses_valid_json_response(monkeypatch) -> None:
     response = SimpleNamespace(
-        content=[
-            SimpleNamespace(
-                text='{"why_flagged":"Possible dark vessel.","uncertainty":"Needs review."}'
-            )
-        ]
+        text='{"why_flagged":"Possible dark vessel.","uncertainty":"Needs review."}'
     )
     monkeypatch.setattr(narrator, "get_client", lambda: _FakeClient(response))
 
@@ -62,7 +60,7 @@ def test_narrator_parses_valid_json_response(monkeypatch) -> None:
 
 
 def test_narrator_falls_back_on_incomplete_json(monkeypatch) -> None:
-    response = SimpleNamespace(content=[SimpleNamespace(text='{"why_flagged":"Only one field"}')])
+    response = SimpleNamespace(text='{"why_flagged":"Only one field"}')
     monkeypatch.setattr(narrator, "get_client", lambda: _FakeClient(response))
 
     result = asyncio.run(narrator.narrate(_event()))
@@ -71,7 +69,7 @@ def test_narrator_falls_back_on_incomplete_json(monkeypatch) -> None:
 
 
 def test_briefing_falls_back_on_blank_model_text(monkeypatch) -> None:
-    response = SimpleNamespace(content=[SimpleNamespace(text="   ")])
+    response = SimpleNamespace(text="   ")
     monkeypatch.setattr(briefing, "get_client", lambda: _FakeClient(response))
 
     result = asyncio.run(briefing.briefing([_event()]))
@@ -80,7 +78,7 @@ def test_briefing_falls_back_on_blank_model_text(monkeypatch) -> None:
 
 
 def test_patrol_falls_back_on_invalid_json(monkeypatch) -> None:
-    response = SimpleNamespace(content=[SimpleNamespace(text="not-json")])
+    response = SimpleNamespace(text="not-json")
     monkeypatch.setattr(patrol, "get_client", lambda: _FakeClient(response))
 
     result = asyncio.run(
@@ -143,37 +141,37 @@ def test_ask_fallback_review_counts(monkeypatch, tmp_path: Path) -> None:
 def test_ask_uses_configured_model_and_tool_round_limit(monkeypatch) -> None:
     calls: list[dict] = []
 
-    def fake_create(**kwargs):
+    def fake_generate_content(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text="Configured.")])
+        return SimpleNamespace(candidates=[], text="Configured.")
 
-    original_model = ask.settings.anthropic_model
+    original_model = ask.settings.gemini_model
     original_rounds = ask.settings.agent_max_tool_rounds
     try:
-        ask.settings.anthropic_model = "claude-test-model"
+        ask.settings.gemini_model = "gemini-test-model"
         ask.settings.agent_max_tool_rounds = 1
         monkeypatch.setattr(
             ask,
             "get_client",
-            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
         )
 
         result = asyncio.run(ask.ask("hello"))
     finally:
-        ask.settings.anthropic_model = original_model
+        ask.settings.gemini_model = original_model
         ask.settings.agent_max_tool_rounds = original_rounds
 
     assert result.answer == "Configured."
     assert len(calls) == 1
-    assert calls[0]["model"] == "claude-test-model"
+    assert calls[0]["model"] == "gemini-test-model"
 
 
 def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
     calls: list[dict] = []
 
-    def fake_create(**kwargs):
+    def fake_generate_content(**kwargs):
         calls.append(kwargs)
-        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text="Tokens.")])
+        return SimpleNamespace(candidates=[], text="Tokens.")
 
     original_tokens = ask.settings.agent_ask_max_tokens
     try:
@@ -181,7 +179,7 @@ def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
         monkeypatch.setattr(
             ask,
             "get_client",
-            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
         )
 
         result = asyncio.run(ask.ask("hello"))
@@ -189,31 +187,23 @@ def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
         ask.settings.agent_ask_max_tokens = original_tokens
 
     assert result.answer == "Tokens."
-    assert calls[0]["max_tokens"] == 321
+    assert calls[0]["config"].max_output_tokens == 321
 
 
 def test_ask_tool_loop_executes_tool_and_returns_final_answer(monkeypatch) -> None:
     original_events = repo._events.copy()
     calls: list[dict] = []
+    function_call = SimpleNamespace(name="get_event", args={"id": "bar-reef-003"}, id="call_1")
     responses = [
         SimpleNamespace(
-            stop_reason="tool_use",
-            content=[
-                SimpleNamespace(
-                    type="tool_use",
-                    id="toolu_1",
-                    name="get_event",
-                    input={"id": "bar-reef-003"},
-                )
+            candidates=[
+                SimpleNamespace(content=SimpleNamespace(parts=[SimpleNamespace(function_call=function_call)]))
             ],
         ),
-        SimpleNamespace(
-            stop_reason="end_turn",
-            content=[SimpleNamespace(text="bar-reef-003 remains the highest-risk reviewed lead.")],
-        ),
+        SimpleNamespace(candidates=[], text="bar-reef-003 remains the highest-risk reviewed lead."),
     ]
 
-    def fake_create(**kwargs):
+    def fake_generate_content(**kwargs):
         calls.append(kwargs)
         return responses[len(calls) - 1]
 
@@ -223,7 +213,7 @@ def test_ask_tool_loop_executes_tool_and_returns_final_answer(monkeypatch) -> No
         monkeypatch.setattr(
             ask,
             "get_client",
-            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
         )
 
         result = asyncio.run(ask.ask("Give me the latest details for bar-reef-003"))
@@ -232,9 +222,9 @@ def test_ask_tool_loop_executes_tool_and_returns_final_answer(monkeypatch) -> No
 
     assert result.answer == "bar-reef-003 remains the highest-risk reviewed lead."
     assert len(calls) == 2
-    tool_results = calls[1]["messages"][-1]["content"]
-    assert tool_results[0]["type"] == "tool_result"
-    assert '"review_status": "Resolved"' in tool_results[0]["content"]
+    last_content = calls[1]["contents"][-1]
+    function_response = last_content.parts[0].function_response
+    assert '"review_status": "Resolved"' in function_response.response["result"]
 
 
 def test_ask_fallback_specific_event_uses_repo_data() -> None:
@@ -285,14 +275,14 @@ def test_briefing_prompt_includes_alertness_and_context() -> None:
 def test_patrol_prompt_context_lists_detections(monkeypatch) -> None:
     captured: dict[str, str] = {}
 
-    def fake_create(**kwargs):
-        captured["content"] = kwargs["messages"][0]["content"]
-        return SimpleNamespace(content=[SimpleNamespace(text="[]")])
+    def fake_generate_content(**kwargs):
+        captured["content"] = kwargs["contents"]
+        return SimpleNamespace(text="[]")
 
     monkeypatch.setattr(
         patrol,
         "get_client",
-        lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+        lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
     )
 
     result = asyncio.run(patrol.patrol([_event()]))

@@ -1,42 +1,57 @@
-# OceanGuard AI — Agent API Setup
+# OceanGuard AI — Gemini API Setup
 
-**Status: ✅ Verified working, ready for your real key.** This document covers the one thing left before the 4 Claude agents (narrator, briefing, patrol, ask) go from deterministic-fallback mode to live AI mode: adding `ANTHROPIC_API_KEY`.
+**Status: Ready for your real Gemini key.** This document covers the Gemini Developer API key path for the 4 backend agents (narrator, briefing, patrol, ask). If you want the Google Cloud / Vertex-style Gemini path instead, use [GCP_GEMINI_SETUP.md](/d:/PROJECTS/AI_ML/OceanEye/GCP_GEMINI_SETUP.md).
 
 ---
 
-## Project status check (all 3 parts)
+## Project status check
 
-Re-verified just now, fresh:
+Current verified state:
 
 | Part | Check | Result |
 |---|---|---|
-| ML | `python run_full_ml_workflow.py` | 126 events (4 GFW + 122 YOLO_SAR), `bar-reef-003` = 0.61/HIGH, no fallback data used |
-| ML | `python -m pytest tests -q` | 20 passed, 2 skipped (optional `pyproj`/`rasterio` deps not installed locally) |
-| Backend | `python -m pytest tests -q` (fresh venv, real deps) | 50 passed |
-| Backend | `GET /health` | `{"status":"ok","events_loaded":126}` |
+| ML | `python -m pytest tests -q` | 20 passed, 2 skipped |
+| Backend | `python -m pytest tests -q` | passes after Gemini migration |
 | Frontend | `npx tsc --noEmit` | no errors |
 | Frontend | `npm run build` | succeeds |
 
-One real gap found and fixed during this check: **the backend had never actually had its own virtual environment with `anthropic` installed** — tests were passing against a different Python environment that didn't have the `anthropic` package, so `anthropic_importable` would have been `False` even with a real key set. Created `backend/.venv`, installed `backend/requirements.txt` into it, confirmed `anthropic` (v0.109.2) imports cleanly. This is now a one-time fix — see Setup below.
+The backend agent runtime now targets the Gemini SDK via `google-genai`, while preserving the same fallback behavior and route contracts used by the frontend.
 
 ---
 
-## How the key is read
+## How credentials are read
 
-`backend/app/core/config.py` uses `pydantic-settings` with `env_file=".env"` — meaning it looks for a file named `.env` **in the current working directory the backend process is started from**. There are two separate paths depending on how you run it:
+`backend/app/core/config.py` uses `pydantic-settings` with `env_file=".env"`, so it reads a file named `.env` from the current working directory of the backend process. There are two supported paths:
 
 | Run method | Where the key goes | Why |
 |---|---|---|
-| Local dev (`cd backend && uvicorn app.main:app`) | `backend/.env` | cwd is `backend/` when uvicorn starts |
-| Docker (`docker-compose up`) | repo-root `.env` | `docker-compose.yml` reads `${ANTHROPIC_API_KEY}` from the root `.env` and injects it as a container environment variable — pydantic-settings reads real env vars before the `.env` file, so the container needs no `.env` file of its own |
+| Local dev (`cd backend && uvicorn app.main:app`) | `backend/.env` | The backend starts with `backend/` as its working directory |
+| Docker (`docker-compose up`) | repo-root `.env` | `docker-compose.yml` reads root `.env` values and passes them into the container as real environment variables |
 
-Both paths read the exact same variable name: `ANTHROPIC_API_KEY`.
+For this API-key path, both run methods use these variables:
+
+```text
+GEMINI_API_KEY=
+GEMINI_MODEL=gemini-3.5-flash
+AGENT_MAX_TOOL_ROUNDS=5
+AGENT_NARRATOR_MAX_TOKENS=500
+AGENT_BRIEFING_MAX_TOKENS=400
+AGENT_PATROL_MAX_TOKENS=600
+AGENT_ASK_MAX_TOKENS=700
+CORS_ORIGINS=http://localhost:5173,http://localhost:3000
+```
+
+Get a Gemini key from:
+
+`https://aistudio.google.com/apikey`
+
+This path is simpler than the previously considered Vertex setup because it does not require a Google Cloud project just to get started.
 
 ---
 
 ## Setup steps
 
-### 1. One-time backend venv (already done, documented for repeatability)
+### 1. One-time backend environment
 
 ```powershell
 cd backend
@@ -45,42 +60,79 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-### 2A. Local dev — add your key
+### 2A. Local dev
 
 ```powershell
 cd backend
 copy .env.example .env
-notepad .env   # set ANTHROPIC_API_KEY=sk-ant-...
+notepad .env   # set GEMINI_API_KEY=...
 ```
 
-### 2B. Docker — add your key
+### 2B. Docker
 
 ```powershell
-copy .env.example .env      # repo root
-notepad .env                # set ANTHROPIC_API_KEY=sk-ant-...
+copy .env.example .env
+notepad .env   # set GEMINI_API_KEY=...
 docker-compose up --build
 ```
 
-### 3. Verify it's live
+---
+
+## Verify it is live
+
+Run:
 
 ```powershell
 curl http://localhost:8000/agents/status
 ```
 
-**Before a key is set** (verified just now):
+Before a key is set, the expected shape is:
+
 ```json
-{"anthropic_enabled":false,"anthropic_importable":true,"client_ready":false,"fallback_mode":true,
- "anthropic_model":"claude-opus-4-8","agent_max_tool_rounds":5,
- "agent_narrator_max_tokens":500,"agent_briefing_max_tokens":400,
- "agent_patrol_max_tokens":600,"agent_ask_max_tokens":700}
+{
+  "provider": "gemini",
+  "provider_mode": "api_key",
+  "provider_enabled": false,
+  "provider_importable": true,
+  "client_ready": false,
+  "fallback_mode": true,
+  "model": "gemini-3.5-flash",
+  "agent_max_tool_rounds": 5,
+  "agent_narrator_max_tokens": 500,
+  "agent_briefing_max_tokens": 400,
+  "agent_patrol_max_tokens": 600,
+  "agent_ask_max_tokens": 700
+}
 ```
 
-**After a key is set** (verified just now with a placeholder key, to confirm the wiring — not a real call):
+After a valid key is set, expect:
+
 ```json
-{"anthropic_enabled":true,"anthropic_importable":true,"client_ready":true,"fallback_mode":false, ...}
+{
+  "provider": "gemini",
+  "provider_mode": "api_key",
+  "provider_enabled": true,
+  "provider_importable": true,
+  "client_ready": true,
+  "fallback_mode": false
+}
 ```
 
-`fallback_mode: false` means agent calls will now actually go to the Anthropic API instead of using the deterministic fallback text. If the key is invalid/expired, each agent's own `try/except` still catches the API error per-request and falls back gracefully — `fallback_mode` in `/agents/status` only reflects whether a client was *constructed*, not whether the last call succeeded.
+`fallback_mode: false` means the backend successfully constructed a Gemini client. If a later request fails upstream, each agent still catches that failure and falls back gracefully for the request.
+
+For a quick live check after `/agents/status`:
+
+```powershell
+curl -X POST http://localhost:8000/agents/narrate/bar-reef-003
+```
+
+and
+
+```powershell
+curl -X POST http://localhost:8000/agents/ask -H "Content-Type: application/json" -d "{\"question\":\"Which detection is highest risk?\"}"
+```
+
+The first should return non-template narrative text, and the second should exercise the Gemini tool-calling loop.
 
 ---
 
@@ -88,20 +140,20 @@ curl http://localhost:8000/agents/status
 
 | Agent | Route | Fallback today | With key |
 |---|---|---|---|
-| Narrator | `POST /agents/narrate`, `/agents/narrate/{id}` | Template sentence built from event fields | Claude-written explanation, same structure (`why_flagged`, `uncertainty`) |
-| Briefing | `POST /agents/briefing`, `/agents/briefing/current` | Template summary naming the highest-risk event | Claude-written situation briefing |
-| Patrol | `POST /agents/patrol`, `/agents/patrol/current` | Deterministic sort (risk_score → inside_mpa → near_mpa → distance) | Claude-ranked list (same sort priorities, requested in the prompt) with Claude-written justifications |
-| Ask | `POST /agents/ask` | Keyword-matched canned answers | Full agentic tool-use loop — Claude can call `query_detections`/`get_event`/`get_risk_summary` tools against the live repository and answer freely |
+| Narrator | `POST /agents/narrate`, `/agents/narrate/{id}` | Template sentence built from event fields | Gemini-written explanation with the same `why_flagged` and `uncertainty` response shape |
+| Briefing | `POST /agents/briefing`, `/agents/briefing/current` | Template summary naming the highest-risk event | Gemini-written situation briefing |
+| Patrol | `POST /agents/patrol`, `/agents/patrol/current` | Deterministic risk-first ranking | Gemini-ranked list with generated justifications |
+| Ask | `POST /agents/ask` | Keyword-matched canned answers | Full tool-using agent loop over live repository data |
 
-No frontend changes are needed either way — the frontend never knows or cares whether a request was served by Claude or by fallback logic; it just renders whatever `why_flagged`/`briefing`/`justification`/`answer` text comes back.
+No frontend changes are needed. The route contracts are unchanged, so the UI simply renders whichever explanation text comes back.
 
 ---
 
-## Model & config defaults (already set, override only if you want to)
+## Model and config defaults
 
-```
-ANTHROPIC_MODEL=claude-opus-4-8        # latest, most capable Claude model
-AGENT_MAX_TOOL_ROUNDS=5                # caps the ask-agent's tool-use loop
+```text
+GEMINI_MODEL=gemini-3.5-flash
+AGENT_MAX_TOOL_ROUNDS=5
 AGENT_NARRATOR_MAX_TOKENS=500
 AGENT_BRIEFING_MAX_TOKENS=400
 AGENT_PATROL_MAX_TOKENS=600
@@ -109,14 +161,15 @@ AGENT_ASK_MAX_TOKENS=700
 CORS_ORIGINS=http://localhost:5173,http://localhost:3000
 ```
 
-All of these are read from `backend/app/core/config.py::Settings` and can be overridden by adding the matching uppercase variable to your `.env` (see `backend/.env.example`).
+All of these are read from `backend/app/core/config.py::Settings` and can be overridden in either `backend/.env` for local runs or repo-root `.env` for Docker.
 
 ---
 
 ## Cost note
 
-Going live means real Anthropic API calls. The two components most likely to fire repeatedly:
-- `DailyBriefing`/`PatrolBoard` on the frontend now only re-fetch when the actual risk data changes (fixed in the earlier code review pass), not on every UI interaction — so no surprise per-click cost there.
-- `EvidenceCard`'s narrator call fires once per vessel selected — normal, expected usage.
+Going live means real Gemini API calls. The main repeated-call paths are:
 
-No code change is needed for cost control beyond what's already in place; just be aware every map-marker click and review action that hits an agent route is now a billed call once the key is live.
+- `DailyBriefing` and `PatrolBoard`, which now only re-fetch when the underlying risk data changes
+- `EvidenceCard`, which requests narration once per selected vessel
+
+That keeps costs predictable, but each live agent request is still billable once a real key is configured.

@@ -7,13 +7,18 @@ from typing import Any
 from app.models.schemas import RiskEvent
 
 
-def first_text_block(content: list[Any]) -> str:
-    """Return the first non-empty text block from an Anthropic response."""
-    for block in content:
-        text = getattr(block, "text", None)
-        if isinstance(text, str) and text.strip():
-            return text.strip()
-    return ""
+def extract_text(response: Any) -> str:
+    """Safely return the text of a Gemini response, or '' if there is none.
+
+    Accessing `.text` on a Gemini response can raise if the response has no
+    text parts (e.g. it only contains function calls), so this always
+    degrades to an empty string instead of propagating that exception.
+    """
+    try:
+        text = response.text
+    except Exception:
+        return ""
+    return text.strip() if isinstance(text, str) else ""
 
 
 def extract_json_object(text: str) -> dict[str, Any]:

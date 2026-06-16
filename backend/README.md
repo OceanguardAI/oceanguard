@@ -5,7 +5,7 @@ This backend serves the ML outputs from `backend/data/` and exposes:
 - risk event APIs
 - GeoJSON and model metrics APIs
 - deterministic review updates
-- Claude-backed agents with fallback behavior when no API key is configured
+- Gemini-backed agents with fallback behavior when no API key is configured
 
 ## Setup
 
@@ -16,13 +16,18 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-Optional `.env`:
+Optional `.env` for local backend runs:
 
 ```text
-ANTHROPIC_API_KEY=sk-ant-...
+copy .env.example .env
+GEMINI_API_KEY=your_api_key_here
 ```
 
-Without an API key, all agent routes still work through deterministic fallbacks.
+Without Gemini credentials, all agent routes still work through deterministic fallbacks.
+For Docker runs from the repo root, use the repo-root `.env` instead; `docker-compose.yml`
+forwards the same backend agent settings into the container.
+For auth setup details, use `../API_SETUP.md` for the API-key path or `../GCP_GEMINI_SETUP.md`
+for the Google Cloud / Vertex-style path.
 
 ## Data Files
 
@@ -45,6 +50,12 @@ Health check:
 
 ```powershell
 curl http://localhost:8000/health
+```
+
+Agent runtime check:
+
+```powershell
+curl http://localhost:8000/agents/status
 ```
 
 ## Main Endpoints
@@ -118,7 +129,7 @@ survive process restarts.
 
 ### Ask agent fallback topics
 
-Without Anthropic, `POST /agents/ask` can still answer questions about:
+Without a Gemini key, `POST /agents/ask` can still answer questions about:
 
 - highest-risk detection
 - total counts

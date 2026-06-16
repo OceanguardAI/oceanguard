@@ -7,7 +7,7 @@ It fuses Synthetic Aperture Radar (SAR) object detection, Automatic Identificati
 ## Project Structure
 
 - `ml/` - Offline data pipeline (SAR Tiling, YOLO Inference, Spatial Enrichment). Generates `risk_events.json`.
-- `backend/` - FastAPI service providing the data API and Anthropic-powered Agents (Narrator, Briefing, Patrol, Ask).
+- `backend/` - FastAPI service providing the data API and Gemini-powered Agents (Narrator, Briefing, Patrol, Ask).
 - `frontend/` - React/Vite/Tailwind dashboard for monitoring detections and interacting with AI agents.
 
 ## Quickstart
@@ -26,11 +26,21 @@ See `ml/README.md` for the full ML workflow, temporary artifact handling, raw `.
 ```bash
 cd backend
 pip install -r requirements.txt
-# Optional: Set ANTHROPIC_API_KEY in .env for full agentic features
+# Optional: Set GEMINI_API_KEY in .env for full agentic features
 uvicorn app.main:app --reload --port 8000
 ```
 
 See `backend/README.md` for the full backend route map, review persistence behavior, agent endpoints, and verification steps.
+See `API_SETUP.md` for the Gemini Developer API key setup flow, or `GCP_GEMINI_SETUP.md` for the Google Cloud / Vertex-style Gemini path.
+
+### Vertex AI Quick Test
+```bash
+gcloud config set project oceaneyelabs
+gcloud auth application-default login
+gcloud auth application-default set-quota-project oceaneyelabs
+pip install -r requirements.txt
+python test_vertex.py
+```
 
 ### 3. Run Frontend
 ```bash

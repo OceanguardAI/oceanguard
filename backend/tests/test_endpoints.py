@@ -69,7 +69,11 @@ def client(tmp_path: Path):
     )
 
     with patch("app.core.config.settings.data_dir", tmp_path), patch(
-        "app.core.config.settings.anthropic_api_key", ""
+        "app.core.config.settings.gemini_api_key", ""
+    ), patch(
+        "app.core.config.settings.gemini_use_gcp", False
+    ), patch(
+        "app.core.config.settings.google_genai_use_vertexai", False
     ):
         from app.store.repository import repo
 
@@ -216,13 +220,17 @@ def test_agent_status_without_api_key(client: TestClient) -> None:
     response = client.get("/agents/status")
     assert response.status_code == 200
     body = response.json()
-    from app.agents.client import anthropic_importable
+    from app.agents.client import genai_importable
 
-    assert body["anthropic_enabled"] is False
-    assert body["anthropic_importable"] is anthropic_importable()
+    assert body["provider"] == "gemini"
+    assert body["provider_mode"] == "api_key"
+    assert body["provider_enabled"] is False
+    assert body["provider_importable"] is genai_importable()
     assert body["client_ready"] is False
     assert body["fallback_mode"] is True
-    assert body["anthropic_model"] == "claude-opus-4-8"
+    from app.core.config import settings
+
+    assert body["model"] == settings.gemini_model
     assert body["agent_max_tool_rounds"] == 5
     assert body["agent_narrator_max_tokens"] == 500
     assert body["agent_briefing_max_tokens"] == 400
