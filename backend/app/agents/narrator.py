@@ -1,9 +1,8 @@
 """Narrator agent: explain why one vessel was flagged."""
 from __future__ import annotations
 
-import json
-
 from app.agents.client import get_client
+from app.agents.helpers import extract_json_object
 from app.models.schemas import NarrateResponse, RiskEvent
 
 SYSTEM_PROMPT = """You are a marine conservation analyst for OceanGuard AI.
@@ -71,12 +70,13 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
             messages=[{"role": "user", "content": _build_user_prompt(event)}],
         )
         text = message.content[0].text.strip()
-        start = text.index("{")
-        end = text.rindex("}") + 1
-        payload = json.loads(text[start:end])
-        return NarrateResponse(
-            why_flagged=payload.get("why_flagged", ""),
-            uncertainty=payload.get("uncertainty", ""),
+        payload = extract_json_object(text)
+        response = NarrateResponse(
+            why_flagged=payload.get("why_flagged", "").strip(),
+            uncertainty=payload.get("uncertainty", "").strip(),
         )
+        if not response.why_flagged or not response.uncertainty:
+            return _fallback(event)
+        return response
     except Exception:
         return _fallback(event)

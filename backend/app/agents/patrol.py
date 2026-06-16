@@ -1,9 +1,8 @@
 """Patrol prioritization agent."""
 from __future__ import annotations
 
-import json
-
 from app.agents.client import get_client
+from app.agents.helpers import extract_json_array
 from app.models.schemas import PatrolItem, RiskEvent
 
 SYSTEM_PROMPT = """You are a patrol planning assistant for marine conservation officers.
@@ -69,9 +68,10 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
             messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
         )
         text = message.content[0].text.strip()
-        start = text.index("[")
-        end = text.rindex("]") + 1
-        payload = json.loads(text[start:end])
-        return [PatrolItem(**item) for item in payload]
+        payload = extract_json_array(text)
+        items = [PatrolItem(**item) for item in payload]
+        if not items:
+            return _deterministic_rank(events)
+        return items
     except Exception:
         return _deterministic_rank(events)

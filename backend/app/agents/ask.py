@@ -5,6 +5,7 @@ import json
 from pathlib import Path
 
 from app.agents.client import get_client
+from app.agents.helpers import first_text_block
 from app.core.config import settings
 from app.models.schemas import AskResponse
 from app.store.repository import repo
@@ -124,6 +125,19 @@ def _fallback(question: str) -> AskResponse:
             )
         )
 
+    if "review" in lowered or "resolved" in lowered or "false positive" in lowered:
+        summary = repo.summary()
+        counts = summary.review_status_counts
+        return AskResponse(
+            answer=(
+                "Current review-state counts are: "
+                f"Pending={counts.get('Pending', 0)}, "
+                f"Confirmed Risk={counts.get('Confirmed Risk', 0)}, "
+                f"False Positive={counts.get('False Positive', 0)}, "
+                f"Resolved={counts.get('Resolved', 0)}."
+            )
+        )
+
     if "how many" in lowered or "count" in lowered or "total" in lowered:
         summary = repo.summary()
         return AskResponse(
@@ -170,19 +184,6 @@ def _fallback(question: str) -> AskResponse:
                     )
                 )
 
-    if "review" in lowered or "resolved" in lowered or "false positive" in lowered:
-        summary = repo.summary()
-        counts = summary.review_status_counts
-        return AskResponse(
-            answer=(
-                "Current review-state counts are: "
-                f"Pending={counts.get('Pending', 0)}, "
-                f"Confirmed Risk={counts.get('Confirmed Risk', 0)}, "
-                f"False Positive={counts.get('False Positive', 0)}, "
-                f"Resolved={counts.get('Resolved', 0)}."
-            )
-        )
-
     return AskResponse(
         answer=(
             "I can answer questions about loaded detections, risk levels, review states, model metrics, "
@@ -209,9 +210,9 @@ async def ask(question: str) -> AskResponse:
             )
 
             if response.stop_reason == "end_turn":
-                for block in response.content:
-                    if hasattr(block, "text") and block.text:
-                        return AskResponse(answer=block.text.strip())
+                text = first_text_block(response.content)
+                if text:
+                    return AskResponse(answer=text)
                 break
 
             if response.stop_reason != "tool_use":

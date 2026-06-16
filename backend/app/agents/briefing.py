@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
+from app.agents.helpers import alertness_level, first_text_block
 from app.models.schemas import BriefingResponse, RiskEvent
 
 SYSTEM_PROMPT = """You are a senior marine conservation analyst.
@@ -25,7 +26,7 @@ def _fallback(events: list[RiskEvent]) -> BriefingResponse:
 
     top = max(events, key=lambda event: event.risk_score)
     priority_count = sum(1 for event in events if event.risk_level in {"HIGH", "CRITICAL"})
-    alertness = "HIGH" if priority_count else "ELEVATED"
+    alertness = alertness_level(events)
     return BriefingResponse(
         briefing=(
             f"OceanGuard is tracking {len(events)} current detections in the store. "
@@ -49,6 +50,9 @@ async def briefing(events: list[RiskEvent]) -> BriefingResponse:
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": _build_user_prompt(events)}],
         )
-        return BriefingResponse(briefing=message.content[0].text.strip())
+        text = first_text_block(message.content)
+        if not text:
+            return _fallback(events)
+        return BriefingResponse(briefing=text)
     except Exception:
         return _fallback(events)
