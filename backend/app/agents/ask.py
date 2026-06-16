@@ -201,7 +201,7 @@ async def ask(question: str) -> AskResponse:
         for _ in range(settings.agent_max_tool_rounds):
             response = client.messages.create(
                 model=settings.anthropic_model,
-                max_tokens=700,
+                max_tokens=settings.agent_ask_max_tokens,
                 system=SYSTEM_PROMPT,
                 tools=TOOLS,
                 messages=messages,

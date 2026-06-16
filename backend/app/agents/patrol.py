@@ -63,7 +63,7 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
     try:
         message = client.messages.create(
             model=settings.anthropic_model,
-            max_tokens=600,
+            max_tokens=settings.agent_patrol_max_tokens,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": "\n".join(prompt_lines)}],
         )

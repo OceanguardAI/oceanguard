@@ -67,7 +67,7 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
     try:
         message = client.messages.create(
             model=settings.anthropic_model,
-            max_tokens=500,
+            max_tokens=settings.agent_narrator_max_tokens,
             system=SYSTEM_PROMPT,
             messages=[{"role": "user", "content": _build_user_prompt(event)}],
         )

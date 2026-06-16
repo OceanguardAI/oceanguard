@@ -83,8 +83,15 @@ class AskResponse(BaseModel):
 
 class AgentStatus(BaseModel):
     anthropic_enabled: bool
+    anthropic_importable: bool
+    client_ready: bool
+    fallback_mode: bool
     anthropic_model: str
     agent_max_tool_rounds: int
+    agent_narrator_max_tokens: int
+    agent_briefing_max_tokens: int
+    agent_patrol_max_tokens: int
+    agent_ask_max_tokens: int
 
 
 class RiskSummary(BaseModel):

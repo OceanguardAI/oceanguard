@@ -152,6 +152,30 @@ def test_ask_uses_configured_model_and_tool_round_limit(monkeypatch) -> None:
     assert calls[0]["model"] == "claude-test-model"
 
 
+def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
+    calls: list[dict] = []
+
+    def fake_create(**kwargs):
+        calls.append(kwargs)
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(text="Tokens.")])
+
+    original_tokens = ask.settings.agent_ask_max_tokens
+    try:
+        ask.settings.agent_ask_max_tokens = 321
+        monkeypatch.setattr(
+            ask,
+            "get_client",
+            lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+        )
+
+        result = asyncio.run(ask.ask("hello"))
+    finally:
+        ask.settings.agent_ask_max_tokens = original_tokens
+
+    assert result.answer == "Tokens."
+    assert calls[0]["max_tokens"] == 321
+
+
 def test_event_summary_line_includes_core_context() -> None:
     line = helpers.event_summary_line(_event(review_status="Resolved"), include_review=True)
     assert "bar-reef-003" in line
