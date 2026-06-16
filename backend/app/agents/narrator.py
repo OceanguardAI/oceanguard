@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import extract_json_object
+from app.agents.helpers import event_summary_line, extract_json_object
 from app.core.config import settings
 from app.models.schemas import NarrateResponse, RiskEvent
 
@@ -15,9 +15,8 @@ Never accuse anyone or imply certainty. Human officers make decisions."""
 def _build_user_prompt(event: RiskEvent) -> str:
     return "\n".join(
         [
-            f"Detection ID: {event.id}",
-            f"Source: {event.source}",
-            f"Risk score: {event.risk_score} ({event.risk_level})",
+            "Explain this detection for a conservation officer.",
+            f"Event summary: {event_summary_line(event, include_review=True)}",
             f"SAR confidence: {event.sar_confidence:.0%}",
             f"AIS matched: {event.ais_matched}",
             f"AIS data available: {event.ais_data_available}",
@@ -26,6 +25,8 @@ def _build_user_prompt(event: RiskEvent) -> str:
             f"MPA name: {event.mpa_name or 'N/A'}",
             f"Distance to MPA km: {event.distance_to_mpa_km}",
             f"Distance to port km: {event.distance_from_port_km}",
+            f"Recommended action: {event.recommended_action}",
+            f"Current review status: {event.review_status}",
             'Return JSON: {"why_flagged":"...","uncertainty":"..."}',
         ]
     )

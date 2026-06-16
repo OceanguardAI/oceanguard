@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import alertness_level, first_text_block
+from app.agents.helpers import alertness_level, build_event_context, first_text_block
 from app.core.config import settings
 from app.models.schemas import BriefingResponse, RiskEvent
 
@@ -12,13 +12,17 @@ Stay factual, hedge uncertainty, and never make accusations."""
 
 
 def _build_user_prompt(events: list[RiskEvent]) -> str:
-    lines = ["Summarise these detections for a patrol briefing:"]
-    for event in sorted(events, key=lambda item: item.risk_score, reverse=True):
-        lines.append(
-            f"- {event.id}: {event.risk_level} ({event.risk_score:.2f}), "
-            f"near_mpa={event.near_mpa}, dist={event.distance_to_mpa_km}"
-        )
-    return "\n".join(lines)
+    priority_count = sum(1 for event in events if event.risk_level in {"HIGH", "CRITICAL"})
+    return "\n".join(
+        [
+            "Summarise these detections for a patrol briefing.",
+            f"Total detections: {len(events)}",
+            f"Recommended alertness baseline: {alertness_level(events)}",
+            f"HIGH/CRITICAL detections: {priority_count}",
+            "Top detections by risk:",
+            build_event_context(events, limit=10, include_review=True),
+        ]
+    )
 
 
 def _fallback(events: list[RiskEvent]) -> BriefingResponse:

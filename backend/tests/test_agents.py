@@ -4,7 +4,7 @@ import asyncio
 from pathlib import Path
 from types import SimpleNamespace
 
-from app.agents import ask, briefing, narrator, patrol
+from app.agents import ask, briefing, helpers, narrator, patrol
 from app.models.schemas import RiskEvent
 from app.store.repository import repo
 
@@ -106,7 +106,7 @@ def test_ask_tool_query_detections_includes_review_status() -> None:
         repo._events = original_events
 
     assert "Found 1 event(s):" in text
-    assert "review=Resolved" in text
+    assert "review_status=Resolved" in text
 
 
 def test_ask_fallback_review_counts(monkeypatch, tmp_path: Path) -> None:
@@ -150,3 +150,54 @@ def test_ask_uses_configured_model_and_tool_round_limit(monkeypatch) -> None:
     assert result.answer == "Configured."
     assert len(calls) == 1
     assert calls[0]["model"] == "claude-test-model"
+
+
+def test_event_summary_line_includes_core_context() -> None:
+    line = helpers.event_summary_line(_event(review_status="Resolved"), include_review=True)
+    assert "bar-reef-003" in line
+    assert "risk=HIGH (0.61)" in line
+    assert "review_status=Resolved" in line
+
+
+def test_build_event_context_sorts_by_risk() -> None:
+    text = helpers.build_event_context(
+        [
+            _event(id="low", risk_score=0.20, risk_level="LOW"),
+            _event(id="high", risk_score=0.90, risk_level="CRITICAL"),
+        ],
+        include_review=True,
+    )
+    first_line = text.splitlines()[0]
+    assert "high" in first_line
+
+
+def test_narrator_prompt_includes_recommended_action() -> None:
+    prompt = narrator._build_user_prompt(_event())
+    assert "Recommended action:" in prompt
+    assert "Event summary:" in prompt
+
+
+def test_briefing_prompt_includes_alertness_and_context() -> None:
+    prompt = briefing._build_user_prompt([_event()])
+    assert "Recommended alertness baseline:" in prompt
+    assert "Top detections by risk:" in prompt
+
+
+def test_patrol_prompt_context_lists_detections(monkeypatch) -> None:
+    captured: dict[str, str] = {}
+
+    def fake_create(**kwargs):
+        captured["content"] = kwargs["messages"][0]["content"]
+        return SimpleNamespace(content=[SimpleNamespace(text="[]")])
+
+    monkeypatch.setattr(
+        patrol,
+        "get_client",
+        lambda: SimpleNamespace(messages=SimpleNamespace(create=fake_create)),
+    )
+
+    result = asyncio.run(patrol.patrol([_event()]))
+
+    assert result[0].id == "bar-reef-003"
+    assert "Prioritise higher risk_score first" in captured["content"]
+    assert "review_status=Pending" in captured["content"]

@@ -45,3 +45,34 @@ def alertness_level(events: list[RiskEvent]) -> str:
     if events:
         return "ELEVATED"
     return "LOW"
+
+
+def event_summary_line(event: RiskEvent, include_review: bool = False) -> str:
+    """Return a compact single-line summary of a risk event."""
+    segments = [
+        f"{event.id}",
+        f"source={event.source}",
+        f"risk={event.risk_level} ({event.risk_score:.2f})",
+        f"ais_matched={event.ais_matched}",
+        f"inside_mpa={event.inside_mpa}",
+        f"near_mpa={event.near_mpa}",
+        f"distance_to_mpa_km={event.distance_to_mpa_km}",
+        f"nearest_port={event.nearest_port}",
+        f"timestamp={event.timestamp}",
+    ]
+    if include_review:
+        segments.append(f"review_status={event.review_status}")
+    return ", ".join(segments)
+
+
+def build_event_context(
+    events: list[RiskEvent],
+    *,
+    limit: int = 10,
+    include_review: bool = False,
+) -> str:
+    """Return a multi-line event context block sorted by descending risk score."""
+    selected = sorted(events, key=lambda item: item.risk_score, reverse=True)[: max(limit, 0)]
+    if not selected:
+        return "No events available."
+    return "\n".join(f"- {event_summary_line(event, include_review=include_review)}" for event in selected)

@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 
 from app.agents.client import get_client
-from app.agents.helpers import first_text_block
+from app.agents.helpers import build_event_context, first_text_block
 from app.core.config import settings
 from app.models.schemas import AskResponse
 from app.store.repository import repo
@@ -81,13 +81,11 @@ def _run_tool(name: str, inputs: dict) -> str:
         )
         if not events:
             return "No events found."
-        lines = [
-            f"{event.id}: {event.risk_level} ({event.risk_score:.2f}), "
-            f"review={event.review_status}, near_mpa={event.near_mpa}, "
-            f"dist={event.distance_to_mpa_km}"
-            for event in events[:limit]
-        ]
-        return f"Found {len(events)} event(s):\n" + "\n".join(lines)
+        return f"Found {len(events)} event(s):\n" + build_event_context(
+            events,
+            limit=limit,
+            include_review=True,
+        )
 
     if name == "get_event":
         event = repo.get(inputs["id"])
