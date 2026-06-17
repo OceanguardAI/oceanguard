@@ -3,7 +3,7 @@ import {
   BriefingResponse, PatrolItem, AskResponse, MPAGeoJSON
 } from "../types";
 
-const API_BASE = "/api";
+const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "/api";
 
 export async function fetchRiskEvents(source?: string, level?: string): Promise<RiskEvent[]> {
   const params = new URLSearchParams();
