@@ -107,6 +107,7 @@ Variables:
 
 - `WIF_PROVIDER`
 - `WIF_SERVICE_ACCOUNT`
+- `CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT`
 
 ---
 
@@ -123,8 +124,11 @@ It will:
 - authenticate with Workload Identity Federation
 - build and push the backend image to Artifact Registry
 - deploy `oceanguard-api` to Cloud Run in `asia-south1`
+- attach the runtime identity with `--service-account=$CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT`
 - set:
   - `GEMINI_USE_GCP=true`
   - `GOOGLE_CLOUD_PROJECT=oceaneyelabs`
-  - `GOOGLE_CLOUD_LOCATION=global`
-  - `GEMINI_MODEL=gemini-3.5-flash`
+  - `GOOGLE_CLOUD_LOCATION=us-central1`
+  - `GEMINI_MODEL=gemini-2.5-flash`
+
+For that deploy step to succeed, the deployer service account also needs `roles/iam.serviceAccountUser` on the runtime service account. `.\scripts\setup_gcp_oceanguard.ps1` already grants that binding.
