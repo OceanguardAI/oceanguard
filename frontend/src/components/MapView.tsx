@@ -8,88 +8,97 @@ import { getRiskColor } from "../lib/riskColor";
 const MapController = ({ selected }: { selected: RiskEvent | null }) => {
   const map = useMap();
   useEffect(() => {
-    if (selected) {
-      map.setView([selected.lat, selected.lon], 11, { animate: true });
-    }
+    if (selected) map.setView([selected.lat, selected.lon], 11, { animate: true });
   }, [selected, map]);
   return null;
 };
 
-// Custom div icon for dots
-const createDotIcon = (level: string, isSelected: boolean) => {
-  let color = "#22c55e"; // low
-  if (level === "MEDIUM") color = "#fbbf24";
-  if (level === "HIGH") color = "#f97316";
-  if (level === "CRITICAL") color = "#dc2626";
+const RISK_COLORS: Record<string, string> = {
+  LOW:      "#22c55e",
+  MEDIUM:   "#fbbf24",
+  HIGH:     "#f97316",
+  CRITICAL: "#dc2626",
+};
 
-  const size = isSelected ? 16 : 10;
-  const border = isSelected ? "border-2 border-white" : "border border-ocean-900";
-  const zIndexOffset = isSelected ? 1000 : 0;
-  
-  // Custom marker animation for selected items
-  const pulseClass = isSelected && (level === "HIGH" || level === "CRITICAL") ? "animate-pulse" : "";
+const createDotIcon = (level: string, isSelected: boolean) => {
+  const color  = RISK_COLORS[level?.toUpperCase()] ?? "#94a3b8";
+  const size   = isSelected ? 18 : 10;
+  const pulse  = isSelected && (level === "HIGH" || level === "CRITICAL") ? "animate-pulse" : "";
 
   return L.divIcon({
-    className: "custom-div-icon",
-    html: `<div class="rounded-full shadow-lg ${border} ${pulseClass}" style="background-color: ${color}; width: ${size}px; height: ${size}px;"></div>`,
-    iconSize: [size, size],
-    iconAnchor: [size/2, size/2],
+    className: "",
+    html: `
+      <div style="
+        width:${size}px; height:${size}px;
+        background:${color};
+        border-radius:50%;
+        border: ${isSelected ? "2.5px solid rgba(255,255,255,0.9)" : "1.5px solid rgba(0,0,0,0.4)"};
+        box-shadow: 0 0 ${isSelected ? "12px" : "4px"} ${color}80;
+        transition: all 0.2s ease;
+      "></div>`,
+    iconSize:   [size, size],
+    iconAnchor: [size / 2, size / 2],
   });
 };
 
-export default function MapView({ events, selected, onSelect }: { 
-  events: RiskEvent[]; 
+export default function MapView({
+  events,
+  selected,
+  onSelect,
+}: {
+  events: RiskEvent[];
   selected: RiskEvent | null;
   onSelect: (e: RiskEvent) => void;
 }) {
   const [mpaCoords, setMpaCoords] = useState<[number, number][][]>([]);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]         = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
-
     fetchMPA()
       .then((geojson) => {
-        const geometry = geojson.type === "FeatureCollection"
-          ? geojson.features?.[0]?.geometry
-          : geojson.geometry;
+        const geometry =
+          geojson.type === "FeatureCollection"
+            ? geojson.features?.[0]?.geometry
+            : geojson.geometry;
 
         if (!geometry?.coordinates?.[0]) {
-          if (!cancelled) {
-            setMpaCoords([]);
-            setError("Couldn't load the Bar Reef boundary.");
-          }
+          if (!cancelled) { setMpaCoords([]); setError("Couldn't load the Bar Reef boundary."); }
           return;
         }
 
         const poly = geometry.coordinates[0].map(([lon, lat]) => [lat, lon] as [number, number]);
-        if (!cancelled) {
-          setMpaCoords([poly]);
-        }
+        if (!cancelled) setMpaCoords([poly]);
       })
       .catch(() => {
-        if (!cancelled) {
-          setMpaCoords([]);
-          setError("Couldn't load the Bar Reef boundary.");
-        }
+        if (!cancelled) { setMpaCoords([]); setError("Couldn't load the Bar Reef boundary."); }
       });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
   return (
     <div className="w-full h-full relative z-0">
       {error && (
-        <div className="absolute left-4 top-4 z-[1000] rounded-md border border-risk-high/30 bg-ocean-900/90 px-3 py-2 text-xs text-slate-200">
+        <div className="absolute left-3 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 text-xs text-slate-400 shadow-lg">
           {error}
         </div>
       )}
-      <MapContainer 
-        center={[8.5, 79.7]} 
-        zoom={9} 
+
+      {/* Legend */}
+      <div className="absolute right-3 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 shadow-lg">
+        <div className="text-[9px] text-slate-500 uppercase tracking-widest mb-1.5 font-semibold">Risk Level</div>
+        {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
+          <div key={lvl} className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 last:mb-0">
+            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: RISK_COLORS[lvl] }} />
+            {lvl}
+          </div>
+        ))}
+      </div>
+
+      <MapContainer
+        center={[8.5, 79.7]}
+        zoom={9}
         style={{ width: "100%", height: "100%" }}
         zoomControl={false}
       >
@@ -97,25 +106,38 @@ export default function MapView({ events, selected, onSelect }: {
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
         />
-        
+
         {mpaCoords.length > 0 && (
-          <Polygon 
-            positions={mpaCoords} 
-            pathOptions={{ color: "#25A5A8", weight: 2, fillColor: "#1E8A8C", fillOpacity: 0.1 }}
+          <Polygon
+            positions={mpaCoords}
+            pathOptions={{
+              color:       "#25A5A8",
+              weight:      2,
+              fillColor:   "#1E8A8C",
+              fillOpacity: 0.08,
+              dashArray:   "6 4",
+            }}
           />
         )}
 
         {events.map((ev) => (
-          <Marker 
-            key={ev.id} 
+          <Marker
+            key={ev.id}
             position={[ev.lat, ev.lon]}
             icon={createDotIcon(ev.risk_level, selected?.id === ev.id)}
             eventHandlers={{ click: () => onSelect(ev) }}
             zIndexOffset={selected?.id === ev.id ? 1000 : 0}
           >
-            <Popup className="custom-popup">
-              <div className="text-sm font-semibold text-slate-800">{ev.id}</div>
-              <div className={`text-xs font-bold ${getRiskColor(ev.risk_level)}`}>{ev.risk_level} RISK</div>
+            <Popup>
+              <div className="text-xs">
+                <div className="font-bold text-slate-200 mb-1">{ev.id}</div>
+                <div className={`font-bold text-xs ${getRiskColor(ev.risk_level)}`}>
+                  {ev.risk_level} · {(ev.risk_score * 100).toFixed(0)}
+                </div>
+                {ev.near_mpa && (
+                  <div className="text-slate-400 mt-1">{ev.distance_to_mpa_km} km from MPA</div>
+                )}
+              </div>
             </Popup>
           </Marker>
         ))}

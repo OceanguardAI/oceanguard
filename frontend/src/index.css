@@ -1,35 +1,93 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
 @layer base {
   body {
-    @apply bg-ocean-900 text-slate-200 antialiased;
+    @apply bg-ocean-950 text-slate-200 antialiased;
+    font-family: 'Inter', system-ui, sans-serif;
+  }
+  * { @apply box-border; }
+}
+
+@layer utilities {
+  .glass {
+    background: rgba(15, 42, 74, 0.45);
+    backdrop-filter: blur(14px);
+    -webkit-backdrop-filter: blur(14px);
+    border: 1px solid rgba(37, 165, 168, 0.08);
+  }
+  .glass-dark {
+    background: rgba(2, 6, 23, 0.75);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(26, 58, 92, 0.5);
+  }
+  .glow-teal {
+    box-shadow: 0 0 20px rgba(37,165,168,0.25), 0 0 60px rgba(37,165,168,0.08);
+  }
+  .aurora-bg {
+    background: linear-gradient(
+      135deg,
+      #020617 0%,
+      #0B1F3A 25%,
+      #03131f 50%,
+      #0a1e38 75%,
+      #020617 100%
+    );
+    background-size: 300% 300%;
+    animation: aurora 10s ease infinite;
+  }
+  .text-gradient {
+    background: linear-gradient(135deg, #25A5A8 0%, #40C0C3 50%, #7DD3FC 100%);
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    background-clip: text;
+  }
+  .border-glow {
+    border-color: rgba(37,165,168,0.25);
+    box-shadow: inset 0 0 20px rgba(37,165,168,0.04);
   }
 }
 
-/* Custom Scrollbar for sleek UI */
-::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-::-webkit-scrollbar-track {
-  @apply bg-ocean-900;
-}
-::-webkit-scrollbar-thumb {
-  @apply bg-ocean-700 rounded-full;
-}
-::-webkit-scrollbar-thumb:hover {
-  @apply bg-ocean-800;
-}
+/* Scrollbar */
+::-webkit-scrollbar { width: 5px; height: 5px; }
+::-webkit-scrollbar-track { background: #020617; }
+::-webkit-scrollbar-thumb { background: #1A3A5C; border-radius: 9999px; }
+::-webkit-scrollbar-thumb:hover { background: #255B8A; }
 
-/* Leaflet dark mode overrides */
+/* Leaflet dark overrides */
 .leaflet-container {
-  background-color: #0B1F3A !important;
+  background-color: #020617 !important;
+  font-family: 'Inter', sans-serif !important;
 }
 .leaflet-control-zoom a {
-  @apply !bg-ocean-800 !text-slate-300 !border-ocean-700;
+  background-color: #0F2A4A !important;
+  color: #94a3b8 !important;
+  border-color: #1A3A5C !important;
+  transition: all 0.2s !important;
 }
 .leaflet-control-zoom a:hover {
-  @apply !bg-ocean-700;
+  background-color: #1A3A5C !important;
+  color: #e2e8f0 !important;
+}
+.leaflet-popup-content-wrapper {
+  background: #0F2A4A !important;
+  border: 1px solid #1A3A5C !important;
+  color: #e2e8f0 !important;
+  box-shadow: 0 8px 32px rgba(0,0,0,0.6) !important;
+  border-radius: 12px !important;
+}
+.leaflet-popup-tip { background: #0F2A4A !important; }
+.leaflet-popup-content { margin: 10px 14px !important; }
+
+/* Reduce motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
 }

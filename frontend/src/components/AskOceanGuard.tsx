@@ -1,65 +1,136 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useEffect } from "react";
+import { motion, AnimatePresence } from "framer-motion";
 import { askOceanGuard } from "../lib/api";
-import { MessageSquare, Send } from "lucide-react";
+import { MessageSquare, Send, Bot, User, Loader2 } from "lucide-react";
+
+interface Message { role: "user" | "ai"; text: string; }
+
+const SUGGESTIONS = [
+  "What is the highest-risk detection?",
+  "Which vessels are inside the MPA?",
+  "How is risk score calculated?",
+];
 
 export default function AskOceanGuard() {
-  const [query, setQuery] = useState("");
-  const [history, setHistory] = useState<{q: string; a: string}[]>([]);
+  const [query, setQuery]     = useState("");
+  const [messages, setMessages] = useState<Message[]>([]);
   const [loading, setLoading] = useState(false);
+  const bottomRef             = useRef<HTMLDivElement>(null);
 
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, loading]);
 
-    const currentQ = query;
+  const send = async (text: string) => {
+    const q = text.trim();
+    if (!q || loading) return;
     setQuery("");
+    setMessages((prev) => [...prev, { role: "user", text: q }]);
     setLoading(true);
-    
     try {
-      const res = await askOceanGuard(currentQ);
-      setHistory(prev => [...prev, { q: currentQ, a: res.answer }]);
-    } catch (err) {
-      setHistory(prev => [...prev, { q: currentQ, a: "Sorry, the agent encountered an error." }]);
+      const res = await askOceanGuard(q);
+      setMessages((prev) => [...prev, { role: "ai", text: res.answer }]);
+    } catch {
+      setMessages((prev) => [...prev, { role: "ai", text: "The agent encountered an error. Please try again." }]);
     } finally {
       setLoading(false);
     }
   };
 
+  const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); send(query); };
+
   return (
-    <div className="bg-ocean-800 border border-ocean-700 rounded-lg flex flex-col shadow-lg h-[300px]">
-      <div className="p-3 border-b border-ocean-700 flex items-center gap-2">
-        <MessageSquare className="w-4 h-4 text-teal-400" />
-        <h3 className="text-xs font-semibold text-teal-400 uppercase tracking-wider">Ask OceanGuard</h3>
-      </div>
-      
-      <div className="flex-1 overflow-y-auto p-4 space-y-4 text-sm">
-        {history.length === 0 && !loading && (
-          <div className="text-slate-500 text-center mt-8">Ask a question about the detections, MPA distances, or risk scores.</div>
-        )}
-        {history.map((h, i) => (
-          <div key={i} className="space-y-2">
-            <div className="text-slate-300 font-medium">Q: {h.q}</div>
-            <div className="text-slate-400 pl-4 border-l-2 border-ocean-600 bg-ocean-900/30 p-2 rounded-r">{h.a}</div>
-          </div>
-        ))}
-        {loading && <div className="text-teal-400/70 animate-pulse text-xs font-medium">Agent is thinking...</div>}
+    <div className="rounded-xl border border-ocean-700/60 bg-ocean-800/50 backdrop-blur-sm overflow-hidden shadow-lg flex flex-col" style={{ height: 320 }}>
+      {/* Header */}
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-ocean-700/40 shrink-0">
+        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-teal-500 to-teal-400 flex items-center justify-center">
+          <Bot className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-teal-400">Ask OceanGuard</span>
+        <span className="ml-auto text-[10px] text-slate-600">AI Analyst</span>
       </div>
 
-      <form onSubmit={handleSubmit} className="p-3 border-t border-ocean-700 flex gap-2">
-        <input 
-          type="text" 
+      {/* Messages */}
+      <div className="flex-1 overflow-y-auto px-3 py-3 space-y-3">
+        {messages.length === 0 && !loading && (
+          <motion.div
+            initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="space-y-2 pt-1"
+          >
+            <p className="text-[11px] text-slate-500 text-center">Ask about detections, risk scores, or MPA data.</p>
+            <div className="flex flex-col gap-1.5">
+              {SUGGESTIONS.map((s) => (
+                <button
+                  key={s}
+                  onClick={() => send(s)}
+                  className="text-left text-[11px] px-3 py-1.5 rounded-lg bg-ocean-700/30 border border-ocean-700/40 text-slate-400 hover:text-teal-400 hover:border-teal-400/20 transition-all duration-150"
+                >
+                  {s}
+                </button>
+              ))}
+            </div>
+          </motion.div>
+        )}
+
+        <AnimatePresence initial={false}>
+          {messages.map((m, i) => (
+            <motion.div
+              key={i}
+              initial={{ opacity: 0, y: 8 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.22 }}
+              className={`flex gap-2 ${m.role === "user" ? "flex-row-reverse" : "flex-row"}`}
+            >
+              <div className={`w-5 h-5 rounded-full flex items-center justify-center shrink-0 mt-0.5 ${
+                m.role === "user" ? "bg-ocean-600" : "bg-teal-500/20 border border-teal-400/20"
+              }`}>
+                {m.role === "user"
+                  ? <User className="w-2.5 h-2.5 text-slate-300" />
+                  : <Bot className="w-2.5 h-2.5 text-teal-400" />}
+              </div>
+              <div className={`max-w-[82%] rounded-xl px-3 py-2 text-xs leading-relaxed ${
+                m.role === "user"
+                  ? "bg-ocean-700/60 text-slate-200 rounded-tr-none"
+                  : "bg-teal-400/6 border border-teal-400/10 text-slate-300 rounded-tl-none"
+              }`}>
+                {m.text}
+              </div>
+            </motion.div>
+          ))}
+        </AnimatePresence>
+
+        {loading && (
+          <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+            className="flex gap-2"
+          >
+            <div className="w-5 h-5 rounded-full bg-teal-500/20 border border-teal-400/20 flex items-center justify-center shrink-0">
+              <Bot className="w-2.5 h-2.5 text-teal-400" />
+            </div>
+            <div className="px-3 py-2 bg-teal-400/6 border border-teal-400/10 rounded-xl rounded-tl-none">
+              <Loader2 className="w-3 h-3 animate-spin text-teal-400" />
+            </div>
+          </motion.div>
+        )}
+
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Input */}
+      <form onSubmit={handleSubmit} className="shrink-0 flex gap-2 p-3 border-t border-ocean-700/40 bg-ocean-900/30">
+        <input
+          type="text"
           value={query}
-          onChange={e => setQuery(e.target.value)}
-          placeholder="Ask a question..."
-          className="flex-1 bg-ocean-900 border border-ocean-700 rounded px-3 py-1.5 text-sm text-slate-200 outline-none focus:border-teal-500 transition-colors"
+          onChange={(e) => setQuery(e.target.value)}
+          placeholder="Ask a question…"
           disabled={loading}
+          className="flex-1 bg-ocean-900/60 border border-ocean-700/50 rounded-lg px-3 py-1.5 text-xs text-slate-200 placeholder-slate-600 outline-none focus:border-teal-400/40 transition-colors"
         />
-        <button 
-          type="submit" 
+        <button
+          type="submit"
           disabled={loading || !query.trim()}
-          className="bg-teal-600 hover:bg-teal-500 disabled:bg-ocean-700 text-white rounded p-1.5 transition-colors"
+          className="w-7 h-7 rounded-lg bg-teal-600 hover:bg-teal-500 disabled:bg-ocean-700 text-white flex items-center justify-center transition-colors shrink-0"
         >
-          <Send className="w-4 h-4" />
+          <Send className="w-3 h-3" />
         </button>
       </form>
     </div>
