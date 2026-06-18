@@ -1,6 +1,8 @@
 """Briefing agent for daily summaries."""
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from app.agents.client import get_client
 from app.agents.helpers import alertness_level, build_event_context, extract_text
 from app.core.config import settings
@@ -8,14 +10,22 @@ from app.models.schemas import BriefingResponse, RiskEvent
 
 SYSTEM_PROMPT = """You are a senior marine conservation analyst.
 Write a concise daily briefing for conservation officers.
-Stay factual, hedge uncertainty, and never make accusations."""
+Stay factual, hedge uncertainty, and never make accusations.
+
+Formatting rules (important):
+- Write in plain prose only. Do NOT use Markdown: no asterisks (* or **),
+  no headings (#), no bullet characters, no bold markers.
+- Do NOT use placeholder text such as [Insert Date] or [Location]. You are
+  given the real date and figures; use them directly.
+- Write 2 to 4 flowing sentences an officer can read at a glance."""
 
 
 def _build_user_prompt(events: list[RiskEvent]) -> str:
     priority_count = sum(1 for event in events if event.risk_level in {"HIGH", "CRITICAL"})
+    today = datetime.now(timezone.utc).strftime("%B %d, %Y")
     return "\n".join(
         [
-            "Summarise these detections for a patrol briefing.",
+            f"Today's date is {today}. Summarise these detections for a patrol briefing.",
             f"Total detections: {len(events)}",
             f"Recommended alertness baseline: {alertness_level(events)}",
             f"HIGH/CRITICAL detections: {priority_count}",

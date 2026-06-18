@@ -13,6 +13,23 @@ const MapController = ({ selected }: { selected: RiskEvent | null }) => {
   return null;
 };
 
+// Auto-fit the map to show all loaded events on first load.
+const FitBounds = ({ events }: { events: RiskEvent[] }) => {
+  const map = useMap();
+  useEffect(() => {
+    if (events.length === 0) return;
+    const lats = events.map((e) => e.lat);
+    const lons = events.map((e) => e.lon);
+    const bounds = L.latLngBounds(
+      [Math.min(...lats) - 0.3, Math.min(...lons) - 0.3],
+      [Math.max(...lats) + 0.3, Math.max(...lons) + 0.3],
+    );
+    map.fitBounds(bounds, { padding: [40, 40], maxZoom: 10, animate: false });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [map]); // run once when map is ready; events are stable after initial load
+  return null;
+};
+
 const RISK_COLORS: Record<string, string> = {
   LOW:      "#22c55e",
   MEDIUM:   "#fbbf24",
@@ -115,12 +132,17 @@ export default function MapView({ events, selected, onSelect }: {
       <MapContainer
         center={[8.5, 79.7]}
         zoom={9}
+        minZoom={2}
         style={{ width: "100%", height: "100%" }}
         zoomControl={false}
+        worldCopyJump={false}
+        maxBounds={[[-90, -180], [90, 180]]}
+        maxBoundsViscosity={1.0}
       >
         <TileLayer
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
+          noWrap={true}
         />
         {mpas.map((mpa, i) => (
           <Polygon
@@ -163,6 +185,7 @@ export default function MapView({ events, selected, onSelect }: {
           </Marker>
         ))}
 
+        <FitBounds events={events} />
         <MapController selected={selected} />
       </MapContainer>
     </div>

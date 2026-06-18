@@ -4,6 +4,20 @@ import { RiskEvent } from "../types";
 import { getBriefing } from "../lib/api";
 import { FileText, Loader2, AlertCircle, RefreshCw } from "lucide-react";
 
+// Safety net: even with a plain-prose prompt, the model occasionally emits
+// Markdown emphasis or leftover placeholders. Strip them so the card reads clean.
+function cleanBriefing(text: string): string {
+  return text
+    .replace(/\[(?:insert|enter|date|location|time)[^\]]*\]/gi, "") // [Insert Date] etc.
+    .replace(/\*\*(.*?)\*\*/g, "$1")  // **bold**
+    .replace(/__(.*?)__/g, "$1")       // __bold__
+    .replace(/^\s*#{1,6}\s*/gm, "")    // # headings
+    .replace(/^\s*[-*•]\s+/gm, "")     // bullet markers
+    .replace(/[*_`]+/g, "")            // stray emphasis chars
+    .replace(/\n{3,}/g, "\n\n")        // collapse blank runs
+    .trim();
+}
+
 export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
@@ -86,7 +100,7 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
                 <Loader2 className="w-2.5 h-2.5 text-teal-400 opacity-0" />
                 <span className="text-[10px] text-slate-500">AI-generated · {new Date().toLocaleDateString()}</span>
               </div>
-              <p className="text-xs text-slate-300 leading-[1.8] whitespace-pre-wrap">{briefing}</p>
+              <p className="text-xs text-slate-300 leading-[1.8] whitespace-pre-wrap">{cleanBriefing(briefing)}</p>
             </motion.div>
           )}
         </AnimatePresence>
