@@ -2,8 +2,8 @@ from __future__ import annotations
 
 import os
 
-from google import genai
-
+from app.agents.client import get_client
+from app.agents.helpers import extract_text
 from app.core.config import settings
 from app.models.schemas import RiskEvent
 
@@ -31,8 +31,8 @@ def _use_vertex_ai() -> bool:
     return settings.gemini_use_gcp
 
 
-def _get_vertex_client() -> genai.Client:
-    """Create a Vertex AI Gemini client using ADC credentials."""
+def _get_vertex_client():
+    """Create a Gemini client using the shared backend provider configuration."""
     if not _use_vertex_ai():
         raise RuntimeError(
             "Vertex AI mode is disabled. Set GOOGLE_GENAI_USE_VERTEXAI=True "
@@ -43,11 +43,10 @@ def _get_vertex_client() -> genai.Client:
     if not project:
         raise RuntimeError("GOOGLE_CLOUD_PROJECT is required for Vertex AI Gemini calls.")
 
-    return genai.Client(
-        vertexai=True,
-        project=project,
-        location=_vertex_location(),
-    )
+    client = get_client()
+    if client is None:
+        raise RuntimeError("Gemini client is not configured or the SDK is unavailable.")
+    return client
 
 
 def ask_gemini(prompt: str) -> str:
@@ -57,8 +56,7 @@ def ask_gemini(prompt: str) -> str:
         model=_vertex_model(),
         contents=prompt,
     )
-    text = getattr(response, "text", None)
-    return text.strip() if isinstance(text, str) else ""
+    return extract_text(response)
 
 
 def explain_vessel_risk_event(event: RiskEvent) -> str:

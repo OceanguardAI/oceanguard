@@ -103,6 +103,40 @@ def _find_event_from_question(question: str) -> RiskEvent | None:
     return None
 
 
+def _highest_risk_event() -> RiskEvent | None:
+    summary = repo.summary()
+    if not summary.highest_risk_event_id:
+        return None
+    return repo.get(summary.highest_risk_event_id)
+
+
+def _highest_risk_answer() -> AskResponse:
+    top_event = _highest_risk_event()
+    if top_event is None:
+        return AskResponse(answer="No detections are currently loaded in the backend dataset.")
+
+    distance_text = (
+        f"{top_event.distance_to_mpa_km:.1f} km from {top_event.mpa_name or 'the protected-area boundary'}"
+        if top_event.distance_to_mpa_km is not None
+        else "outside the stored MPA-distance range"
+    )
+    ais_text = (
+        "no matching AIS broadcast"
+        if top_event.ais_data_available and not top_event.ais_matched
+        else "an AIS match"
+        if top_event.ais_data_available
+        else "no AIS coverage data"
+    )
+
+    return AskResponse(
+        answer=(
+            f"{top_event.id} is the highest-risk detection in the current backend dataset. "
+            f"It has score {top_event.risk_score:.2f} ({top_event.risk_level}), "
+            f"has {ais_text}, and sits {distance_text}."
+        )
+    )
+
+
 def _function_calls(response: Any) -> list[Any]:
     """Return every function_call part in the response's first candidate, if any."""
     candidates = getattr(response, "candidates", None) or []
@@ -165,13 +199,7 @@ def _fallback(question: str) -> AskResponse:
         return AskResponse(answer=_summarise_event(matched_event))
 
     if "highest" in lowered or "most" in lowered or "bar-reef-003" in lowered:
-        summary = repo.summary()
-        return AskResponse(
-            answer=(
-                f"{summary.highest_risk_event_id} is the highest-risk detection in the current backend dataset. "
-                "It has score 0.61 (HIGH), no matching AIS broadcast, and sits 0.4 km from the Bar Reef boundary."
-            )
-        )
+        return _highest_risk_answer()
 
     if "review" in lowered or "resolved" in lowered or "false positive" in lowered:
         summary = repo.summary()
@@ -200,11 +228,16 @@ def _fallback(question: str) -> AskResponse:
         summary = repo.summary()
         high = summary.risk_level_counts.get("HIGH", 0)
         critical = summary.risk_level_counts.get("CRITICAL", 0)
-        return AskResponse(
-            answer=(
-                f"The backend currently has {high} HIGH-risk detections and {critical} CRITICAL-risk detections. "
-                f"The highest-risk event is {summary.highest_risk_event_id} at score {summary.highest_risk_score}."
+        answer = (
+            f"The backend currently has {high} HIGH-risk detections and {critical} CRITICAL-risk detections."
+        )
+        if summary.highest_risk_event_id and summary.highest_risk_score is not None:
+            answer += (
+                f" The highest-risk event is {summary.highest_risk_event_id} "
+                f"at score {summary.highest_risk_score:.2f}."
             )
+        return AskResponse(
+            answer=answer
         )
 
     if "map50" in lowered or "precision" in lowered or "recall" in lowered or "model" in lowered:

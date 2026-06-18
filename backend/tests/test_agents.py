@@ -241,6 +241,29 @@ def test_ask_fallback_specific_event_uses_repo_data() -> None:
     assert "Recommended action" in result.answer
 
 
+def test_ask_fallback_highest_risk_uses_live_repo_data() -> None:
+    original_events = repo._events.copy()
+    try:
+        low = _event(id="bar-reef-001", risk_score=0.20, risk_level="LOW")
+        top = _event(
+            id="bar-reef-999",
+            risk_score=0.91,
+            risk_level="CRITICAL",
+            ais_matched=True,
+            distance_to_mpa_km=2.4,
+            mpa_name="Custom Reef Boundary",
+        )
+        repo._events = {low.id: low, top.id: top}
+        result = ask._fallback("Which detection is highest risk?")
+    finally:
+        repo._events = original_events
+
+    assert "bar-reef-999" in result.answer
+    assert "0.91 (CRITICAL)" in result.answer
+    assert "an AIS match" in result.answer
+    assert "2.4 km from Custom Reef Boundary" in result.answer
+
+
 def test_event_summary_line_includes_core_context() -> None:
     line = helpers.event_summary_line(_event(review_status="Resolved"), include_review=True)
     assert "bar-reef-003" in line

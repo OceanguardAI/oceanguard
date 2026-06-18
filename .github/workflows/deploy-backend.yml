@@ -12,13 +12,25 @@ permissions:
   contents: read
   id-token: write
 
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  ARTIFACT_REGISTRY_REGION: ${{ vars.ARTIFACT_REGISTRY_REGION }}
+  ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}
+  BACKEND_IMAGE_NAME: ${{ vars.BACKEND_IMAGE_NAME }}
+  CLOUD_RUN_SERVICE: ${{ vars.CLOUD_RUN_SERVICE }}
+  CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
+  CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
+  GEMINI_GCP_LOCATION: ${{ vars.GEMINI_GCP_LOCATION }}
+  GEMINI_MODEL: ${{ vars.GEMINI_MODEL }}
+  CORS_ORIGINS: ${{ vars.CORS_ORIGINS }}
+
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
       - name: Check out repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Authenticate to Google Cloud
         id: auth
@@ -29,9 +41,9 @@ jobs:
           token_format: access_token
 
       - name: Log in to Artifact Registry
-        uses: docker/login-action@v3
+        uses: docker/login-action@v4
         with:
-          registry: asia-south1-docker.pkg.dev
+          registry: ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev
           username: oauth2accesstoken
           password: ${{ steps.auth.outputs.access_token }}
 
@@ -39,22 +51,29 @@ jobs:
         run: |
           docker build \
             -f backend/Dockerfile \
-            -t asia-south1-docker.pkg.dev/oceaneyelabs/oceanguard/oceanguard-api:${{ github.sha }} \
+            -t ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }} \
             backend
 
       - name: Push container image
-        run: docker push asia-south1-docker.pkg.dev/oceaneyelabs/oceanguard/oceanguard-api:${{ github.sha }}
+        run: docker push ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
 
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v3
         with:
-          service: oceanguard-api
-          region: asia-south1
-          image: asia-south1-docker.pkg.dev/oceaneyelabs/oceanguard/oceanguard-api:${{ github.sha }}
-          service_account: oceanguard-runtime@oceaneyelabs.iam.gserviceaccount.com
+          service: ${{ vars.CLOUD_RUN_SERVICE }}
+          region: ${{ vars.CLOUD_RUN_REGION }}
+          image: ${{ vars.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}/${{ vars.BACKEND_IMAGE_NAME }}:${{ github.sha }}
           env_vars: |
             GEMINI_USE_GCP=true
-            GOOGLE_CLOUD_PROJECT=oceaneyelabs
-            GOOGLE_CLOUD_LOCATION=global
-            GEMINI_MODEL=gemini-3.5-flash
-          flags: --allow-unauthenticated
+            GOOGLE_GENAI_USE_VERTEXAI=True
+            GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
+            GOOGLE_CLOUD_LOCATION=${{ vars.GEMINI_GCP_LOCATION }}
+            GEMINI_MODEL=${{ vars.GEMINI_MODEL }}
+            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
+            GFW_API_TOKEN=${{ secrets.GFW_API_TOKEN }}
+            AISSTREAM_API_KEY=${{ secrets.AISSTREAM_API_KEY }}
+            GFW_REGION_BBOX=${{ vars.GFW_REGION_BBOX }}
+            GFW_LOOKBACK_DAYS=${{ vars.GFW_LOOKBACK_DAYS }}
+            GFW_INGEST_ON_STARTUP=${{ vars.GFW_INGEST_ON_STARTUP }}
+          # Pass runtime service account through gcloud flags; deploy-cloudrun has no direct service_account input.
+          flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated'

@@ -30,6 +30,36 @@ def georeference_detections(
     return detections
 
 
+def georeference_from_tif(detections: list[dict], tif_path: str) -> list[dict]:
+    """Add `lat`/`lon` using the source GeoTIFF's own CRS and affine transform.
+
+    Unlike georeference_detections(), this reads the real geotransform from a
+    live Sentinel-1 tile, so it works for any scene rather than one fixed demo.
+    """
+    try:
+        import rasterio
+        from pyproj import Transformer
+    except ImportError as exc:  # pragma: no cover - depends on optional dependency
+        raise ImportError(
+            "rasterio and pyproj are required for georeference_from_tif(). Install ml/requirements.txt first."
+        ) from exc
+
+    with rasterio.open(tif_path) as src:
+        transform = src.transform
+        src_crs = src.crs
+
+    to_wgs84 = Transformer.from_crs(src_crs, "EPSG:4326", always_xy=True)
+    for detection in detections:
+        px_col = detection["col_off"] + detection["x_center_px"]
+        px_row = detection["row_off"] + detection["y_center_px"]
+        map_x, map_y = transform * (px_col, px_row)  # pixel -> CRS coordinates
+        lon, lat = to_wgs84.transform(map_x, map_y)
+        detection["lon"] = round(lon, 6)
+        detection["lat"] = round(lat, 6)
+
+    return detections
+
+
 if __name__ == "__main__":
     test = [{"col_off": 0, "row_off": 0, "x_center_px": 0, "y_center_px": 0}]
     result = georeference_detections(test)
