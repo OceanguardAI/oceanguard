@@ -12,6 +12,7 @@ from __future__ import annotations
 
 import json
 import math
+import threading
 from pathlib import Path
 from typing import Any
 
@@ -60,9 +61,8 @@ class MPAIndex:
 
     def load(self) -> None:
         path = self._mpa_file()
-        self._geoms, self._names, self._tree = [], [], None
         if not path.exists():
-            self._source_path = None
+            self._geoms, self._names, self._tree, self._source_path = [], [], None, None
             return
 
         data = json.loads(path.read_text(encoding="utf-8"))
@@ -73,6 +73,11 @@ class MPAIndex:
         else:  # bare geometry
             features = [{"type": "Feature", "properties": {}, "geometry": data}]
 
+        # Build into locals, then publish atomically: a concurrent reader (e.g. a
+        # /mpa request during the background startup load) sees either the old
+        # complete state or the new one, never a half-built index.
+        geoms: list[Any] = []
+        names: list[str] = []
         for feat in features:
             geom = feat.get("geometry")
             if not geom:
@@ -84,11 +89,11 @@ class MPAIndex:
             if g.is_empty:
                 continue
             name = (feat.get("properties") or {}).get("NAME") or "Protected Area"
-            self._geoms.append(g)
-            self._names.append(name)
+            geoms.append(g)
+            names.append(name)
 
-        self._tree = STRtree(self._geoms) if self._geoms else None
-        self._source_path = path
+        tree = STRtree(geoms) if geoms else None
+        self._geoms, self._names, self._tree, self._source_path = geoms, names, tree, path
 
     def nearest(self, lat: float, lon: float) -> tuple[str | None, float, bool, bool]:
         """Return (mpa_name, distance_km, inside_mpa, near_mpa) for a point.
@@ -148,13 +153,19 @@ class MPAIndex:
 
 # Module-level singleton, loaded lazily on first use.
 _index: MPAIndex | None = None
+_index_lock = threading.Lock()
 
 
 def get_index() -> MPAIndex:
     global _index
     if _index is None:
-        _index = MPAIndex()
-        _index.load()
+        # Lock so the background ingest thread and an inbound request can't both
+        # build the index at once (which would race on the shared singleton).
+        with _index_lock:
+            if _index is None:
+                idx = MPAIndex()
+                idx.load()
+                _index = idx
     return _index
 
 
