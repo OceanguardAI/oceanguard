@@ -74,6 +74,8 @@ def client(tmp_path: Path):
         "app.core.config.settings.gemini_use_gcp", False
     ), patch(
         "app.core.config.settings.google_genai_use_vertexai", False
+    ), patch(
+        "app.core.config.settings.gfw_ingest_on_startup", False
     ):
         from app.store.repository import repo
 

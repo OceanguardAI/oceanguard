@@ -48,6 +48,23 @@ class RiskEventRepository:
                     os.unlink(tmp_path)
                 raise
 
+    def replace_all(self, events: list[RiskEvent], *, persist: bool = True) -> int:
+        """Replace the entire store with a fresh set of events (e.g. from a live feed)."""
+        with self._lock:
+            self._events = {event.id: event for event in events}
+            if persist:
+                self.save()
+            return len(self._events)
+
+    def upsert_many(self, events: list[RiskEvent], *, persist: bool = True) -> int:
+        """Insert or update events by id, keeping existing events from other sources."""
+        with self._lock:
+            for event in events:
+                self._events[event.id] = event
+            if persist:
+                self.save()
+            return len(self._events)
+
     def all(
         self,
         source: str | None = None,

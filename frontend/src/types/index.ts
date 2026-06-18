@@ -71,9 +71,16 @@ export interface GeoJSONPolygonGeometry {
   coordinates: GeoJSONPosition[][];
 }
 
+export interface GeoJSONMultiPolygonGeometry {
+  type: "MultiPolygon";
+  coordinates: GeoJSONPosition[][][];
+}
+
+export type GeoJSONGeometry = GeoJSONPolygonGeometry | GeoJSONMultiPolygonGeometry;
+
 export interface GeoJSONFeature {
   type: "Feature";
-  geometry: GeoJSONPolygonGeometry;
+  geometry: GeoJSONGeometry;
   properties?: Record<string, unknown>;
 }
 

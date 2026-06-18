@@ -22,7 +22,25 @@ def _load_required_json(filename: str) -> object:
 
 @router.get("/mpa")
 def get_mpa() -> JSONResponse:
-    return JSONResponse(content=_load_required_json("bar_reef.geojson"))
+    """Serve the full marine protected area layer.
+
+    Prefers the multi-MPA WDPA file (mpas.geojson); falls back to the single
+    Bar Reef polygon so the map still renders when no WDPA data is present.
+    """
+    filename = "mpas.geojson" if (settings.data_dir / "mpas.geojson").exists() else "bar_reef.geojson"
+    return JSONResponse(content=_load_required_json(filename))
+
+
+@router.get("/mpa/status")
+def mpa_status() -> dict[str, object]:
+    from app.services import mpa_index
+
+    idx = mpa_index.get_index()
+    return {
+        "mpa_count": idx.count,
+        "source_file": idx.source,
+        "multi_mpa": idx.source == "mpas.geojson",
+    }
 
 
 @router.get("/ports")

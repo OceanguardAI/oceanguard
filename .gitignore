@@ -17,6 +17,10 @@ build/
 # ML artifacts (large files — user supplies these)
 ml/models/best.pt
 ml/data/
+
+# Full-world WDPA dump (large; the committed regional backend/data/mpas.geojson is the seed)
+backend/data/mpas.world.geojson
+backend/data/mpas.global.geojson
 ml/outputs/detections_scene1_georef.json
 ml/outputs/risk_events.json
 ml/outputs/ml_workflow_summary.json

@@ -41,38 +41,54 @@ const createDotIcon = (level: string, isSelected: boolean) => {
   });
 };
 
-export default function MapView({
-  events,
-  selected,
-  onSelect,
-}: {
+type MpaShape = { name: string; rings: [number, number][][] };
+
+export default function MapView({ events, selected, onSelect }: {
   events: RiskEvent[];
   selected: RiskEvent | null;
   onSelect: (e: RiskEvent) => void;
 }) {
-  const [mpaCoords, setMpaCoords] = useState<[number, number][][]>([]);
-  const [error, setError]         = useState<string | null>(null);
+  const [mpas, setMpas] = useState<MpaShape[]>([]);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
     setError(null);
     fetchMPA()
       .then((geojson) => {
-        const geometry =
-          geojson.type === "FeatureCollection"
-            ? geojson.features?.[0]?.geometry
-            : geojson.geometry;
+        const features = geojson.type === "FeatureCollection"
+          ? (geojson.features ?? [])
+          : [geojson];
 
-        if (!geometry?.coordinates?.[0]) {
-          if (!cancelled) { setMpaCoords([]); setError("Couldn't load the Bar Reef boundary."); }
-          return;
+        // Flatten Polygon + MultiPolygon features into a list of named rings.
+        const shapes: MpaShape[] = [];
+        for (const feature of features) {
+          const geom = feature.geometry;
+          if (!geom) continue;
+          const name = String(feature.properties?.NAME ?? "Protected Area");
+          // Normalize to an array of polygons (each polygon = array of rings).
+          const polygons =
+            geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
+          for (const polygon of polygons) {
+            const outer = polygon?.[0];
+            if (!outer) continue;
+            shapes.push({
+              name,
+              rings: [outer.map(([lon, lat]) => [lat, lon] as [number, number])],
+            });
+          }
         }
 
-        const poly = geometry.coordinates[0].map(([lon, lat]) => [lat, lon] as [number, number]);
-        if (!cancelled) setMpaCoords([poly]);
+        if (!cancelled) {
+          setMpas(shapes);
+          if (shapes.length === 0) setError("Couldn't load protected-area boundaries.");
+        }
       })
       .catch(() => {
-        if (!cancelled) { setMpaCoords([]); setError("Couldn't load the Bar Reef boundary."); }
+        if (!cancelled) {
+          setMpas([]);
+          setError("Couldn't load protected-area boundaries.");
+        }
       });
     return () => { cancelled = true; };
   }, []);
@@ -106,19 +122,24 @@ export default function MapView({
           url="https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png"
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
         />
-
-        {mpaCoords.length > 0 && (
+        {mpas.map((mpa, i) => (
           <Polygon
-            positions={mpaCoords}
+            key={`${mpa.name}-${i}`}
+            positions={mpa.rings}
             pathOptions={{
-              color:       "#25A5A8",
-              weight:      2,
-              fillColor:   "#1E8A8C",
+              color: "#25A5A8",
+              weight: 2,
+              fillColor: "#1E8A8C",
               fillOpacity: 0.08,
-              dashArray:   "6 4",
+              dashArray: "6 4",
             }}
-          />
-        )}
+          >
+            <Popup className="custom-popup">
+              <div className="text-sm font-semibold text-slate-800">{mpa.name}</div>
+              <div className="text-xs text-slate-500">Marine Protected Area</div>
+            </Popup>
+          </Polygon>
+        ))}
 
         {events.map((ev) => (
           <Marker
