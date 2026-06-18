@@ -87,6 +87,8 @@ jobs:
           region: ${{ vars.CLOUD_RUN_REGION }}
           image: ${{ vars.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}/${{ vars.BACKEND_IMAGE_NAME }}:${{ github.sha }}
           # 1Gi/1CPU: the global WDPA MPA index + GFW SAR report need more than
-          # the 512Mi default. Startup probe window widened since ingest now runs
-          # in the background (the container is healthy before data finishes loading).
-          flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated --env-vars-file=cloudrun-env.yaml --memory=1Gi --cpu=1'
+          # the 512Mi default. --no-cpu-throttling keeps the CPU allocated so the
+          # *background* ingest thread (index build + SAR scoring) runs at full
+          # speed instead of being throttled to a crawl after startup; instances
+          # still scale to zero when idle. Health passes before data loads.
+          flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated --env-vars-file=cloudrun-env.yaml --memory=1Gi --cpu=1 --no-cpu-throttling'
