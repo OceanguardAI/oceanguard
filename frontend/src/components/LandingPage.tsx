@@ -1,7 +1,7 @@
 import React from "react";
 import { motion, Variants } from "framer-motion";
 import {
-  ShieldAlert, Satellite, Radio, Map, BarChart3,
+  Satellite, Radio, Map, BarChart3,
   FileText, Users, ChevronRight, Zap, Eye, AlertTriangle,
 } from "lucide-react";
 import GradientButton from "./ui/GradientButton";
@@ -48,9 +48,7 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
       {/* ── Navigation ─────────────────────────────────────────── */}
       <nav className="fixed top-0 left-0 right-0 z-50 flex items-center justify-between px-6 py-3.5 glass-dark">
         <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
-            <ShieldAlert className="w-3.5 h-3.5 text-white" />
-          </div>
+          <img src="/logo.png" alt="OceanGuard AI" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-teal-500/20" />
           <span className="text-sm font-bold text-white tracking-tight">
             OceanGuard <span className="text-gradient">AI</span>
           </span>
@@ -295,9 +293,7 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
       <footer className="py-8 px-6 border-t border-ocean-700/20">
         <div className="max-w-6xl mx-auto flex flex-col md:flex-row items-center justify-between gap-4">
           <div className="flex items-center gap-2">
-            <div className="w-5 h-5 rounded bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center">
-              <ShieldAlert className="w-2.5 h-2.5 text-white" />
-            </div>
+            <img src="/logo.png" alt="OceanGuard AI" className="w-6 h-6 rounded object-cover" />
             <span className="text-sm font-bold text-white">OceanGuard AI</span>
           </div>
           <p className="text-xs text-slate-600">

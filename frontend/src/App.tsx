@@ -14,7 +14,7 @@ import ResponsibleAIFooter from "./components/ResponsibleAIFooter";
 import LandingPage from "./components/LandingPage";
 import AnimatedNumber from "./components/ui/AnimatedNumber";
 import {
-  ShieldAlert, Activity, BarChart3, Database,
+  Activity, BarChart3, Database,
   AlertTriangle, Eye, Layers, Clock,
 } from "lucide-react";
 
@@ -93,9 +93,7 @@ export default function App() {
             onClick={() => setPage("landing")}
             className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
           >
-            <div className="w-7 h-7 rounded-lg bg-gradient-to-br from-teal-400 to-teal-600 flex items-center justify-center shadow-lg shadow-teal-500/30">
-              <ShieldAlert className="w-3.5 h-3.5 text-white" />
-            </div>
+            <img src="/logo.png" alt="OceanGuard AI" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-teal-500/20" />
             <span className="text-sm font-bold text-white tracking-tight">
               OceanGuard <span className="text-teal-400">AI</span>
               <span className="text-slate-500 font-normal ml-1.5 text-xs">· Sentinel Dashboard</span>
