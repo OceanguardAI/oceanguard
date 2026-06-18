@@ -5,8 +5,8 @@ ml/fetch_wdpa.py) and answers, for any detection coordinate, which MPA it is
 inside or nearest to and how far. Falls back to the single Bar Reef polygon when
 no multi-MPA file is present, so the system still runs offline.
 
-A cheap bounding-box prefilter keeps lookups fast even with thousands of MPAs:
-only polygons whose bbox is within a search margin are tested with shapely.
+A shapely STRtree keeps lookups O(log n) even with the full global WDPA set
+(~10k polygons), so scoring tens of thousands of detections stays fast.
 """
 from __future__ import annotations
 
@@ -15,15 +15,14 @@ import math
 from pathlib import Path
 from typing import Any
 
-from shapely.geometry import Point, shape
+from shapely import STRtree
+from shapely.geometry import Point, box, mapping, shape
 from shapely.ops import nearest_points
 
 from app.core.config import settings
 
 # Distance (km) under which a detection counts as "near" an MPA boundary.
 NEAR_MPA_KM = 10.0
-# bbox prefilter half-window in degrees (~110 km) — only test nearby polygons.
-_PREFILTER_DEG = 1.0
 
 
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
@@ -41,7 +40,7 @@ class MPAIndex:
     def __init__(self) -> None:
         self._geoms: list[Any] = []
         self._names: list[str] = []
-        self._bboxes: list[tuple[float, float, float, float]] = []  # (minx,miny,maxx,maxy)
+        self._tree: STRtree | None = None
         self._source_path: Path | None = None
 
     @property
@@ -61,7 +60,7 @@ class MPAIndex:
 
     def load(self) -> None:
         path = self._mpa_file()
-        self._geoms, self._names, self._bboxes = [], [], []
+        self._geoms, self._names, self._tree = [], [], None
         if not path.exists():
             self._source_path = None
             return
@@ -87,49 +86,64 @@ class MPAIndex:
             name = (feat.get("properties") or {}).get("NAME") or "Protected Area"
             self._geoms.append(g)
             self._names.append(name)
-            self._bboxes.append(g.bounds)
 
+        self._tree = STRtree(self._geoms) if self._geoms else None
         self._source_path = path
 
     def nearest(self, lat: float, lon: float) -> tuple[str | None, float, bool, bool]:
         """Return (mpa_name, distance_km, inside_mpa, near_mpa) for a point.
 
+        Uses an STRtree so each lookup is O(log n) regardless of MPA count.
         distance_km is 0.0 when inside any MPA. When no MPAs are loaded, returns
         (None, inf, False, False) so callers can degrade gracefully.
         """
-        if not self._geoms:
+        if not self._geoms or self._tree is None:
             return None, float("inf"), False, False
 
         point = Point(lon, lat)
 
-        # 1) Containment check (only polygons whose bbox contains the point).
-        for i, (minx, miny, maxx, maxy) in enumerate(self._bboxes):
-            if minx <= lon <= maxx and miny <= lat <= maxy and self._geoms[i].contains(point):
-                return self._names[i], 0.0, True, False
+        # 1) Containment: any polygon the point intersects => inside an MPA.
+        # STRtree applies the predicate as point.predicate(polygon); use
+        # "intersects" (true when the point is within or on a polygon) since a
+        # point can never "cover" a polygon.
+        covering = self._tree.query(point, predicate="intersects")
+        if len(covering) > 0:
+            return self._names[int(covering[0])], 0.0, True, False
 
-        # 2) Nearest boundary among polygons within the prefilter window.
-        best_name: str | None = None
-        best_dist = float("inf")
-        for i, (minx, miny, maxx, maxy) in enumerate(self._bboxes):
-            if (
-                lon < minx - _PREFILTER_DEG or lon > maxx + _PREFILTER_DEG
-                or lat < miny - _PREFILTER_DEG or lat > maxy + _PREFILTER_DEG
-            ):
-                continue
-            near_pt = nearest_points(point, self._geoms[i].boundary)[1]
-            dist = _haversine_km(lat, lon, near_pt.y, near_pt.x)
-            if dist < best_dist:
-                best_dist, best_name = dist, self._names[i]
+        # 2) Nearest polygon (planar query), then true distance in km to it.
+        nearest_idx = int(self._tree.query_nearest(point)[0])
+        geom = self._geoms[nearest_idx]
+        # Use the geometry itself (not .boundary): the point is already known to
+        # be outside, and some make_valid outputs (Point/GeometryCollection) have
+        # an empty boundary, which would break nearest_points.
+        near_pt = nearest_points(point, geom)[1]
+        dist = round(_haversine_km(lat, lon, near_pt.y, near_pt.x), 2)
+        return self._names[nearest_idx], dist, False, (dist <= NEAR_MPA_KM)
 
-        if best_name is None:  # nothing in window — fall back to a coarse scan
-            for i, g in enumerate(self._geoms):
-                near_pt = nearest_points(point, g.boundary)[1]
-                dist = _haversine_km(lat, lon, near_pt.y, near_pt.x)
-                if dist < best_dist:
-                    best_dist, best_name = dist, self._names[i]
+    def features_in_bbox(
+        self, min_lon: float, min_lat: float, max_lon: float, max_lat: float, limit: int = 800
+    ) -> dict[str, Any]:
+        """Return a GeoJSON FeatureCollection of MPAs intersecting the bbox.
 
-        best_dist = round(best_dist, 2)
-        return best_name, best_dist, False, (best_dist <= NEAR_MPA_KM)
+        Used to serve only the protected areas in the map's current viewport,
+        so the frontend never has to render the full global WDPA set at once.
+        """
+        if not self._geoms or self._tree is None:
+            return {"type": "FeatureCollection", "features": []}
+
+        query_box = box(min_lon, min_lat, max_lon, max_lat)
+        idxs = self._tree.query(query_box, predicate="intersects")
+        features = []
+        for i in idxs[:limit]:
+            i = int(i)
+            features.append(
+                {
+                    "type": "Feature",
+                    "properties": {"NAME": self._names[i]},
+                    "geometry": mapping(self._geoms[i]),
+                }
+            )
+        return {"type": "FeatureCollection", "features": features}
 
 
 # Module-level singleton, loaded lazily on first use.

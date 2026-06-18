@@ -23,6 +23,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import time
 from pathlib import Path
 
 import requests
@@ -82,6 +83,22 @@ def _build_params(where: str, offset: int, bbox: list[float] | None) -> dict:
     return params
 
 
+def _get_with_retries(params: dict, retries: int = 5) -> requests.Response:
+    """GET a WDPA page, retrying transient network/SSL errors with backoff."""
+    last_exc: Exception | None = None
+    for attempt in range(retries):
+        try:
+            resp = requests.get(WDPA_QUERY_URL, params=params, timeout=180)
+            resp.raise_for_status()
+            return resp
+        except requests.exceptions.RequestException as exc:
+            last_exc = exc
+            wait = 2 ** attempt  # 1s, 2s, 4s, 8s, 16s
+            print(f"  ! request failed ({type(exc).__name__}); retry {attempt + 1}/{retries} in {wait}s")
+            time.sleep(wait)
+    raise RuntimeError(f"WDPA request failed after {retries} retries") from last_exc
+
+
 def fetch_wdpa_marine(bbox: list[float] | None, out_path: Path, simplify: bool = False) -> Path:
     """Download marine WDPA polygons (optionally clipped to bbox) as GeoJSON."""
     features: list[dict] = []
@@ -93,8 +110,7 @@ def fetch_wdpa_marine(bbox: list[float] | None, out_path: Path, simplify: bool =
         if simplify:
             # Server-side generalization: ~0.005 deg (~500 m) cuts file size a lot.
             params["geometryPrecision"] = "4"
-        resp = requests.get(WDPA_QUERY_URL, params=params, timeout=180)
-        resp.raise_for_status()
+        resp = _get_with_retries(params)
         payload = resp.json()
         batch = payload.get("features", [])
         if not batch:

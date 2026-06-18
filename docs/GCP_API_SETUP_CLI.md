@@ -130,5 +130,26 @@ It will:
   - `GOOGLE_CLOUD_PROJECT=oceaneyelabs`
   - `GOOGLE_CLOUD_LOCATION=us-central1`
   - `GEMINI_MODEL=gemini-2.5-flash`
+  - `GFW_REGION_BBOX=[-180,-90,180,90]` (whole world)
+  - `GFW_LOOKBACK_DAYS=7`, `GFW_MAX_EVENTS=600`
 
 For that deploy step to succeed, the deployer service account also needs `roles/iam.serviceAccountUser` on the runtime service account. `.\scripts\setup_gcp_oceanguard.ps1` already grants that binding.
+
+---
+
+## 8. Sentinel-1 SAR imagery (optional)
+
+The evidence card shows a real Sentinel-1 VV SAR chip for each detection when
+Sentinel Hub credentials are present. Without them the chip panel is hidden and
+everything else works unchanged.
+
+1. Create a free Sentinel Hub account and an **OAuth client** at
+   `https://apps.sentinel-hub.com/dashboard/#/account/settings` (User settings ->
+   OAuth clients -> Create). Copy the client id and secret.
+2. Add them as GitHub **Secrets** (not variables):
+   - `SENTINELHUB_CLIENT_ID`
+   - `SENTINELHUB_CLIENT_SECRET`
+3. Redeploy. The backend exposes `GET /sar-image/status` (`{configured: true}`)
+   and `GET /sar-image?lat=&lon=&date=` (returns an `image/png`).
+
+The workflow already passes these two secrets through to Cloud Run.

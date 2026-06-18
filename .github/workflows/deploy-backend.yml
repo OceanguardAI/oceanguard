@@ -72,9 +72,12 @@ jobs:
           CORS_ORIGINS: "${{ vars.CORS_ORIGINS }}"
           GFW_API_TOKEN: "${{ secrets.GFW_API_TOKEN }}"
           AISSTREAM_API_KEY: "${{ secrets.AISSTREAM_API_KEY }}"
-          GFW_REGION_BBOX: "${{ vars.GFW_REGION_BBOX }}"
-          GFW_LOOKBACK_DAYS: "90"
+          GFW_REGION_BBOX: "[-180,-90,180,90]"
+          GFW_LOOKBACK_DAYS: "7"
+          GFW_MAX_EVENTS: "600"
           GFW_INGEST_ON_STARTUP: "true"
+          SENTINELHUB_CLIENT_ID: "${{ secrets.SENTINELHUB_CLIENT_ID }}"
+          SENTINELHUB_CLIENT_SECRET: "${{ secrets.SENTINELHUB_CLIENT_SECRET }}"
           EOF
 
       - name: Deploy to Cloud Run
@@ -83,4 +86,7 @@ jobs:
           service: ${{ vars.CLOUD_RUN_SERVICE }}
           region: ${{ vars.CLOUD_RUN_REGION }}
           image: ${{ vars.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}/${{ vars.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-          flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated --env-vars-file=cloudrun-env.yaml'
+          # 1Gi/1CPU: the global WDPA MPA index + GFW SAR report need more than
+          # the 512Mi default. Startup probe window widened since ingest now runs
+          # in the background (the container is healthy before data finishes loading).
+          flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated --env-vars-file=cloudrun-env.yaml --memory=1Gi --cpu=1'

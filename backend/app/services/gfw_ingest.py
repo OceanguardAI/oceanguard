@@ -51,14 +51,22 @@ def _nearest_port(lat: float, lon: float, ports: list[dict[str, Any]]) -> tuple[
 
 
 def _score_detection(*, ais_matched: bool, distance_to_mpa_km: float, detections: int) -> tuple[float, str]:
-    """Risk score for a SAR detection. Dark (no AIS) + near/inside MPA = high."""
-    score = 0.30
+    """Risk score for a SAR detection.
+
+    Proximity to a protected area is the primary driver, so scores spread across
+    the full range globally: a SAR vessel inside an MPA is CRITICAL, near is
+    HIGH, in the surrounding waters MEDIUM, and well out in the open ocean LOW.
+    Lacking an AIS identity ("dark") adds a moderate amount on top.
+    """
+    score = 0.25  # baseline SAR vessel presence
     if not ais_matched:
-        score += 0.40  # dark vessel: the core illegal-fishing signal
+        score += 0.20  # no AIS identity in the SAR feed — possible dark vessel
     if distance_to_mpa_km <= 0:
-        score += 0.25  # inside the protected area
+        score += 0.45  # inside the protected area
     elif distance_to_mpa_km <= 10:
-        score += 0.15  # near the boundary
+        score += 0.30  # near the boundary
+    elif distance_to_mpa_km <= 50:
+        score += 0.15  # in surrounding waters
     if detections > 1:
         score += 0.05  # repeated presence at the same cell
     score = min(score, 0.99)
@@ -194,6 +202,45 @@ def fetch_live_events(ports: list[dict[str, Any]] | None = None) -> list[RiskEve
     rows = _fetch_sar_report()
     ports = ports or []
     events = [_to_risk_event(row, i + 1, ports) for i, row in enumerate(rows)]
-    # Highest-risk first so summaries surface dark vessels.
+    # Highest-risk first so summaries surface dark vessels near protected areas.
     events.sort(key=lambda e: e.risk_score, reverse=True)
+
+    # A global query returns tens of thousands of detections, often clustered.
+    # Keep the highest-risk detection per ~0.5deg cell so the map shows activity
+    # spread across the world (and a realistic mix of risk levels) rather than
+    # hundreds of identical markers piled on a handful of protected areas.
+    best_per_cell: dict[tuple[int, int], RiskEvent] = {}
+    for event in events:  # already sorted by score desc
+        cell = (round(event.lat * 2), round(event.lon * 2))
+        best_per_cell.setdefault(cell, event)
+    events = list(best_per_cell.values())
+
+    # Globally there are far more dark-vessel detections inside/near MPAs than we
+    # want to plot, so a pure top-N cap would show nothing but CRITICAL markers —
+    # which is neither readable nor honest. Take a stratified sample instead, so
+    # the map reflects a realistic risk pyramid (a few critical leads, many
+    # routine open-water detections) while still surfacing every top threat.
+    cap = settings.gfw_max_events
+    if cap > 0 and len(events) > cap:
+        by_level: dict[str, list[RiskEvent]] = {"CRITICAL": [], "HIGH": [], "MEDIUM": [], "LOW": []}
+        for event in events:  # score desc within each level
+            by_level.setdefault(event.risk_level, []).append(event)
+        targets = {"CRITICAL": 0.15, "HIGH": 0.30, "MEDIUM": 0.35, "LOW": 0.20}
+        selected: list[RiskEvent] = []
+        for level, frac in targets.items():
+            selected.extend(by_level.get(level, [])[: round(cap * frac)])
+        # If some levels were short, top up with the next-highest-risk remainder.
+        if len(selected) < cap:
+            chosen = {id(e) for e in selected}
+            for event in events:
+                if len(selected) >= cap:
+                    break
+                if id(event) not in chosen:
+                    selected.append(event)
+        events = selected
+        events.sort(key=lambda e: e.risk_score, reverse=True)
+
+    # Re-number ids so they read 0001..N in display order.
+    for i, event in enumerate(events, start=1):
+        event.id = f"gfw-sar-{i:04d}"
     return events

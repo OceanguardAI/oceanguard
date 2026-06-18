@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import asyncio
 import json
 from contextlib import asynccontextmanager
 
@@ -7,33 +8,44 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import agents as agents_router
-from app.api.routes import ais, events, geo, ingest, metrics
+from app.api.routes import ais, events, geo, ingest, metrics, sar
 from app.core.config import settings
 from app.services import gfw_ingest, mpa_index
 from app.store.repository import repo
 
 
+def _run_ingest() -> None:
+    """Blocking GFW ingest, run off the event loop in a worker thread.
+
+    Building the global MPA index and pulling a worldwide SAR report each take
+    several seconds, so this must NOT run in the startup path — otherwise the
+    container misses the Cloud Run health check and crashes.
+    """
+    idx = mpa_index.get_index()  # lazy-loads the WDPA set here, in the thread
+    print(f"MPA index: {idx.count} protected areas loaded from {idx.source}.")
+    try:
+        ports_path = settings.data_dir / "ports.json"
+        ports = (
+            json.loads(ports_path.read_text(encoding="utf-8"))
+            if ports_path.exists()
+            else []
+        )
+        events_live = gfw_ingest.fetch_live_events(ports=ports if isinstance(ports, list) else [])
+        # In-memory only: keep the seed risk_events.json as an offline fallback.
+        repo.replace_all(events_live, persist=False)
+        print(f"Live ingestion: loaded {len(events_live)} GFW SAR events.")
+    except Exception as exc:
+        print(f"Live ingestion skipped (using seed data): {exc}")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    repo.load()
-    # Load the marine protected area set (WDPA multi-MPA file or Bar Reef fallback).
-    idx = mpa_index.get_index()
-    print(f"MPA index: {idx.count} protected areas loaded from {idx.source}.")
-    # Replace the seed dataset with live GFW SAR detections when configured.
+    repo.load()  # seed data is available immediately as a fallback
+    # Kick live ingestion off in the background so startup returns at once and
+    # the server can answer the health check; live events replace the seed set
+    # when the fetch finishes (a few seconds later).
     if settings.gfw_ingest_on_startup and gfw_ingest.ingestion_enabled():
-        try:
-            ports_path = settings.data_dir / "ports.json"
-            ports = (
-                json.loads(ports_path.read_text(encoding="utf-8"))
-                if ports_path.exists()
-                else []
-            )
-            events_live = gfw_ingest.fetch_live_events(ports=ports if isinstance(ports, list) else [])
-            # In-memory only: keep the seed risk_events.json as an offline fallback.
-            repo.replace_all(events_live, persist=False)
-            print(f"Live ingestion: loaded {len(events_live)} GFW SAR events.")
-        except Exception as exc:
-            print(f"Live ingestion skipped (using seed data): {exc}")
+        asyncio.create_task(asyncio.to_thread(_run_ingest))
     yield
 
 
@@ -58,6 +70,7 @@ app.include_router(metrics.router)
 app.include_router(agents_router.router)
 app.include_router(ingest.router)
 app.include_router(ais.router)
+app.include_router(sar.router)
 
 
 @app.get("/health")

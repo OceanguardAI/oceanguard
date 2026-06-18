@@ -21,12 +21,24 @@ def _load_required_json(filename: str) -> object:
 
 
 @router.get("/mpa")
-def get_mpa() -> JSONResponse:
-    """Serve the full marine protected area layer.
+def get_mpa(bbox: str | None = None) -> JSONResponse:
+    """Serve the marine protected area layer.
 
-    Prefers the multi-MPA WDPA file (mpas.geojson); falls back to the single
-    Bar Reef polygon so the map still renders when no WDPA data is present.
+    With ?bbox=min_lon,min_lat,max_lon,max_lat, returns only the MPAs that
+    intersect that box (the map's viewport) so the global WDPA set never has to
+    be sent or rendered all at once. Without a bbox, returns the full file
+    (fine for the small Bar Reef fallback).
     """
+    if bbox:
+        try:
+            min_lon, min_lat, max_lon, max_lat = (float(v) for v in bbox.split(","))
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="bbox must be 'min_lon,min_lat,max_lon,max_lat'.")
+        from app.services import mpa_index
+
+        fc = mpa_index.get_index().features_in_bbox(min_lon, min_lat, max_lon, max_lat)
+        return JSONResponse(content=fc)
+
     filename = "mpas.geojson" if (settings.data_dir / "mpas.geojson").exists() else "bar_reef.geojson"
     return JSONResponse(content=_load_required_json(filename))
 

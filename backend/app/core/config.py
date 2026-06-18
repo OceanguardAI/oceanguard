@@ -32,12 +32,22 @@ class Settings(BaseSettings):
     # --- Live data ingestion (Global Fishing Watch + AISStream) ---
     gfw_api_token: str = ""
     aisstream_api_key: str = ""
-    # Monitored area: min_lon, min_lat, max_lon, max_lat (default = Bar Reef, Sri Lanka).
-    gfw_region_bbox: list[float] = [79.4, 8.0, 79.9, 8.8]
-    # How many days back to query SAR detections each ingest run.
-    gfw_lookback_days: int = 90
+    # Monitored area: min_lon, min_lat, max_lon, max_lat. Default = whole world,
+    # so we surface dark vessels globally and rank them by MPA proximity.
+    gfw_region_bbox: list[float] = [-180.0, -90.0, 180.0, 90.0]
+    # How many days back to query SAR detections each ingest run. Kept short for
+    # the global query, which returns tens of thousands of detections per week.
+    gfw_lookback_days: int = 7
+    # Cap how many (highest-risk) detections we keep, so the map/store stay light.
+    gfw_max_events: int = 600
     # Auto-ingest live data at startup when a GFW token is present.
     gfw_ingest_on_startup: bool = True
+
+    # --- Sentinel-1 SAR imagery (Sentinel Hub Process API) ---
+    sentinelhub_client_id: str = ""
+    sentinelhub_client_secret: str = ""
+    sentinelhub_token_url: str = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
+    sentinelhub_process_url: str = "https://services.sentinel-hub.com/api/v1/process"
 
     @field_validator("gfw_region_bbox", mode="before")
     @classmethod
