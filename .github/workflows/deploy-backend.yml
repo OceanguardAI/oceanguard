@@ -57,23 +57,33 @@ jobs:
       - name: Push container image
         run: docker push ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.BACKEND_IMAGE_NAME }}:${{ github.sha }}
 
+      # Env vars are written to a YAML file rather than the action's `env_vars`
+      # input: that input joins pairs with commas, which corrupts any value that
+      # itself contains a comma (e.g. GFW_REGION_BBOX=[79.4,8.0,79.9,8.8] was
+      # truncated to "[79.4" and crashed the container at startup). A YAML file
+      # has no delimiter ambiguity.
+      - name: Write Cloud Run env file
+        run: |
+          cat > cloudrun-env.yaml <<'EOF'
+          GEMINI_USE_GCP: "true"
+          GOOGLE_GENAI_USE_VERTEXAI: "True"
+          GOOGLE_CLOUD_PROJECT: "${{ vars.GCP_PROJECT_ID }}"
+          GOOGLE_CLOUD_LOCATION: "${{ vars.GEMINI_GCP_LOCATION }}"
+          GEMINI_MODEL: "${{ vars.GEMINI_MODEL }}"
+          CORS_ORIGINS: "${{ vars.CORS_ORIGINS }}"
+          GFW_API_TOKEN: "${{ secrets.GFW_API_TOKEN }}"
+          AISSTREAM_API_KEY: "${{ secrets.AISSTREAM_API_KEY }}"
+          GFW_REGION_BBOX: "${{ vars.GFW_REGION_BBOX }}"
+          GFW_LOOKBACK_DAYS: "${{ vars.GFW_LOOKBACK_DAYS }}"
+          GFW_INGEST_ON_STARTUP: "${{ vars.GFW_INGEST_ON_STARTUP }}"
+          EOF
+
       - name: Deploy to Cloud Run
         uses: google-github-actions/deploy-cloudrun@v3
         with:
           service: ${{ vars.CLOUD_RUN_SERVICE }}
           region: ${{ vars.CLOUD_RUN_REGION }}
           image: ${{ vars.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ vars.GCP_PROJECT_ID }}/${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}/${{ vars.BACKEND_IMAGE_NAME }}:${{ github.sha }}
-          env_vars: |
-            GEMINI_USE_GCP=true
-            GOOGLE_GENAI_USE_VERTEXAI=True
-            GOOGLE_CLOUD_PROJECT=${{ vars.GCP_PROJECT_ID }}
-            GOOGLE_CLOUD_LOCATION=${{ vars.GEMINI_GCP_LOCATION }}
-            GEMINI_MODEL=${{ vars.GEMINI_MODEL }}
-            CORS_ORIGINS=${{ vars.CORS_ORIGINS }}
-            GFW_API_TOKEN=${{ secrets.GFW_API_TOKEN }}
-            AISSTREAM_API_KEY=${{ secrets.AISSTREAM_API_KEY }}
-            GFW_REGION_BBOX=${{ vars.GFW_REGION_BBOX }}
-            GFW_LOOKBACK_DAYS=${{ vars.GFW_LOOKBACK_DAYS }}
-            GFW_INGEST_ON_STARTUP=${{ vars.GFW_INGEST_ON_STARTUP }}
+          env_vars_file: cloudrun-env.yaml
           # Pass runtime service account through gcloud flags; deploy-cloudrun has no direct service_account input.
           flags: '--service-account=${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated'
