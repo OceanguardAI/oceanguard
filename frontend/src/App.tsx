@@ -31,28 +31,35 @@ export default function App() {
 
   useEffect(() => {
     let cancelled = false;
-    setEventsLoading(true);
-    setEventsError(null);
 
-    fetchRiskEvents()
-      .then((data) => {
-        if (cancelled) return;
-        setEvents(data);
-        const highRisk = data.find((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL");
-        if (highRisk) setSelectedEvent(highRisk);
-        else if (data.length > 0) setSelectedEvent(data[0]);
-      })
-      .catch(() => {
-        if (cancelled) return;
-        setEvents([]);
-        setSelectedEvent(null);
-        setEventsError("Couldn't load detections. Check the backend API and refresh.");
-      })
-      .finally(() => {
-        if (!cancelled) setEventsLoading(false);
-      });
+    // Live ingestion runs in the background on the server and finishes ~30s
+    // after a cold start, so we poll: detections appear (and refresh) without a
+    // manual reload. The user's current selection is preserved across polls.
+    const load = (initial: boolean) => {
+      if (initial) { setEventsLoading(true); setEventsError(null); }
+      fetchRiskEvents()
+        .then((data) => {
+          if (cancelled) return;
+          setEvents(data);
+          setEventsError(null);
+          setSelectedEvent((prev) => {
+            if (prev && data.some((e) => e.id === prev.id)) return prev;  // keep selection
+            return data.find((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL")
+              ?? data[0] ?? null;
+          });
+        })
+        .catch(() => {
+          if (cancelled || !initial) return;  // a failed poll shouldn't wipe live data
+          setEvents([]);
+          setSelectedEvent(null);
+          setEventsError("Couldn't load detections. Check the backend API and refresh.");
+        })
+        .finally(() => { if (!cancelled && initial) setEventsLoading(false); });
+    };
 
-    return () => { cancelled = true; };
+    load(true);
+    const timer = setInterval(() => load(false), 30000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
   const handleLaunch = () => { setPage("dashboard"); setActiveTab("dashboard"); };

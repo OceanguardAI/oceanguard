@@ -21,8 +21,30 @@ export async function fetchModelMetrics(): Promise<ModelMetrics> {
   return res.json();
 }
 
-export async function fetchMPA(): Promise<MPAGeoJSON> {
-  const res = await fetch(`${API_BASE}/mpa`);
+// --- Sentinel-1 SAR image chips ---
+let _sarConfigured: boolean | null = null;
+
+export async function sarImageConfigured(): Promise<boolean> {
+  if (_sarConfigured !== null) return _sarConfigured;
+  try {
+    const res = await fetch(`${API_BASE}/sar-image/status`);
+    _sarConfigured = res.ok ? Boolean((await res.json()).configured) : false;
+  } catch {
+    _sarConfigured = false;
+  }
+  return _sarConfigured;
+}
+
+export function sarImageUrl(lat: number, lon: number, date?: string): string {
+  const d = date ? `&date=${encodeURIComponent(date)}` : "";
+  return `${API_BASE}/sar-image?lat=${lat}&lon=${lon}${d}`;
+}
+
+export async function fetchMPA(bbox?: [number, number, number, number]): Promise<MPAGeoJSON> {
+  // With a bbox the backend returns only MPAs in that box, so we never pull the
+  // full global WDPA set. bbox = [minLon, minLat, maxLon, maxLat].
+  const q = bbox ? `?bbox=${bbox.join(",")}` : "";
+  const res = await fetch(`${API_BASE}/mpa${q}`);
   if (!res.ok) throw new Error("Failed to fetch MPA");
   return res.json() as Promise<MPAGeoJSON>;
 }

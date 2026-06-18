@@ -1,5 +1,5 @@
-import React, { useEffect, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap } from "react-leaflet";
+import React, { useEffect, useRef, useState } from "react";
+import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { RiskEvent } from "../types";
 import { fetchMPA } from "../lib/api";
@@ -60,55 +60,75 @@ const createDotIcon = (level: string, isSelected: boolean) => {
 
 type MpaShape = { name: string; rings: [number, number][][] };
 
+// Flatten Polygon + MultiPolygon features into a list of named rings for Leaflet.
+function featuresToShapes(geojson: any): MpaShape[] {
+  const features = geojson?.type === "FeatureCollection" ? (geojson.features ?? []) : [geojson];
+  const shapes: MpaShape[] = [];
+  for (const feature of features) {
+    const geom = feature?.geometry;
+    if (!geom) continue;
+    const name = String(feature.properties?.NAME ?? "Protected Area");
+    const polygons = geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
+    for (const polygon of polygons) {
+      const outer = polygon?.[0];
+      if (!outer) continue;
+      shapes.push({ name, rings: [outer.map(([lon, lat]: number[]) => [lat, lon] as [number, number])] });
+    }
+  }
+  return shapes;
+}
+
+// Loads only the MPAs inside the current viewport, refetching on pan/zoom so we
+// never pull the full global WDPA set. Renders them as dashed teal polygons.
+function MpaLayer({ onError }: { onError: (msg: string | null) => void }) {
+  const map = useMap();
+  const [mpas, setMpas] = useState<MpaShape[]>([]);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const refetch = () => {
+    if (timer.current) clearTimeout(timer.current);
+    // Debounce so a pan/zoom gesture triggers a single request.
+    timer.current = setTimeout(() => {
+      const b = map.getBounds();
+      const bbox: [number, number, number, number] = [
+        b.getWest(), b.getSouth(), b.getEast(), b.getNorth(),
+      ];
+      fetchMPA(bbox)
+        .then((geojson) => { setMpas(featuresToShapes(geojson)); onError(null); })
+        .catch(() => onError("Couldn't load protected-area boundaries."));
+    }, 300);
+  };
+
+  useMapEvents({ moveend: refetch, zoomend: refetch });
+  // Initial load once the map is ready.
+  useEffect(() => { refetch(); return () => { if (timer.current) clearTimeout(timer.current); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <>
+      {mpas.map((mpa, i) => (
+        <Polygon
+          key={`${mpa.name}-${i}`}
+          positions={mpa.rings}
+          pathOptions={{ color: "#25A5A8", weight: 2, fillColor: "#1E8A8C", fillOpacity: 0.08, dashArray: "6 4" }}
+        >
+          <Popup className="custom-popup">
+            <div className="text-sm font-semibold text-slate-800">{mpa.name}</div>
+            <div className="text-xs text-slate-500">Marine Protected Area</div>
+          </Popup>
+        </Polygon>
+      ))}
+    </>
+  );
+}
+
 export default function MapView({ events, selected, onSelect }: {
   events: RiskEvent[];
   selected: RiskEvent | null;
   onSelect: (e: RiskEvent) => void;
 }) {
-  const [mpas, setMpas] = useState<MpaShape[]>([]);
   const [error, setError] = useState<string | null>(null);
-
-  useEffect(() => {
-    let cancelled = false;
-    setError(null);
-    fetchMPA()
-      .then((geojson) => {
-        const features = geojson.type === "FeatureCollection"
-          ? (geojson.features ?? [])
-          : [geojson];
-
-        // Flatten Polygon + MultiPolygon features into a list of named rings.
-        const shapes: MpaShape[] = [];
-        for (const feature of features) {
-          const geom = feature.geometry;
-          if (!geom) continue;
-          const name = String(feature.properties?.NAME ?? "Protected Area");
-          // Normalize to an array of polygons (each polygon = array of rings).
-          const polygons =
-            geom.type === "MultiPolygon" ? geom.coordinates : [geom.coordinates];
-          for (const polygon of polygons) {
-            const outer = polygon?.[0];
-            if (!outer) continue;
-            shapes.push({
-              name,
-              rings: [outer.map(([lon, lat]) => [lat, lon] as [number, number])],
-            });
-          }
-        }
-
-        if (!cancelled) {
-          setMpas(shapes);
-          if (shapes.length === 0) setError("Couldn't load protected-area boundaries.");
-        }
-      })
-      .catch(() => {
-        if (!cancelled) {
-          setMpas([]);
-          setError("Couldn't load protected-area boundaries.");
-        }
-      });
-    return () => { cancelled = true; };
-  }, []);
 
   return (
     <div className="w-full h-full relative z-0">
@@ -144,24 +164,7 @@ export default function MapView({ events, selected, onSelect }: {
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           noWrap={true}
         />
-        {mpas.map((mpa, i) => (
-          <Polygon
-            key={`${mpa.name}-${i}`}
-            positions={mpa.rings}
-            pathOptions={{
-              color: "#25A5A8",
-              weight: 2,
-              fillColor: "#1E8A8C",
-              fillOpacity: 0.08,
-              dashArray: "6 4",
-            }}
-          >
-            <Popup className="custom-popup">
-              <div className="text-sm font-semibold text-slate-800">{mpa.name}</div>
-              <div className="text-xs text-slate-500">Marine Protected Area</div>
-            </Popup>
-          </Polygon>
-        ))}
+        <MpaLayer onError={setError} />
 
         {events.map((ev) => (
           <Marker

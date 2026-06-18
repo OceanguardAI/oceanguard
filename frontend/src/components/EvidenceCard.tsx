@@ -2,11 +2,11 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RiskEvent } from "../types";
 import { getRiskBgColor } from "../lib/riskColor";
-import { narrateEvent, updateReviewStatus } from "../lib/api";
+import { narrateEvent, updateReviewStatus, sarImageConfigured, sarImageUrl } from "../lib/api";
 import {
   Navigation2, Activity, Map, Clock,
   CheckCircle, XCircle, Loader2, AlertCircle,
-  Anchor, Shield, Info,
+  Anchor, Shield, Info, Satellite,
 } from "lucide-react";
 import RiskBadge from "./ui/RiskBadge";
 import GradientButton from "./ui/GradientButton";
@@ -64,12 +64,15 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
   const [loading, setLoading]       = useState(false);
   const [error, setError]           = useState<string | null>(null);
   const [reviewError, setReviewError] = useState<string | null>(null);
+  const [sarOk, setSarOk]           = useState(false);
+  const [sarFailed, setSarFailed]   = useState(false);
 
   useEffect(() => {
     let cancelled = false;
     setNarrative(null);
     setError(null);
     setLoading(true);
+    setSarFailed(false);
 
     narrateEvent(event)
       .then((res) => { if (!cancelled) setNarrative(res); })
@@ -78,6 +81,13 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
 
     return () => { cancelled = true; };
   }, [event.id]);
+
+  // Show the Sentinel-1 SAR chip only when the backend has Sentinel Hub creds.
+  useEffect(() => {
+    let cancelled = false;
+    sarImageConfigured().then((ok) => { if (!cancelled) setSarOk(ok); });
+    return () => { cancelled = true; };
+  }, []);
 
   const handleReview = async (status: string) => {
     try {
@@ -133,6 +143,25 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
           </span>
         ))}
       </div>
+
+      {/* Sentinel-1 SAR image chip (only when Sentinel Hub is configured) */}
+      {sarOk && !sarFailed && (
+        <div className="border-b border-ocean-700/30 bg-ocean-900/40">
+          <div className="relative">
+            <img
+              src={sarImageUrl(event.lat, event.lon, event.timestamp)}
+              alt={`Sentinel-1 SAR chip for detection ${event.id}`}
+              onError={() => setSarFailed(true)}
+              className="w-full h-48 object-cover grayscale-[0.1]"
+              loading="lazy"
+            />
+            <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-t from-ocean-900/90 to-transparent text-[10px] text-slate-300">
+              <Satellite className="w-3 h-3 text-teal-400" />
+              Sentinel-1 VV SAR · ~11 km across · radar backscatter
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Fields grid */}
       <div className="p-4 grid grid-cols-2 gap-4 border-b border-ocean-700/30 bg-ocean-900/20">
