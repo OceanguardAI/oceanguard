@@ -40,7 +40,7 @@ export default function AskOceanGuard() {
   const handleSubmit = (e: React.FormEvent) => { e.preventDefault(); send(query); };
 
   return (
-    <div className="rounded-xl border border-ocean-700/60 bg-ocean-800/50 backdrop-blur-sm overflow-hidden shadow-lg flex flex-col" style={{ height: 320 }}>
+    <div className="rounded-xl border border-ocean-700/60 bg-ocean-800/50 backdrop-blur-sm overflow-hidden shadow-lg flex flex-col h-full min-h-[320px]">
       {/* Header */}
       <div className="flex items-center gap-2 px-4 py-3 border-b border-ocean-700/40 shrink-0">
         <div className="w-5 h-5 rounded-md bg-gradient-to-br from-teal-500 to-teal-400 flex items-center justify-center">

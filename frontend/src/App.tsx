@@ -16,18 +16,68 @@ import AnimatedNumber from "./components/ui/AnimatedNumber";
 import {
   Activity, BarChart3, Database,
   AlertTriangle, Eye, Layers, Clock,
+  List, FileText, Crosshair, MessageSquare, X,
 } from "lucide-react";
 
-type Page = "landing" | "dashboard";
-type Tab  = "dashboard" | "metrics" | "sources";
+type Page      = "landing" | "dashboard";
+type Tab       = "dashboard" | "metrics" | "sources";
+type LeftPanel = "detections" | "briefing" | "patrols" | null;
+
+const RISK_DOT: Record<string, string> = {
+  CRITICAL: "#dc2626", HIGH: "#f97316", MEDIUM: "#fbbf24", LOW: "#22c55e",
+};
+
+/** A glass panel floating over the map. Components inside bring their own card
+ *  chrome, so this just positions, frames, scrolls, and adds a close button. */
+function Floating({
+  className, onClose, framed, scroll = true, children,
+}: {
+  className: string;
+  onClose?: () => void;
+  framed?: boolean;
+  scroll?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0, scale: 0.98 }}
+      animate={{ opacity: 1, scale: 1 }}
+      exit={{ opacity: 0, scale: 0.98 }}
+      transition={{ duration: 0.18, ease: [0.22, 1, 0.36, 1] }}
+      className={`pointer-events-auto absolute ${className}`}
+    >
+      {onClose && (
+        <button
+          onClick={onClose}
+          aria-label="Close panel"
+          className="absolute -top-2.5 -right-2.5 z-20 w-6 h-6 rounded-full bg-ocean-800 border border-ocean-600 text-slate-400 hover:text-white hover:border-teal-400/40 flex items-center justify-center shadow-lg transition-colors"
+        >
+          <X className="w-3 h-3" />
+        </button>
+      )}
+      <div
+        className={`h-full ${scroll ? "overflow-y-auto" : "overflow-hidden"} ${
+          framed ? "rounded-xl border border-ocean-700/60 bg-ocean-900/95 backdrop-blur-md shadow-2xl" : ""
+        }`}
+      >
+        {children}
+      </div>
+    </motion.div>
+  );
+}
 
 export default function App() {
-  const [page, setPage]                 = useState<Page>("landing");
-  const [events, setEvents]             = useState<RiskEvent[]>([]);
+  const [page, setPage]                   = useState<Page>("landing");
+  const [events, setEvents]               = useState<RiskEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<RiskEvent | null>(null);
-  const [activeTab, setActiveTab]       = useState<Tab>("dashboard");
+  const [activeTab, setActiveTab]         = useState<Tab>("dashboard");
   const [eventsLoading, setEventsLoading] = useState(false);
-  const [eventsError, setEventsError]   = useState<string | null>(null);
+  const [eventsError, setEventsError]     = useState<string | null>(null);
+
+  // Map-console panel state.
+  const [leftPanel, setLeftPanel]       = useState<LeftPanel>("detections");
+  const [evidenceOpen, setEvidenceOpen] = useState(true);
+  const [assistantOpen, setAssistantOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -62,6 +112,14 @@ export default function App() {
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
 
+  // Selecting a detection (from the map, queue, or patrol board) brings its
+  // evidence to the front and steps the assistant aside so it doesn't cover it.
+  const handleSelect = (e: RiskEvent) => {
+    setSelectedEvent(e);
+    setEvidenceOpen(true);
+    setAssistantOpen(false);
+  };
+
   const handleLaunch = () => { setPage("dashboard"); setActiveTab("dashboard"); };
 
   const handleDemo = () => {
@@ -71,15 +129,31 @@ export default function App() {
       events.find((e) => e.id === "bar-reef-003") ||
       events.find((e) => e.risk_level === "CRITICAL") ||
       events.find((e) => e.risk_level === "HIGH");
-    if (demo) setSelectedEvent(demo);
+    if (demo) handleSelect(demo);
   };
 
+  const updateEvent = (updated: RiskEvent) => {
+    setEvents((curr) => curr.map((e) => (e.id === updated.id ? updated : e)));
+    setSelectedEvent((curr) => (curr?.id === updated.id ? updated : curr));
+  };
+
+  const toggleLeft = (id: Exclude<LeftPanel, null>) =>
+    setLeftPanel((curr) => (curr === id ? null : id));
+
   const kpis = [
-    { icon: Layers,       label: "Total Detections", value: events.length,                                                                  color: "text-teal-400",    bg: "bg-teal-400/8" },
-    { icon: AlertTriangle, label: "High / Critical",  value: events.filter((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL").length, color: "text-risk-high",   bg: "bg-risk-high/8" },
-    { icon: Eye,          label: "Near MPA",         value: events.filter((e) => e.inside_mpa || e.near_mpa).length,                        color: "text-risk-medium", bg: "bg-risk-medium/8" },
-    { icon: Clock,        label: "Pending Review",   value: events.filter((e) => e.review_status === "Pending").length,                     color: "text-slate-300",   bg: "bg-slate-700/25" },
+    { icon: Layers,        label: "Total Detections", value: events.length,                                                                                color: "text-teal-400",    bg: "bg-teal-400/8" },
+    { icon: AlertTriangle, label: "High / Critical",  value: events.filter((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL").length,           color: "text-risk-high",   bg: "bg-risk-high/8" },
+    { icon: Eye,           label: "Near MPA",         value: events.filter((e) => e.inside_mpa || e.near_mpa).length,                                       color: "text-risk-medium", bg: "bg-risk-medium/8" },
+    { icon: Clock,         label: "Pending Review",   value: events.filter((e) => e.review_status === "Pending").length,                                    color: "text-slate-300",   bg: "bg-slate-700/25" },
   ];
+
+  const navChips = [
+    { id: "detections" as const, icon: List,      label: "Detections" },
+    { id: "briefing"   as const, icon: FileText,  label: "Briefing"   },
+    { id: "patrols"    as const, icon: Crosshair, label: "Patrols"    },
+  ];
+
+  const showBackendError = eventsError && events.length === 0 && !eventsLoading;
 
   if (page === "landing") {
     return <LandingPage onLaunch={handleLaunch} onDemo={handleDemo} />;
@@ -95,7 +169,7 @@ export default function App() {
         className="flex flex-col h-screen overflow-hidden bg-ocean-950"
       >
         {/* Header */}
-        <header className="glass-dark border-b border-ocean-700/40 h-[52px] flex items-center justify-between px-4 shrink-0">
+        <header className="glass-dark border-b border-ocean-700/40 h-[52px] flex items-center justify-between px-4 shrink-0 z-30">
           <button
             onClick={() => setPage("landing")}
             className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
@@ -109,9 +183,9 @@ export default function App() {
 
           <nav className="flex items-center gap-1">
             {([
-              { id: "dashboard" as Tab, icon: Activity,  label: "Monitoring"   },
-              { id: "metrics"   as Tab, icon: BarChart3,  label: "ML Validation" },
-              { id: "sources"   as Tab, icon: Database,   label: "Data Sources"  },
+              { id: "dashboard" as Tab, icon: Activity,  label: "Monitoring"    },
+              { id: "metrics"   as Tab, icon: BarChart3, label: "ML Validation" },
+              { id: "sources"   as Tab, icon: Database,  label: "Data Sources"  },
             ]).map(({ id, icon: Icon, label }) => (
               <button
                 key={id}
@@ -129,72 +203,137 @@ export default function App() {
           </nav>
         </header>
 
-        {/* KPI Bar */}
+        {/* Toolbar: panel navigation (left) + risk legend + KPIs + assistant (right) */}
         {activeTab === "dashboard" && (
-          <div className="shrink-0 flex items-center gap-2.5 px-4 py-2 border-b border-ocean-700/25 bg-ocean-950/80 flex-wrap">
-            {kpis.map((kpi) => {
-              const Icon = kpi.icon;
-              return (
-                <div
-                  key={kpi.label}
-                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg ${kpi.bg} border border-ocean-700/30`}
+          <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-20 flex-wrap">
+            {/* Panel toggles */}
+            <div className="flex items-center gap-1">
+              {navChips.map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => toggleLeft(id)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    leftPanel === id
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                  }`}
                 >
-                  <Icon className={`w-3 h-3 ${kpi.color} shrink-0`} />
-                  <span className="text-[11px] text-slate-500">{kpi.label}:</span>
-                  <span className={`text-sm font-bold ${kpi.color} tabular-nums`}>
-                    <AnimatedNumber value={kpi.value} />
-                  </span>
-                </div>
-              );
-            })}
-            {eventsLoading && (
-              <span className="text-[11px] text-slate-600 animate-pulse ml-1">Loading…</span>
-            )}
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="h-5 w-px bg-ocean-700/50 mx-1 hidden sm:block" />
+
+            {/* Risk legend */}
+            <div className="hidden md:flex items-center gap-2.5">
+              {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
+                <span key={lvl} className="flex items-center gap-1 text-[10px] text-slate-500">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: RISK_DOT[lvl] }} />
+                  {lvl}
+                </span>
+              ))}
+            </div>
+
+            {/* KPIs + assistant pushed right */}
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {kpis.map((kpi) => {
+                const Icon = kpi.icon;
+                return (
+                  <div
+                    key={kpi.label}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${kpi.bg} border border-ocean-700/30`}
+                  >
+                    <Icon className={`w-3 h-3 ${kpi.color} shrink-0`} />
+                    <span className="text-[11px] text-slate-500 hidden lg:inline">{kpi.label}:</span>
+                    <span className={`text-sm font-bold ${kpi.color} tabular-nums`}>
+                      <AnimatedNumber value={kpi.value} />
+                    </span>
+                  </div>
+                );
+              })}
+              {eventsLoading && (
+                <span className="text-[11px] text-slate-600 animate-pulse">Loading…</span>
+              )}
+              <button
+                onClick={() => setAssistantOpen((v) => !v)}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                  assistantOpen
+                    ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                }`}
+              >
+                <MessageSquare className="w-3.5 h-3.5" />
+                Assistant
+              </button>
+            </div>
           </div>
         )}
 
-        {/* Main Content */}
-        <main className="flex-1 overflow-hidden flex">
+        {/* Main content */}
+        <main className="flex-1 overflow-hidden relative">
           {activeTab === "dashboard" && (
             <>
-              {/* Left: Map + Table */}
-              <div className="flex-1 flex flex-col min-w-0 border-r border-ocean-700/25">
-                {eventsError && events.length === 0 && !eventsLoading ? (
-                  <div className="flex-1 flex items-center justify-center p-8">
-                    <div className="max-w-sm rounded-2xl border border-risk-high/20 bg-risk-high/5 p-8 text-center space-y-3">
+              {/* Full-bleed map */}
+              <div className="absolute inset-0">
+                <MapView events={events} selected={selectedEvent} onSelect={handleSelect} />
+              </div>
+
+              {/* Overlay panels. The layer ignores pointer events; each panel
+                  re-enables them, so the map stays interactive in the gaps. */}
+              <div className="absolute inset-0 pointer-events-none z-[1000]">
+                <AnimatePresence>
+                  {/* Left: detections / briefing / patrols */}
+                  {leftPanel && !showBackendError && (
+                    <Floating
+                      key={leftPanel}
+                      onClose={() => setLeftPanel(null)}
+                      framed={leftPanel === "detections"}
+                      scroll={leftPanel !== "detections"}
+                      className="top-3 left-3 bottom-3 w-[330px]"
+                    >
+                      {leftPanel === "detections" && (
+                        <RiskTable events={events} selected={selectedEvent} onSelect={handleSelect} />
+                      )}
+                      {leftPanel === "briefing" && <DailyBriefing events={events} />}
+                      {leftPanel === "patrols"  && <PatrolBoard events={events} onSelect={handleSelect} />}
+                    </Floating>
+                  )}
+
+                  {/* Right: assistant takes precedence; otherwise the evidence card */}
+                  {assistantOpen ? (
+                    <Floating
+                      key="assistant"
+                      onClose={() => setAssistantOpen(false)}
+                      scroll={false}
+                      className="top-3 right-3 bottom-3 w-[380px]"
+                    >
+                      <AskOceanGuard />
+                    </Floating>
+                  ) : (
+                    selectedEvent && evidenceOpen && !showBackendError && (
+                      <Floating
+                        key="evidence"
+                        onClose={() => setEvidenceOpen(false)}
+                        className="top-3 right-3 bottom-3 w-[380px]"
+                      >
+                        <EvidenceCard event={selectedEvent} onUpdate={updateEvent} />
+                      </Floating>
+                    )
+                  )}
+                </AnimatePresence>
+
+                {/* Backend offline: a single centered notice over the (empty) map */}
+                {showBackendError && (
+                  <div className="pointer-events-auto absolute inset-0 flex items-center justify-center p-8">
+                    <div className="max-w-sm rounded-2xl border border-risk-high/20 bg-ocean-900/95 backdrop-blur-md p-8 text-center space-y-3 shadow-2xl">
                       <AlertTriangle className="w-8 h-8 text-risk-high mx-auto" />
                       <p className="font-semibold text-white">Backend Offline</p>
                       <p className="text-slate-400 text-sm">{eventsError}</p>
                     </div>
                   </div>
-                ) : (
-                  <>
-                    <div className="h-[58%] border-b border-ocean-700/25 relative">
-                      <MapView events={events} selected={selectedEvent} onSelect={setSelectedEvent} />
-                    </div>
-                    <div className="h-[42%] overflow-hidden">
-                      <RiskTable events={events} selected={selectedEvent} onSelect={setSelectedEvent} />
-                    </div>
-                  </>
                 )}
-              </div>
-
-              {/* Right: Agents */}
-              <div className="w-[440px] shrink-0 flex flex-col overflow-y-auto bg-ocean-950">
-                <div className="p-3 space-y-3">
-                  <DailyBriefing events={events} />
-                  {selectedEvent && (
-                    <EvidenceCard
-                      event={selectedEvent}
-                      onUpdate={(updated) => {
-                        setEvents((curr) => curr.map((e) => (e.id === updated.id ? updated : e)));
-                        setSelectedEvent((curr) => (curr?.id === updated.id ? updated : curr));
-                      }}
-                    />
-                  )}
-                  <PatrolBoard events={events} onSelect={setSelectedEvent} />
-                  <AskOceanGuard />
-                </div>
               </div>
             </>
           )}
@@ -205,7 +344,7 @@ export default function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 overflow-y-auto p-8"
+              className="absolute inset-0 overflow-y-auto p-8"
             >
               <ModelMetricsComponent />
             </motion.div>
@@ -217,7 +356,7 @@ export default function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="flex-1 overflow-y-auto p-8"
+              className="absolute inset-0 overflow-y-auto p-8"
             >
               <DataSources />
             </motion.div>

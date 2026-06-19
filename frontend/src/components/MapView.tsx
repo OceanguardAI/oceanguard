@@ -133,21 +133,10 @@ export default function MapView({ events, selected, onSelect }: {
   return (
     <div className="w-full h-full relative z-0">
       {error && (
-        <div className="absolute left-3 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 text-xs text-slate-400 shadow-lg">
+        <div className="absolute left-1/2 -translate-x-1/2 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 text-xs text-slate-400 shadow-lg">
           {error}
         </div>
       )}
-
-      {/* Legend */}
-      <div className="absolute right-3 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 shadow-lg">
-        <div className="text-[9px] text-slate-500 uppercase tracking-widest mb-1.5 font-semibold">Risk Level</div>
-        {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
-          <div key={lvl} className="flex items-center gap-1.5 text-[10px] text-slate-400 mb-1 last:mb-0">
-            <span className="w-2 h-2 rounded-full shrink-0" style={{ background: RISK_COLORS[lvl] }} />
-            {lvl}
-          </div>
-        ))}
-      </div>
 
       <MapContainer
         center={[8.5, 79.7]}
