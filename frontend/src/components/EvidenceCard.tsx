@@ -2,11 +2,15 @@ import React, { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RiskEvent } from "../types";
 import { getRiskBgColor } from "../lib/riskColor";
-import { narrateEvent, updateReviewStatus, sarImageConfigured, sarImageUrl } from "../lib/api";
+import {
+  narrateEvent, updateReviewStatus, sarImageConfigured, sarImageUrl,
+  yoloVerifyConfigured, verifyYolo, YoloVerifyResult,
+} from "../lib/api";
 import {
   Navigation2, Activity, Map, Clock,
   CheckCircle, XCircle, Loader2, AlertCircle,
   Anchor, Shield, Info, Satellite,
+  Radar, ScanSearch, ShieldCheck, SearchX,
 } from "lucide-react";
 import RiskBadge from "./ui/RiskBadge";
 import GradientButton from "./ui/GradientButton";
@@ -66,6 +70,10 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
   const [reviewError, setReviewError] = useState<string | null>(null);
   const [sarOk, setSarOk]           = useState(false);
   const [sarFailed, setSarFailed]   = useState(false);
+  const [yoloOk, setYoloOk]         = useState(false);
+  const [yoloLoading, setYoloLoading] = useState(false);
+  const [yoloResult, setYoloResult] = useState<YoloVerifyResult | null>(null);
+  const [yoloError, setYoloError]   = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -73,6 +81,9 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
     setError(null);
     setLoading(true);
     setSarFailed(false);
+    // New detection selected: clear any prior YOLO verification result.
+    setYoloResult(null);
+    setYoloError(null);
 
     narrateEvent(event)
       .then((res) => { if (!cancelled) setNarrative(res); })
@@ -86,8 +97,25 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
   useEffect(() => {
     let cancelled = false;
     sarImageConfigured().then((ok) => { if (!cancelled) setSarOk(ok); });
+    yoloVerifyConfigured().then((ok) => { if (!cancelled) setYoloOk(ok); });
     return () => { cancelled = true; };
   }, []);
+
+  const handleYoloCheck = async () => {
+    setYoloError(null);
+    setYoloResult(null);
+    setYoloLoading(true);
+    try {
+      const res = await verifyYolo(event.id);
+      setYoloResult(res);
+      // If our model confirmed it, the backend bumped the score — reflect it.
+      if (res.updated_event) onUpdate(res.updated_event);
+    } catch (e) {
+      setYoloError(e instanceof Error ? e.message : "YOLO check failed. Try again.");
+    } finally {
+      setYoloLoading(false);
+    }
+  };
 
   const handleReview = async (status: string) => {
     try {
@@ -160,6 +188,93 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
               Sentinel-1 VV SAR · ~11 km across · radar backscatter
             </div>
           </div>
+        </div>
+      )}
+
+      {/* Independent AI verification — our own YOLO model on live Sentinel-1.
+          The button runs best.pt on this exact point; a vessel that switched
+          AIS off is invisible to the AIS feed but still reflects radar. */}
+      {yoloOk && (
+        <div className="border-b border-ocean-700/30 p-4 bg-ocean-900/20">
+          <div className="flex items-center justify-between gap-2 flex-wrap">
+            <div className="flex items-center gap-2">
+              <Radar className="w-3.5 h-3.5 text-cyan-400" />
+              <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400">
+                Independent AI Verification
+              </span>
+            </div>
+            <GradientButton variant="ghost" size="xs" onClick={handleYoloCheck} disabled={yoloLoading}>
+              {yoloLoading
+                ? (<><Loader2 className="w-3 h-3 animate-spin" /> Scanning radar…</>)
+                : (<><ScanSearch className="w-3 h-3" /> Run YOLO check</>)}
+            </GradientButton>
+          </div>
+
+          <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
+            Runs our own ship-detection model on the live Sentinel-1 radar for this exact
+            point — catching dark vessels that have switched their AIS off.
+          </p>
+
+          {yoloError && (
+            <div className="mt-3 flex items-start gap-2 text-xs text-risk-high bg-risk-high/8 border border-risk-high/20 rounded-lg p-3">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {yoloError}
+            </div>
+          )}
+
+          {yoloResult && (
+            <div className="mt-3 space-y-3">
+              {yoloResult.yolo.found ? (
+                <div className="flex items-center gap-2 flex-wrap text-xs font-semibold text-risk-low">
+                  <ShieldCheck className="w-4 h-4 shrink-0" />
+                  Vessel confirmed · {(yoloResult.yolo.best_confidence * 100).toFixed(0)}% ·{" "}
+                  {yoloResult.yolo.count} contact{yoloResult.yolo.count > 1 ? "s" : ""}
+                  {yoloResult.agreement && (
+                    <span className="text-cyan-300">· confirmed by 2 independent systems</span>
+                  )}
+                </div>
+              ) : (
+                <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
+                  <SearchX className="w-4 h-4 shrink-0" />
+                  No vessel found in this radar pass — review the GFW point.
+                </div>
+              )}
+
+              {/* The exact chip the model analysed, with its detection boxes drawn on top. */}
+              <div className="relative rounded-lg overflow-hidden border border-ocean-700/40">
+                <img
+                  src={`data:image/png;base64,${yoloResult.yolo.chip_png_b64}`}
+                  alt={`YOLO-analysed Sentinel-1 chip for detection ${event.id}`}
+                  className="w-full block"
+                />
+                <svg
+                  viewBox={`0 0 ${yoloResult.yolo.chip_px} ${yoloResult.yolo.chip_px}`}
+                  preserveAspectRatio="none"
+                  className="absolute inset-0 w-full h-full pointer-events-none"
+                >
+                  {yoloResult.yolo.detections.map((d, i) => (
+                    <g key={i}>
+                      <rect
+                        x={d.bbox_px[0]} y={d.bbox_px[1]}
+                        width={d.bbox_px[2] - d.bbox_px[0]}
+                        height={d.bbox_px[3] - d.bbox_px[1]}
+                        fill="none" stroke="#22d3ee" strokeWidth={3}
+                      />
+                      <text
+                        x={d.bbox_px[0]} y={Math.max(13, d.bbox_px[1] - 4)}
+                        fill="#22d3ee" fontSize={14} fontWeight="bold"
+                      >
+                        {(d.confidence * 100).toFixed(0)}%
+                      </text>
+                    </g>
+                  ))}
+                </svg>
+                <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-t from-ocean-900/90 to-transparent text-[10px] text-slate-300">
+                  <Radar className="w-3 h-3 text-cyan-400" />
+                  OceanGuard YOLO · Sentinel-1 VV · conf ≥ {(yoloResult.yolo.conf_threshold * 100).toFixed(0)}%
+                </div>
+              </div>
+            </div>
+          )}
         </div>
       )}
 

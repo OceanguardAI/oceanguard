@@ -81,6 +81,7 @@ jobs:
           GFW_INGEST_ON_STARTUP: "true"
           SENTINELHUB_CLIENT_ID: "${{ secrets.SENTINELHUB_CLIENT_ID }}"
           SENTINELHUB_CLIENT_SECRET: "${{ secrets.SENTINELHUB_CLIENT_SECRET }}"
+          YOLO_SERVICE_URL: "${{ vars.YOLO_SERVICE_URL }}"
           EOF
 
       - name: Deploy to Cloud Run

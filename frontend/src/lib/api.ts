@@ -40,6 +40,54 @@ export function sarImageUrl(lat: number, lon: number, date?: string): string {
   return `${API_BASE}/sar-image?lat=${lat}&lon=${lon}${d}`;
 }
 
+// --- On-demand YOLO verification (our own model on live Sentinel-1) ---
+export interface YoloDetection {
+  confidence: number;
+  bbox_px: [number, number, number, number];
+  lat: number;
+  lon: number;
+}
+
+export interface YoloVerifyResult {
+  event_id: string;
+  agreement: boolean;
+  yolo: {
+    found: boolean;
+    count: number;
+    best_confidence: number;
+    detections: YoloDetection[];
+    chip_px: number;
+    chip_bbox: [number, number, number, number];
+    chip_png_b64: string;
+    conf_threshold: number;
+  };
+  updated_event: RiskEvent | null;
+}
+
+let _yoloConfigured: boolean | null = null;
+
+export async function yoloVerifyConfigured(): Promise<boolean> {
+  if (_yoloConfigured !== null) return _yoloConfigured;
+  try {
+    const res = await fetch(`${API_BASE}/verify/yolo/status`);
+    _yoloConfigured = res.ok ? Boolean((await res.json()).configured) : false;
+  } catch {
+    _yoloConfigured = false;
+  }
+  return _yoloConfigured;
+}
+
+export async function verifyYolo(eventId: string): Promise<YoloVerifyResult> {
+  const res = await fetch(`${API_BASE}/verify/yolo?event_id=${encodeURIComponent(eventId)}`, {
+    method: "POST",
+  });
+  if (!res.ok) {
+    const detail = await res.json().catch(() => null);
+    throw new Error(detail?.detail ?? "YOLO verification failed");
+  }
+  return res.json();
+}
+
 export async function fetchMPA(bbox?: [number, number, number, number]): Promise<MPAGeoJSON> {
   // With a bbox the backend returns only MPAs in that box, so we never pull the
   // full global WDPA set. bbox = [minLon, minLat, maxLon, maxLat].

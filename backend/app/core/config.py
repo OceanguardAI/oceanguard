@@ -49,6 +49,11 @@ class Settings(BaseSettings):
     sentinelhub_token_url: str = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
     sentinelhub_process_url: str = "https://services.sentinel-hub.com/api/v1/process"
 
+    # --- On-demand YOLO verification (separate Cloud Run service) ---
+    # Base URL of the oceanguard-yolo service. When empty, the "Run YOLO check"
+    # action is disabled and the endpoint reports not-configured.
+    yolo_service_url: str = ""
+
     @field_validator("gfw_region_bbox", mode="before")
     @classmethod
     def _split_bbox(cls, value: object) -> object:

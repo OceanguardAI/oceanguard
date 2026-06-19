@@ -1,0 +1,78 @@
+name: Deploy OceanGuard YOLO Service to Cloud Run
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "yolo-service/**"
+      - ".github/workflows/deploy-yolo.yml"
+  # Manual redeploy (e.g. to pick up new secrets) without a code change.
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  id-token: write
+
+env:
+  GCP_PROJECT_ID: ${{ vars.GCP_PROJECT_ID }}
+  ARTIFACT_REGISTRY_REGION: ${{ vars.ARTIFACT_REGISTRY_REGION }}
+  ARTIFACT_REGISTRY_REPOSITORY: ${{ vars.ARTIFACT_REGISTRY_REPOSITORY }}
+  # Dedicated, separate from the API image/service so torch never bloats the API.
+  YOLO_IMAGE_NAME: oceanguard-yolo
+  YOLO_SERVICE: oceanguard-yolo
+  CLOUD_RUN_REGION: ${{ vars.CLOUD_RUN_REGION }}
+  CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT: ${{ vars.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }}
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v5
+
+      - name: Authenticate to Google Cloud
+        id: auth
+        uses: google-github-actions/auth@v3
+        with:
+          workload_identity_provider: ${{ vars.WIF_PROVIDER }}
+          service_account: ${{ vars.WIF_SERVICE_ACCOUNT }}
+          token_format: access_token
+
+      - name: Log in to Artifact Registry
+        uses: docker/login-action@v4
+        with:
+          registry: ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev
+          username: oauth2accesstoken
+          password: ${{ steps.auth.outputs.access_token }}
+
+      - name: Build container image
+        run: |
+          docker build \
+            -f yolo-service/Dockerfile \
+            -t ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.YOLO_IMAGE_NAME }}:${{ github.sha }} \
+            yolo-service
+
+      - name: Push container image
+        run: docker push ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.YOLO_IMAGE_NAME }}:${{ github.sha }}
+
+      - name: Write Cloud Run env file
+        run: |
+          cat > yolo-env.yaml <<'EOF'
+          SENTINELHUB_CLIENT_ID: "${{ secrets.SENTINELHUB_CLIENT_ID }}"
+          SENTINELHUB_CLIENT_SECRET: "${{ secrets.SENTINELHUB_CLIENT_SECRET }}"
+          CONF_THRESHOLD: "0.25"
+          CORS_ORIGINS: "*"
+          EOF
+
+      - name: Deploy to Cloud Run
+        uses: google-github-actions/deploy-cloudrun@v3
+        with:
+          service: ${{ env.YOLO_SERVICE }}
+          region: ${{ env.CLOUD_RUN_REGION }}
+          image: ${{ env.ARTIFACT_REGISTRY_REGION }}-docker.pkg.dev/${{ env.GCP_PROJECT_ID }}/${{ env.ARTIFACT_REGISTRY_REPOSITORY }}/${{ env.YOLO_IMAGE_NAME }}:${{ github.sha }}
+          # 2Gi/2CPU for torch + Sentinel-1 chip decode. min-instances=0 so it
+          # scales to zero and costs nothing between on-demand officer checks;
+          # max-instances caps burst cost. concurrency=4 keeps CPU inference snappy.
+          flags: '--service-account=${{ env.CLOUD_RUN_RUNTIME_SERVICE_ACCOUNT }} --allow-unauthenticated --env-vars-file=yolo-env.yaml --memory=2Gi --cpu=2 --min-instances=0 --max-instances=3 --concurrency=4 --timeout=120'
