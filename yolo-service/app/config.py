@@ -14,11 +14,12 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    # Sentinel Hub OAuth (same credentials as the backend SAR chips).
+    # Sentinel Hub OAuth (same credentials as the backend SAR chips). Defaults to
+    # the Copernicus Data Space Ecosystem (free tier), where the client was made.
     sentinelhub_client_id: str = ""
     sentinelhub_client_secret: str = ""
-    sentinelhub_token_url: str = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
-    sentinelhub_process_url: str = "https://services.sentinel-hub.com/api/v1/process"
+    sentinelhub_token_url: str = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+    sentinelhub_process_url: str = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
     # Model + inference.
     model_path: Path = Path(__file__).resolve().parent.parent / "models" / "best.pt"

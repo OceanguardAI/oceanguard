@@ -44,10 +44,13 @@ class Settings(BaseSettings):
     gfw_ingest_on_startup: bool = True
 
     # --- Sentinel-1 SAR imagery (Sentinel Hub Process API) ---
+    # Endpoints default to the Copernicus Data Space Ecosystem (free tier), where
+    # the OAuth client was created. The commercial Sentinel Hub uses different
+    # hosts (services.sentinel-hub.com) — credentials are not interchangeable.
     sentinelhub_client_id: str = ""
     sentinelhub_client_secret: str = ""
-    sentinelhub_token_url: str = "https://services.sentinel-hub.com/auth/realms/main/protocol/openid-connect/token"
-    sentinelhub_process_url: str = "https://services.sentinel-hub.com/api/v1/process"
+    sentinelhub_token_url: str = "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+    sentinelhub_process_url: str = "https://sh.dataspace.copernicus.eu/api/v1/process"
 
     # --- On-demand YOLO verification (separate Cloud Run service) ---
     # Base URL of the oceanguard-yolo service. When empty, the "Run YOLO check"
