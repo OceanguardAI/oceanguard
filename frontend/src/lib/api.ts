@@ -116,6 +116,52 @@ export async function verifyYolo(point: {
   return res.json();
 }
 
+// --- Area sweep: run our model across a whole area (e.g. an MPA) ---
+export interface SweepContact {
+  lat: number;
+  lon: number;
+  confidence: number | null;
+  status: "new" | "confirmed";
+  matched_event_id: string | null;
+  nearest_known_km: number | null;
+}
+
+export interface SweepResult {
+  bbox: [number, number, number, number];
+  tiles_scanned: number;
+  tiles_failed: number;
+  tiles_with_contacts: number;
+  effective_tile_deg: number;
+  fully_covered: boolean;
+  total_contacts: number;
+  new_contacts: number;
+  confirmed_contacts: number;
+  contacts: SweepContact[];
+}
+
+// Sweep an area with the YOLO model on the latest Sentinel-1 pass. bbox is
+// [minLon, minLat, maxLon, maxLat]. This can take a while: the area is tiled and
+// each tile is a separate Sentinel-1 fetch + inference (the first triggers the
+// scale-to-zero service's cold start).
+export async function sweepArea(
+  bbox: [number, number, number, number],
+  date?: string,
+): Promise<SweepResult> {
+  const [minLon, minLat, maxLon, maxLat] = bbox;
+  const params = new URLSearchParams({
+    min_lon: String(minLon),
+    min_lat: String(minLat),
+    max_lon: String(maxLon),
+    max_lat: String(maxLat),
+    date: date ?? new Date().toISOString(),
+  });
+  const res = await fetch(`${API_BASE}/verify/yolo/sweep?${params.toString()}`, {
+    method: "POST",
+  });
+  if (!res.ok) throw new Error(await readError(res, "Area sweep failed"));
+  return res.json();
+}
+
 export async function fetchMPA(bbox?: [number, number, number, number]): Promise<MPAGeoJSON> {
   // With a bbox the backend returns only MPAs in that box, so we never pull the
   // full global WDPA set. bbox = [minLon, minLat, maxLon, maxLat].

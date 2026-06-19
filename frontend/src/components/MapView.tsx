@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polygon, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { RiskEvent } from "../types";
-import { fetchMPA } from "../lib/api";
+import { fetchMPA, SweepContact } from "../lib/api";
 import { getRiskColor } from "../lib/riskColor";
 
 const MapController = ({ selected }: { selected: RiskEvent | null }) => {
@@ -23,6 +23,40 @@ const ScanClickHandler = ({
     click: (e) => { if (active) onPick(e.latlng.lat, e.latlng.lng); },
   });
   return null;
+};
+
+// Reports the current viewport bbox to the parent so an officer can sweep
+// exactly the area they are looking at (an MPA they panned to, say).
+const BoundsReporter = ({
+  onChange,
+}: { onChange: (bbox: [number, number, number, number]) => void }) => {
+  const map = useMap();
+  const emit = () => {
+    const b = map.getBounds();
+    onChange([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+  };
+  useMapEvents({ moveend: emit, zoomend: emit });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => { emit(); }, []);
+  return null;
+};
+
+// A swept radar contact: red diamond = NEW (no AIS-based detection nearby — the
+// dark-vessel candidate), teal = confirmed (agrees with a known detection).
+const createContactIcon = (status: SweepContact["status"]) => {
+  const color = status === "new" ? "#ef4444" : "#2dd4bf";
+  return L.divIcon({
+    className: "",
+    html: `
+      <div style="position:relative; width:20px; height:20px;">
+        <div style="position:absolute; inset:0; transform:rotate(45deg);
+          background:${color}1a; border:2px solid ${color};
+          box-shadow:0 0 8px ${color}99;
+          ${status === "new" ? "animation:oceanScanPulse 1.6s ease-out infinite;" : ""}"></div>
+      </div>`,
+    iconSize: [20, 20],
+    iconAnchor: [10, 10],
+  });
 };
 
 // A pulsing cyan crosshair marking the point being scanned.
@@ -152,6 +186,7 @@ function MpaLayer({ onError }: { onError: (msg: string | null) => void }) {
 
 export default function MapView({
   events, selected, onSelect, scanMode = false, scanPoint = null, onScanPick,
+  onBoundsChange, sweepBbox = null, sweepContacts = [],
 }: {
   events: RiskEvent[];
   selected: RiskEvent | null;
@@ -159,6 +194,9 @@ export default function MapView({
   scanMode?: boolean;
   scanPoint?: { lat: number; lon: number } | null;
   onScanPick?: (lat: number, lon: number) => void;
+  onBoundsChange?: (bbox: [number, number, number, number]) => void;
+  sweepBbox?: [number, number, number, number] | null;
+  sweepContacts?: SweepContact[];
 }) {
   const [error, setError] = useState<string | null>(null);
 
@@ -211,7 +249,37 @@ export default function MapView({
 
         {scanPoint && <Marker position={[scanPoint.lat, scanPoint.lon]} icon={scanIcon} />}
 
+        {/* The swept area outline. */}
+        {sweepBbox && (
+          <Rectangle
+            bounds={[[sweepBbox[1], sweepBbox[0]], [sweepBbox[3], sweepBbox[2]]]}
+            pathOptions={{ color: "#22d3ee", weight: 1.5, fillColor: "#22d3ee", fillOpacity: 0.04, dashArray: "5 5" }}
+          />
+        )}
+
+        {/* Radar contacts found by the sweep. */}
+        {sweepContacts.map((c, i) => (
+          <Marker key={`contact-${i}`} position={[c.lat, c.lon]} icon={createContactIcon(c.status)}>
+            <Popup>
+              <div className="text-xs">
+                <div className={`font-bold ${c.status === "new" ? "text-red-400" : "text-teal-400"}`}>
+                  {c.status === "new" ? "DARK CONTACT" : "Confirmed contact"}
+                </div>
+                <div className="text-slate-400 mt-1">
+                  {c.confidence !== null ? `${(c.confidence * 100).toFixed(0)}% confidence` : ""}
+                </div>
+                {c.status === "new" ? (
+                  <div className="text-slate-500 mt-0.5">No AIS-based detection nearby</div>
+                ) : (
+                  <div className="text-slate-500 mt-0.5">Matches {c.matched_event_id}</div>
+                )}
+              </div>
+            </Popup>
+          </Marker>
+        ))}
+
         <ScanClickHandler active={scanMode} onPick={(lat, lon) => onScanPick?.(lat, lon)} />
+        {onBoundsChange && <BoundsReporter onChange={onBoundsChange} />}
         <FitBounds events={events} />
         <MapController selected={selected} />
       </MapContainer>

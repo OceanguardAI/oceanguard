@@ -1,6 +1,9 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchRiskEvents, verifyYolo, yoloVerifyConfigured, YoloVerifyResult } from "./lib/api";
+import {
+  fetchRiskEvents, verifyYolo, yoloVerifyConfigured, YoloVerifyResult,
+  sweepArea, SweepResult,
+} from "./lib/api";
 import { RiskEvent } from "./types";
 import MapView from "./components/MapView";
 import EvidenceCard from "./components/EvidenceCard";
@@ -18,7 +21,7 @@ import {
   Activity, BarChart3, Database,
   AlertTriangle, Eye, Layers, Clock,
   List, FileText, Crosshair, MessageSquare, X,
-  Radar, ScanSearch, Loader2, AlertCircle,
+  Radar, ScanSearch, Loader2, AlertCircle, ShieldAlert, CheckCircle2,
 } from "lucide-react";
 
 type Page      = "landing" | "dashboard";
@@ -117,6 +120,101 @@ function ScanPanel({
   );
 }
 
+/** Right-side panel for an area sweep: our model runs across a whole area (an
+ *  MPA the officer panned to) and surfaces dark-vessel candidates the AIS-based
+ *  feed missed. This is YOLO's real job — proactive surveillance, not confirming
+ *  an already-found vessel. */
+function SweepPanel({
+  loading, error, result,
+}: {
+  loading: boolean;
+  error: string | null;
+  result: SweepResult | null;
+}) {
+  return (
+    <div className="rounded-xl border border-cyan-700/40 bg-ocean-800/60 backdrop-blur-sm overflow-hidden shadow-xl">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-ocean-700/40">
+        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-cyan-500 to-cyan-400 flex items-center justify-center">
+          <Radar className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300">MPA / Area Sweep</span>
+      </div>
+
+      <div className="p-4">
+        <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
+          Running our ship-detection model across the whole visible area on the latest Sentinel-1
+          radar pass. Contacts with no matching AIS-based detection are flagged as dark-vessel
+          candidates — vessels the global feed missed.
+        </p>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-cyan-300 py-3">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Sweeping radar tiles… (can take 1–2 min on a cold start)
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="flex items-start gap-2 text-xs text-risk-high bg-risk-high/8 border border-risk-high/20 rounded-lg p-3">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {error}
+          </div>
+        )}
+
+        {!loading && result && (
+          <div className="space-y-3">
+            {/* Headline counts */}
+            <div className="grid grid-cols-2 gap-2">
+              <div className="rounded-lg border border-red-500/25 bg-red-500/8 p-3">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-red-300">
+                  <ShieldAlert className="w-3 h-3" /> Dark candidates
+                </div>
+                <div className="text-2xl font-bold text-red-400 tabular-nums mt-1">{result.new_contacts}</div>
+              </div>
+              <div className="rounded-lg border border-teal-500/25 bg-teal-500/8 p-3">
+                <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-teal-300">
+                  <CheckCircle2 className="w-3 h-3" /> Confirmed
+                </div>
+                <div className="text-2xl font-bold text-teal-400 tabular-nums mt-1">{result.confirmed_contacts}</div>
+              </div>
+            </div>
+
+            <div className="text-[11px] text-slate-500 leading-relaxed">
+              Swept <span className="text-slate-300 font-semibold">{result.tiles_scanned}</span> radar tiles
+              {result.tiles_failed > 0 && <span className="text-risk-high"> · {result.tiles_failed} failed</span>}.
+              {result.fully_covered
+                ? " Full coverage at model resolution."
+                : " Area large — sampled at reduced resolution; zoom in for a full sweep."}
+            </div>
+
+            {result.new_contacts === 0 && result.confirmed_contacts === 0 && (
+              <div className="text-[11px] text-slate-400 bg-ocean-900/50 border border-ocean-700/40 rounded-lg p-3">
+                No vessels detected in this area on the latest radar pass.
+              </div>
+            )}
+
+            {/* Dark-vessel candidate list */}
+            {result.contacts.filter((c) => c.status === "new").length > 0 && (
+              <div className="space-y-1.5">
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">Candidates for patrol</div>
+                {result.contacts.filter((c) => c.status === "new").map((c, i) => (
+                  <div key={i} className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
+                    <div className="text-[11px] text-slate-300 tabular-nums">
+                      {c.lat.toFixed(4)}°, {c.lon.toFixed(4)}°
+                    </div>
+                    <div className="text-[11px] font-semibold text-red-400">
+                      {c.confidence !== null ? `${(c.confidence * 100).toFixed(0)}%` : "—"}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [page, setPage]                   = useState<Page>("landing");
   const [events, setEvents]               = useState<RiskEvent[]>([]);
@@ -139,9 +237,18 @@ export default function App() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError]     = useState<string | null>(null);
 
+  // Area sweep: run the model across the whole visible area to surface dark
+  // vessels the AIS-based feed missed — YOLO's real, proactive use case.
+  const [mapBounds, setMapBounds]       = useState<[number, number, number, number] | null>(null);
+  const [sweepBbox, setSweepBbox]       = useState<[number, number, number, number] | null>(null);
+  const [sweepResult, setSweepResult]   = useState<SweepResult | null>(null);
+  const [sweepLoading, setSweepLoading] = useState(false);
+  const [sweepError, setSweepError]     = useState<string | null>(null);
+
   useEffect(() => { yoloVerifyConfigured().then(setYoloOk); }, []);
 
-  const scanActive = scanPoint !== null;
+  const scanActive  = scanPoint !== null;
+  const sweepActive = sweepBbox !== null;
 
   const handleScanPick = (lat: number, lon: number) => {
     setScanPoint({ lat, lon });
@@ -161,6 +268,28 @@ export default function App() {
     setScanResult(null);
     setScanError(null);
     setScanLoading(false);
+  };
+
+  const handleSweep = () => {
+    if (!mapBounds) return;
+    // Point-scan and assistant step aside for the sweep result.
+    closeScan();
+    setAssistantOpen(false);
+    setSweepBbox(mapBounds);
+    setSweepResult(null);
+    setSweepError(null);
+    setSweepLoading(true);
+    sweepArea(mapBounds)
+      .then(setSweepResult)
+      .catch((e) => setSweepError(e instanceof Error ? e.message : "Sweep failed. Try again."))
+      .finally(() => setSweepLoading(false));
+  };
+
+  const closeSweep = () => {
+    setSweepBbox(null);
+    setSweepResult(null);
+    setSweepError(null);
+    setSweepLoading(false);
   };
 
   useEffect(() => {
@@ -202,10 +331,11 @@ export default function App() {
     setSelectedEvent(e);
     setEvidenceOpen(true);
     setAssistantOpen(false);
-    // Step the scan result aside so the detection's evidence is what's shown.
+    // Step the scan/sweep results aside so the detection's evidence is shown.
     setScanPoint(null);
     setScanResult(null);
     setScanError(null);
+    closeSweep();
   };
 
   const handleLaunch = () => { setPage("dashboard"); setActiveTab("dashboard"); };
@@ -345,18 +475,33 @@ export default function App() {
                 <span className="text-[11px] text-slate-600 animate-pulse">Loading…</span>
               )}
               {yoloOk && (
-                <button
-                  onClick={() => { setScanMode((v) => !v); if (scanMode) closeScan(); }}
-                  title="Scan any point on the map for dark vessels using our YOLO model on live Sentinel-1 radar"
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    scanMode
-                      ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                  }`}
-                >
-                  <ScanSearch className="w-3.5 h-3.5" />
-                  {scanMode ? "Click map to scan" : "Scan area"}
-                </button>
+                <>
+                  <button
+                    onClick={handleSweep}
+                    disabled={sweepLoading || !mapBounds}
+                    title="Sweep the visible area (e.g. an MPA) with our YOLO model on the latest Sentinel-1 radar to surface dark vessels the AIS feed missed"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+                      sweepActive
+                        ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                    }`}
+                  >
+                    <Radar className="w-3.5 h-3.5" />
+                    {sweepLoading ? "Sweeping…" : "Sweep area"}
+                  </button>
+                  <button
+                    onClick={() => { setScanMode((v) => !v); if (scanMode) closeScan(); }}
+                    title="Scan a single point you click on the map"
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      scanMode
+                        ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                    }`}
+                  >
+                    <ScanSearch className="w-3.5 h-3.5" />
+                    {scanMode ? "Click a point" : "Point scan"}
+                  </button>
+                </>
               )}
               <button
                 onClick={() => setAssistantOpen((v) => !v)}
@@ -386,6 +531,9 @@ export default function App() {
                   scanMode={scanMode}
                   scanPoint={scanPoint}
                   onScanPick={handleScanPick}
+                  onBoundsChange={setMapBounds}
+                  sweepBbox={sweepBbox}
+                  sweepContacts={sweepResult?.contacts ?? []}
                 />
               </div>
 
@@ -410,8 +558,20 @@ export default function App() {
                     </Floating>
                   )}
 
-                  {/* Right: an active area-scan wins, then the assistant, then the evidence card */}
-                  {scanActive ? (
+                  {/* Right: a sweep wins, then a point-scan, then the assistant, then the evidence card */}
+                  {sweepActive ? (
+                    <Floating
+                      key="sweep"
+                      onClose={closeSweep}
+                      className="top-3 right-3 bottom-3 w-[380px]"
+                    >
+                      <SweepPanel
+                        loading={sweepLoading}
+                        error={sweepError}
+                        result={sweepResult}
+                      />
+                    </Floating>
+                  ) : scanActive ? (
                     <Floating
                       key="scan"
                       onClose={closeScan}
