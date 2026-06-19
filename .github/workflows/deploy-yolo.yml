@@ -62,6 +62,8 @@ jobs:
           cat > yolo-env.yaml <<'EOF'
           SENTINELHUB_CLIENT_ID: "${{ secrets.SENTINELHUB_CLIENT_ID }}"
           SENTINELHUB_CLIENT_SECRET: "${{ secrets.SENTINELHUB_CLIENT_SECRET }}"
+          SENTINELHUB_TOKEN_URL: "https://identity.dataspace.copernicus.eu/auth/realms/CDSE/protocol/openid-connect/token"
+          SENTINELHUB_PROCESS_URL: "https://sh.dataspace.copernicus.eu/api/v1/process"
           CONF_THRESHOLD: "0.25"
           CORS_ORIGINS: "*"
           EOF
