@@ -10,10 +10,11 @@ import {
   Navigation2, Activity, Map, Clock,
   CheckCircle, XCircle, Loader2, AlertCircle,
   Anchor, Shield, Info, Satellite,
-  Radar, ScanSearch, ShieldCheck, SearchX,
+  Radar, ScanSearch,
 } from "lucide-react";
 import RiskBadge from "./ui/RiskBadge";
 import GradientButton from "./ui/GradientButton";
+import YoloResultView from "./YoloResultView";
 
 interface EvidenceCardProps {
   event: RiskEvent;
@@ -106,7 +107,9 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
     setYoloResult(null);
     setYoloLoading(true);
     try {
-      const res = await verifyYolo(event);
+      const res = await verifyYolo({
+        lat: event.lat, lon: event.lon, date: event.timestamp, eventId: event.id,
+      });
       setYoloResult(res);
       // If our model confirmed it, the backend bumped the score — reflect it.
       if (res.updated_event) onUpdate(res.updated_event);
@@ -222,57 +225,8 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
           )}
 
           {yoloResult && (
-            <div className="mt-3 space-y-3">
-              {yoloResult.yolo.found ? (
-                <div className="flex items-center gap-2 flex-wrap text-xs font-semibold text-risk-low">
-                  <ShieldCheck className="w-4 h-4 shrink-0" />
-                  Vessel confirmed · {(yoloResult.yolo.best_confidence * 100).toFixed(0)}% ·{" "}
-                  {yoloResult.yolo.count} contact{yoloResult.yolo.count > 1 ? "s" : ""}
-                  {yoloResult.agreement && (
-                    <span className="text-cyan-300">· confirmed by 2 independent systems</span>
-                  )}
-                </div>
-              ) : (
-                <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
-                  <SearchX className="w-4 h-4 shrink-0" />
-                  No vessel found in this radar pass — review the GFW point.
-                </div>
-              )}
-
-              {/* The exact chip the model analysed, with its detection boxes drawn on top. */}
-              <div className="relative rounded-lg overflow-hidden border border-ocean-700/40">
-                <img
-                  src={`data:image/png;base64,${yoloResult.yolo.chip_png_b64}`}
-                  alt={`YOLO-analysed Sentinel-1 chip for detection ${event.id}`}
-                  className="w-full block"
-                />
-                <svg
-                  viewBox={`0 0 ${yoloResult.yolo.chip_px} ${yoloResult.yolo.chip_px}`}
-                  preserveAspectRatio="none"
-                  className="absolute inset-0 w-full h-full pointer-events-none"
-                >
-                  {yoloResult.yolo.detections.map((d, i) => (
-                    <g key={i}>
-                      <rect
-                        x={d.bbox_px[0]} y={d.bbox_px[1]}
-                        width={d.bbox_px[2] - d.bbox_px[0]}
-                        height={d.bbox_px[3] - d.bbox_px[1]}
-                        fill="none" stroke="#22d3ee" strokeWidth={3}
-                      />
-                      <text
-                        x={d.bbox_px[0]} y={Math.max(13, d.bbox_px[1] - 4)}
-                        fill="#22d3ee" fontSize={14} fontWeight="bold"
-                      >
-                        {(d.confidence * 100).toFixed(0)}%
-                      </text>
-                    </g>
-                  ))}
-                </svg>
-                <div className="absolute bottom-0 left-0 right-0 flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-t from-ocean-900/90 to-transparent text-[10px] text-slate-300">
-                  <Radar className="w-3 h-3 text-cyan-400" />
-                  OceanGuard YOLO · Sentinel-1 VV · conf ≥ {(yoloResult.yolo.conf_threshold * 100).toFixed(0)}%
-                </div>
-              </div>
+            <div className="mt-3">
+              <YoloResultView result={yoloResult} label={`detection ${event.id}`} />
             </div>
           )}
         </div>

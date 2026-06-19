@@ -77,24 +77,41 @@ export async function yoloVerifyConfigured(): Promise<boolean> {
   return _yoloConfigured;
 }
 
-// Verification runs on the point itself (lat/lon/date), so it works even if the
-// live store has refreshed away the event since it was selected. The id is sent
-// only so the backend can apply an agreement boost when the event still exists.
-export async function verifyYolo(event: {
-  id: string; lat: number; lon: number; timestamp: string;
+// Turn any error body into a readable string. FastAPI returns `detail` as a
+// string for HTTPExceptions but as an array of objects for 422 validation
+// errors — naively throwing that array renders as "[object Object]".
+async function readError(res: Response, fallback: string): Promise<string> {
+  try {
+    const body = await res.json();
+    const d = body?.detail;
+    if (typeof d === "string") return d;
+    if (Array.isArray(d)) return d.map((e) => e?.msg ?? JSON.stringify(e)).join("; ");
+    if (d) return typeof d === "object" ? JSON.stringify(d) : String(d);
+  } catch {
+    /* not JSON */
+  }
+  return `${fallback} (HTTP ${res.status})`;
+}
+
+// Verification runs on the point itself (lat/lon/date), so it works for any
+// location an officer picks — an existing detection, an MPA, or open water —
+// not just events in the store. `eventId` is optional and only lets the backend
+// apply an agreement boost when that detection still exists; `date` defaults to
+// now (latest available Sentinel-1 pass).
+export async function verifyYolo(point: {
+  lat: number; lon: number; date?: string; eventId?: string;
 }): Promise<YoloVerifyResult> {
   const params = new URLSearchParams({
-    lat: String(event.lat),
-    lon: String(event.lon),
-    date: event.timestamp,
-    event_id: event.id,
+    lat: String(point.lat),
+    lon: String(point.lon),
+    date: point.date ?? new Date().toISOString(),
   });
+  if (point.eventId) params.set("event_id", point.eventId);
   const res = await fetch(`${API_BASE}/verify/yolo?${params.toString()}`, {
     method: "POST",
   });
   if (!res.ok) {
-    const detail = await res.json().catch(() => null);
-    throw new Error(detail?.detail ?? "YOLO verification failed");
+    throw new Error(await readError(res, "YOLO verification failed"));
   }
   return res.json();
 }

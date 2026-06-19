@@ -13,6 +13,33 @@ const MapController = ({ selected }: { selected: RiskEvent | null }) => {
   return null;
 };
 
+// In scan mode, a click anywhere on the water reports its lat/lon so the officer
+// can run a YOLO radar scan at that exact point — any MPA, any area, not just an
+// existing detection.
+const ScanClickHandler = ({
+  active, onPick,
+}: { active: boolean; onPick: (lat: number, lon: number) => void }) => {
+  useMapEvents({
+    click: (e) => { if (active) onPick(e.latlng.lat, e.latlng.lng); },
+  });
+  return null;
+};
+
+// A pulsing cyan crosshair marking the point being scanned.
+const scanIcon = L.divIcon({
+  className: "",
+  html: `
+    <div style="position:relative; width:26px; height:26px;">
+      <div style="position:absolute; inset:0; border:2px solid #22d3ee; border-radius:50%;
+        box-shadow:0 0 10px #22d3ee; animation:oceanScanPulse 1.4s ease-out infinite;"></div>
+      <div style="position:absolute; top:50%; left:50%; width:5px; height:5px; transform:translate(-50%,-50%);
+        background:#22d3ee; border-radius:50%;"></div>
+    </div>
+    <style>@keyframes oceanScanPulse{0%{transform:scale(0.6);opacity:1}100%{transform:scale(1.3);opacity:0.2}}</style>`,
+  iconSize: [26, 26],
+  iconAnchor: [13, 13],
+});
+
 // Auto-fit the map to show all loaded events on first load.
 const FitBounds = ({ events }: { events: RiskEvent[] }) => {
   const map = useMap();
@@ -123,15 +150,20 @@ function MpaLayer({ onError }: { onError: (msg: string | null) => void }) {
   );
 }
 
-export default function MapView({ events, selected, onSelect }: {
+export default function MapView({
+  events, selected, onSelect, scanMode = false, scanPoint = null, onScanPick,
+}: {
   events: RiskEvent[];
   selected: RiskEvent | null;
   onSelect: (e: RiskEvent) => void;
+  scanMode?: boolean;
+  scanPoint?: { lat: number; lon: number } | null;
+  onScanPick?: (lat: number, lon: number) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
 
   return (
-    <div className="w-full h-full relative z-0">
+    <div className={`w-full h-full relative z-0 ${scanMode ? "[&_.leaflet-container]:cursor-crosshair" : ""}`}>
       {error && (
         <div className="absolute left-1/2 -translate-x-1/2 top-3 z-[1000] rounded-lg border border-ocean-700/50 bg-ocean-900/90 backdrop-blur-sm px-3 py-2 text-xs text-slate-400 shadow-lg">
           {error}
@@ -177,6 +209,9 @@ export default function MapView({ events, selected, onSelect }: {
           </Marker>
         ))}
 
+        {scanPoint && <Marker position={[scanPoint.lat, scanPoint.lon]} icon={scanIcon} />}
+
+        <ScanClickHandler active={scanMode} onPick={(lat, lon) => onScanPick?.(lat, lon)} />
         <FitBounds events={events} />
         <MapController selected={selected} />
       </MapContainer>

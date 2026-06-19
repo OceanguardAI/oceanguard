@@ -1,9 +1,10 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
-import { fetchRiskEvents } from "./lib/api";
+import { fetchRiskEvents, verifyYolo, yoloVerifyConfigured, YoloVerifyResult } from "./lib/api";
 import { RiskEvent } from "./types";
 import MapView from "./components/MapView";
 import EvidenceCard from "./components/EvidenceCard";
+import YoloResultView from "./components/YoloResultView";
 import RiskTable from "./components/RiskTable";
 import DailyBriefing from "./components/DailyBriefing";
 import PatrolBoard from "./components/PatrolBoard";
@@ -17,6 +18,7 @@ import {
   Activity, BarChart3, Database,
   AlertTriangle, Eye, Layers, Clock,
   List, FileText, Crosshair, MessageSquare, X,
+  Radar, ScanSearch, Loader2, AlertCircle,
 } from "lucide-react";
 
 type Page      = "landing" | "dashboard";
@@ -66,6 +68,55 @@ function Floating({
   );
 }
 
+/** Right-side panel for an on-demand area scan: runs the YOLO model on the live
+ *  Sentinel-1 radar at a point the officer clicked, anywhere on the map. */
+function ScanPanel({
+  point, loading, error, result,
+}: {
+  point: { lat: number; lon: number };
+  loading: boolean;
+  error: string | null;
+  result: YoloVerifyResult | null;
+}) {
+  return (
+    <div className="rounded-xl border border-cyan-700/40 bg-ocean-800/60 backdrop-blur-sm overflow-hidden shadow-xl">
+      <div className="flex items-center gap-2 px-4 py-3 border-b border-ocean-700/40">
+        <div className="w-5 h-5 rounded-md bg-gradient-to-br from-cyan-500 to-cyan-400 flex items-center justify-center">
+          <Radar className="w-3 h-3 text-white" />
+        </div>
+        <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300">Area Radar Scan</span>
+        <span className="ml-auto text-[10px] text-slate-500 tabular-nums">
+          {point.lat.toFixed(4)}°, {point.lon.toFixed(4)}°
+        </span>
+      </div>
+
+      <div className="p-4">
+        <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
+          Running our ship-detection model on the latest Sentinel-1 radar pass for this point —
+          independent of AIS, so it catches dark vessels anywhere you look.
+        </p>
+
+        {loading && (
+          <div className="flex items-center gap-2 text-xs text-cyan-300 py-3">
+            <Loader2 className="w-3.5 h-3.5 animate-spin" />
+            Scanning radar… (first scan can take ~1 min)
+          </div>
+        )}
+
+        {!loading && error && (
+          <div className="flex items-start gap-2 text-xs text-risk-high bg-risk-high/8 border border-risk-high/20 rounded-lg p-3">
+            <AlertCircle className="w-3.5 h-3.5 shrink-0 mt-0.5" /> {error}
+          </div>
+        )}
+
+        {!loading && result && (
+          <YoloResultView result={result} label={`${point.lat.toFixed(3)}, ${point.lon.toFixed(3)}`} />
+        )}
+      </div>
+    </div>
+  );
+}
+
 export default function App() {
   const [page, setPage]                   = useState<Page>("landing");
   const [events, setEvents]               = useState<RiskEvent[]>([]);
@@ -78,6 +129,39 @@ export default function App() {
   const [leftPanel, setLeftPanel]       = useState<LeftPanel>("detections");
   const [evidenceOpen, setEvidenceOpen] = useState(true);
   const [assistantOpen, setAssistantOpen] = useState(false);
+
+  // Area-scan: click any point on the map to run YOLO on its Sentinel-1 radar,
+  // independent of the GFW detections.
+  const [yoloOk, setYoloOk]           = useState(false);
+  const [scanMode, setScanMode]       = useState(false);
+  const [scanPoint, setScanPoint]     = useState<{ lat: number; lon: number } | null>(null);
+  const [scanResult, setScanResult]   = useState<YoloVerifyResult | null>(null);
+  const [scanLoading, setScanLoading] = useState(false);
+  const [scanError, setScanError]     = useState<string | null>(null);
+
+  useEffect(() => { yoloVerifyConfigured().then(setYoloOk); }, []);
+
+  const scanActive = scanPoint !== null;
+
+  const handleScanPick = (lat: number, lon: number) => {
+    setScanPoint({ lat, lon });
+    setScanResult(null);
+    setScanError(null);
+    setScanLoading(true);
+    setAssistantOpen(false);
+    verifyYolo({ lat, lon })
+      .then(setScanResult)
+      .catch((e) => setScanError(e instanceof Error ? e.message : "Scan failed. Try again."))
+      .finally(() => setScanLoading(false));
+  };
+
+  const closeScan = () => {
+    setScanMode(false);
+    setScanPoint(null);
+    setScanResult(null);
+    setScanError(null);
+    setScanLoading(false);
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -118,6 +202,10 @@ export default function App() {
     setSelectedEvent(e);
     setEvidenceOpen(true);
     setAssistantOpen(false);
+    // Step the scan result aside so the detection's evidence is what's shown.
+    setScanPoint(null);
+    setScanResult(null);
+    setScanError(null);
   };
 
   const handleLaunch = () => { setPage("dashboard"); setActiveTab("dashboard"); };
@@ -256,6 +344,20 @@ export default function App() {
               {eventsLoading && (
                 <span className="text-[11px] text-slate-600 animate-pulse">Loading…</span>
               )}
+              {yoloOk && (
+                <button
+                  onClick={() => { setScanMode((v) => !v); if (scanMode) closeScan(); }}
+                  title="Scan any point on the map for dark vessels using our YOLO model on live Sentinel-1 radar"
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    scanMode
+                      ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                  }`}
+                >
+                  <ScanSearch className="w-3.5 h-3.5" />
+                  {scanMode ? "Click map to scan" : "Scan area"}
+                </button>
+              )}
               <button
                 onClick={() => setAssistantOpen((v) => !v)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
@@ -277,7 +379,14 @@ export default function App() {
             <>
               {/* Full-bleed map */}
               <div className="absolute inset-0">
-                <MapView events={events} selected={selectedEvent} onSelect={handleSelect} />
+                <MapView
+                  events={events}
+                  selected={selectedEvent}
+                  onSelect={handleSelect}
+                  scanMode={scanMode}
+                  scanPoint={scanPoint}
+                  onScanPick={handleScanPick}
+                />
               </div>
 
               {/* Overlay panels. The layer ignores pointer events; each panel
@@ -301,8 +410,21 @@ export default function App() {
                     </Floating>
                   )}
 
-                  {/* Right: assistant takes precedence; otherwise the evidence card */}
-                  {assistantOpen ? (
+                  {/* Right: an active area-scan wins, then the assistant, then the evidence card */}
+                  {scanActive ? (
+                    <Floating
+                      key="scan"
+                      onClose={closeScan}
+                      className="top-3 right-3 bottom-3 w-[380px]"
+                    >
+                      <ScanPanel
+                        point={scanPoint!}
+                        loading={scanLoading}
+                        error={scanError}
+                        result={scanResult}
+                      />
+                    </Floating>
+                  ) : assistantOpen ? (
                     <Floating
                       key="assistant"
                       onClose={() => setAssistantOpen(false)}
