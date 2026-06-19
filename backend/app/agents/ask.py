@@ -24,13 +24,17 @@ EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
 TOOLS = [
     {
         "name": "query_detections",
-        "description": "Query detections by source, risk level, and review status.",
+        "description": "Query detections by source, risk level, review status, and MPA proximity.",
         "parameters": {
             "type": "object",
             "properties": {
                 "source": {"type": "string"},
                 "risk_level": {"type": "string"},
                 "review_status": {"type": "string"},
+                "near_mpa": {
+                    "type": "boolean",
+                    "description": "If true, return only detections inside or near a Marine Protected Area.",
+                },
                 "limit": {"type": "integer"},
             },
         },
@@ -151,10 +155,13 @@ def _run_tool(name: str, inputs: dict) -> str:
     if name == "query_detections":
         limit = int(inputs.get("limit", MAX_TOOL_EVENTS) or MAX_TOOL_EVENTS)
         limit = max(1, min(limit, 50))
+        near_mpa_raw = inputs.get("near_mpa")
+        near_mpa = None if near_mpa_raw is None else bool(near_mpa_raw)
         events = repo.all(
             source=inputs.get("source"),
             level=inputs.get("risk_level"),
             review_status=inputs.get("review_status"),
+            near_mpa=near_mpa,
         )
         if not events:
             return "No events found."
@@ -251,6 +258,26 @@ def _fallback(question: str) -> AskResponse:
                     f"recall={metrics['recall']}, and {metrics['detections_on_real_scene']} detections on the validation scene."
                 )
             )
+
+    if "near mpa" in lowered or "inside mpa" in lowered or (
+        ("mpa" in lowered or "protected area" in lowered or "protected" in lowered)
+        and ("ship" in lowered or "vessel" in lowered or "detect" in lowered or "near" in lowered or "inside" in lowered or "give" in lowered or "list" in lowered or "show" in lowered)
+    ):
+        near_events = repo.all(near_mpa=True)
+        if not near_events:
+            return AskResponse(answer="No detections are currently flagged as near or inside a Marine Protected Area.")
+        near_events_sorted = sorted(near_events, key=lambda e: e.risk_score, reverse=True)
+        top = near_events_sorted[:10]
+        lines = []
+        for e in top:
+            dist = f"{e.distance_to_mpa_km:.1f} km from {e.mpa_name or 'MPA'}" if e.distance_to_mpa_km is not None else "inside MPA"
+            lines.append(f"- {e.id}: {e.risk_level} (score {e.risk_score:.2f}), {dist}")
+        return AskResponse(
+            answer=(
+                f"There are {len(near_events)} detections near or inside Marine Protected Areas. "
+                f"Top {len(top)} by risk score:\n" + "\n".join(lines)
+            )
+        )
 
     if "port" in lowered or "marina" in lowered:
         ports_path = settings.data_dir / "ports.json"

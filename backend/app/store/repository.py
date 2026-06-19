@@ -70,6 +70,7 @@ class RiskEventRepository:
         source: str | None = None,
         level: str | None = None,
         review_status: str | None = None,
+        near_mpa: bool | None = None,
     ) -> list[RiskEvent]:
         events = list(self._events.values())
         if source:
@@ -78,6 +79,8 @@ class RiskEventRepository:
             events = [event for event in events if event.risk_level == level]
         if review_status:
             events = [event for event in events if event.review_status == review_status]
+        if near_mpa is True:
+            events = [event for event in events if event.near_mpa or event.inside_mpa]
         return events
 
     def get(self, event_id: str) -> RiskEvent | None:
