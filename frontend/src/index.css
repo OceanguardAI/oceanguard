@@ -118,3 +118,11 @@
   0% { transform: rotate(0deg) scale(1); }
   100% { transform: rotate(360deg) scale(1); }
 }
+
+/* The .aurora-bg utility animates `aurora`, but Tailwind only emits this
+   keyframe when the animate-aurora class is used somewhere — which it isn't.
+   Define it here so the hero gradient actually drifts. */
+@keyframes aurora {
+  0%, 100% { background-position: 0% 50%; }
+  50%      { background-position: 100% 50%; }
+}

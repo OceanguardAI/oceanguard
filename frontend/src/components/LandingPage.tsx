@@ -4,12 +4,18 @@ import {
   ActivitySquare,
   AlertTriangle,
   ArrowRight,
+  Brain,
+  Cpu,
+  Database,
   Eye,
   FileText,
+  Gauge,
   Globe2,
   LifeBuoy,
   MapPinned,
+  Radar,
   Radio,
+  Satellite,
   ScanSearch,
   Shield,
   Sparkles,
@@ -33,6 +39,7 @@ const fadeUp: Variants = {
 
 const navItems = [
   { label: "How it works", target: "how-it-works" },
+  { label: "Workflow", target: "workflow" },
   { label: "Technology", target: "technology" },
   { label: "SDG Impact", target: "sdg-impact" },
   { label: "Responsible AI", target: "responsible-ai" },
@@ -85,6 +92,63 @@ const responsiblePrinciples = [
   { title: "Evidence-grounded outputs", icon: FileText },
   { title: "Human review first", icon: LifeBuoy },
   { title: "No automatic accusation", icon: Shield },
+];
+
+// The real end-to-end pipeline, named at each stage so technical reviewers can
+// see exactly how a satellite signal becomes a review-ready case.
+const workflowSteps = [
+  {
+    step: "01",
+    title: "Ingest global detections",
+    tech: "Global Fishing Watch API",
+    copy: "Pull SAR vessel detections worldwide. A radar hit with no matching AIS identity is the core dark-vessel signal.",
+    icon: Radio,
+  },
+  {
+    step: "02",
+    title: "Pull live radar imagery",
+    tech: "Sentinel-1 · Copernicus (CDSE)",
+    copy: "Fetch a fresh Sentinel-1 C-band VV backscatter chip for the area on demand. Radar sees through cloud, day or night.",
+    icon: Satellite,
+  },
+  {
+    step: "03",
+    title: "Detect with our own model",
+    tech: "YOLO11n · fine-tuned on SAR",
+    copy: "Run our ship-detection model directly on the raw radar — fully independent of AIS, so it catches vessels the feeds miss.",
+    icon: Cpu,
+  },
+  {
+    step: "04",
+    title: "Cross-reference context",
+    tech: "AIS · WDPA protected areas",
+    copy: "Check each contact against live AIS broadcasts and protected-area boundaries to separate routine traffic from anomalies.",
+    icon: MapPinned,
+  },
+  {
+    step: "05",
+    title: "Score the risk",
+    tech: "Deterministic, auditable formula",
+    copy: "A transparent score weights AIS gaps and MPA proximity — no black box, so every priority can be explained.",
+    icon: Gauge,
+  },
+  {
+    step: "06",
+    title: "Explain for human review",
+    tech: "Gemini 2.5 Flash agents",
+    copy: "AI writes the evidence card, daily briefing, and patrol ranking. A human officer verifies before any action.",
+    icon: Brain,
+  },
+];
+
+// Honest, concrete numbers about what's under the hood.
+const techStack = [
+  { label: "Detection model", value: "YOLO11n", sub: "fine-tuned", icon: Cpu },
+  { label: "Training data", value: "HRSID", sub: "~3.5k SAR images", icon: Database },
+  { label: "Detection quality", value: "mAP@50 0.838", sub: "on validation", icon: Gauge },
+  { label: "Radar sensor", value: "Sentinel-1", sub: "C-band VV", icon: Satellite },
+  { label: "Live feeds", value: "GFW · WDPA", sub: "+ Copernicus", icon: Globe2 },
+  { label: "Reasoning", value: "Gemini 2.5", sub: "Flash agents", icon: Brain },
 ];
 
 interface LandingPageProps {
@@ -263,6 +327,82 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
       <section id="how-it-works" className="px-4 py-20 md:px-6 md:py-28">
         <div className="mx-auto max-w-7xl">
           <ArchitectureGraph />
+        </div>
+      </section>
+
+      <section id="workflow" className="relative overflow-hidden px-4 py-20 md:px-6 md:py-28">
+        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(34,211,238,0.06),transparent_30%),radial-gradient(circle_at_85%_60%,rgba(20,184,166,0.06),transparent_30%)]" />
+        <div className="relative mx-auto max-w-7xl">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mx-auto max-w-3xl text-center">
+            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-300">
+              <Radar className="h-4 w-4" />
+              Technical workflow
+            </div>
+            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
+              How a radar pulse becomes a reviewed case.
+            </h2>
+            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-400">
+              Six stages, each running independently of vessel-reported tracking — so the system surfaces activity that
+              transponder data alone would miss, and explains every step.
+            </p>
+          </motion.div>
+
+          <div className="mt-14 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+            {workflowSteps.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <motion.div
+                  key={s.step}
+                  initial="hidden"
+                  whileInView="visible"
+                  viewport={{ once: true, margin: "-80px" }}
+                  custom={i + 1}
+                  variants={fadeUp}
+                  className="group relative overflow-hidden rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(8,47,58,0.4),rgba(2,8,23,0.82))] p-6 transition-transform duration-300 hover:-translate-y-1"
+                >
+                  <div className="absolute right-5 top-4 font-display text-5xl font-bold text-cyan-300/10 transition-colors group-hover:text-cyan-300/20">
+                    {s.step}
+                  </div>
+                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/8 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
+                    <Icon className="h-5 w-5 text-cyan-300" />
+                  </div>
+                  <h3 className="font-display text-xl leading-7 text-white">{s.title}</h3>
+                  <div className="mt-2 inline-flex rounded-full border border-teal-400/15 bg-teal-400/5 px-3 py-1 text-[11px] font-medium text-teal-200/90">
+                    {s.tech}
+                  </div>
+                  <p className="mt-4 text-sm leading-7 text-slate-400">{s.copy}</p>
+                </motion.div>
+              );
+            })}
+          </div>
+
+          {/* Under-the-hood stat band */}
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            custom={1}
+            variants={fadeUp}
+            className="mt-12 rounded-[2rem] border border-cyan-300/10 bg-ocean-900/55 p-6 backdrop-blur-md md:p-8"
+          >
+            <div className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
+              <Cpu className="h-4 w-4 text-cyan-300" />
+              Under the hood
+            </div>
+            <div className="grid grid-cols-2 gap-y-8 md:grid-cols-3 xl:grid-cols-6">
+              {techStack.map((t) => {
+                const Icon = t.icon;
+                return (
+                  <div key={t.label} className="flex flex-col gap-1">
+                    <Icon className="mb-1 h-4 w-4 text-cyan-300/70" />
+                    <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t.label}</div>
+                    <div className="font-display text-lg text-white">{t.value}</div>
+                    <div className="text-xs text-slate-400">{t.sub}</div>
+                  </div>
+                );
+              })}
+            </div>
+          </motion.div>
         </div>
       </section>
 

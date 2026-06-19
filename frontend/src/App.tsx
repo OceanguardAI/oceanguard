@@ -245,6 +245,16 @@ export default function App() {
   const [sweepLoading, setSweepLoading] = useState(false);
   const [sweepError, setSweepError]     = useState<string | null>(null);
 
+  useEffect(() => {
+    document.documentElement.style.overflowY = page === "landing" ? "auto" : "hidden";
+    document.body.style.overflowY = page === "landing" ? "auto" : "hidden";
+
+    return () => {
+      document.documentElement.style.overflowY = "";
+      document.body.style.overflowY = "";
+    };
+  }, [page]);
+
   useEffect(() => { yoloVerifyConfigured().then(setYoloOk); }, []);
 
   const scanActive  = scanPoint !== null;
@@ -650,3 +660,4 @@ export default function App() {
     </AnimatePresence>
   );
 }
+
