@@ -11,9 +11,12 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CPU-only torch first (much smaller than the default CUDA build),
-# then the rest. ultralytics will reuse the already-installed torch.
-RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
+# Install CPU-only torch AND torchvision together from the same index (much
+# smaller than the default CUDA build). They MUST come from the same index in
+# one command so their versions match — otherwise ultralytics pulls a PyPI
+# torchvision built against a different torch and its C++ ops fail to load
+# ("operator torchvision::nms does not exist") at inference time.
+RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
 
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
