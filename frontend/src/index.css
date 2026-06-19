@@ -1,4 +1,4 @@
-@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@300;400;500;600;700;800&family=Sora:wght@400;500;600;700;800&display=swap');
 
 @tailwind base;
 @tailwind components;
@@ -7,12 +7,15 @@
 @layer base {
   body {
     @apply bg-ocean-950 text-slate-200 antialiased;
-    font-family: 'Inter', system-ui, sans-serif;
+    font-family: 'Manrope', system-ui, sans-serif;
   }
   * { @apply box-border; }
 }
 
 @layer utilities {
+  .font-display {
+    font-family: 'Sora', system-ui, sans-serif;
+  }
   .glass {
     background: rgba(15, 42, 74, 0.45);
     backdrop-filter: blur(14px);
@@ -32,16 +35,16 @@
     background: linear-gradient(
       135deg,
       #020617 0%,
-      #0B1F3A 25%,
-      #03131f 50%,
-      #0a1e38 75%,
+      #061826 22%,
+      #082f3a 48%,
+      #03131f 70%,
       #020617 100%
     );
     background-size: 300% 300%;
     animation: aurora 10s ease infinite;
   }
   .text-gradient {
-    background: linear-gradient(135deg, #25A5A8 0%, #40C0C3 50%, #7DD3FC 100%);
+    background: linear-gradient(135deg, #22d3ee 0%, #14b8a6 50%, #0ea5e9 100%);
     -webkit-background-clip: text;
     -webkit-text-fill-color: transparent;
     background-clip: text;
@@ -50,18 +53,38 @@
     border-color: rgba(37,165,168,0.25);
     box-shadow: inset 0 0 20px rgba(37,165,168,0.04);
   }
+  .ocean-grid {
+    background-image:
+      linear-gradient(rgba(34, 211, 238, 0.08) 1px, transparent 1px),
+      linear-gradient(90deg, rgba(34, 211, 238, 0.08) 1px, transparent 1px);
+    background-size: 80px 80px;
+    mask-image: radial-gradient(circle at center, black, transparent 85%);
+  }
+  .ocean-contours {
+    background-image:
+      radial-gradient(circle at 20% 30%, rgba(20, 184, 166, 0.08) 0, rgba(20, 184, 166, 0.08) 1px, transparent 1px),
+      radial-gradient(circle at 65% 35%, rgba(14, 165, 233, 0.06) 0, rgba(14, 165, 233, 0.06) 1px, transparent 1px),
+      radial-gradient(circle at 40% 70%, rgba(34, 211, 238, 0.07) 0, rgba(34, 211, 238, 0.07) 1px, transparent 1px);
+    background-size: 220px 220px, 280px 280px, 320px 320px;
+    filter: blur(0.2px);
+  }
+  .radar-sweep {
+    background:
+      radial-gradient(circle at center, rgba(34, 211, 238, 0.09), transparent 38%),
+      conic-gradient(from 120deg at 70% 24%, rgba(34, 211, 238, 0.12), transparent 24%, transparent 100%);
+    animation: radar 10s linear infinite;
+    transform-origin: 70% 24%;
+  }
 }
 
-/* Scrollbar */
 ::-webkit-scrollbar { width: 5px; height: 5px; }
 ::-webkit-scrollbar-track { background: #020617; }
 ::-webkit-scrollbar-thumb { background: #1A3A5C; border-radius: 9999px; }
 ::-webkit-scrollbar-thumb:hover { background: #255B8A; }
 
-/* Leaflet dark overrides */
 .leaflet-container {
   background-color: #020617 !important;
-  font-family: 'Inter', sans-serif !important;
+  font-family: 'Manrope', sans-serif !important;
 }
 .leaflet-control-zoom a {
   background-color: #0F2A4A !important;
@@ -83,11 +106,15 @@
 .leaflet-popup-tip { background: #0F2A4A !important; }
 .leaflet-popup-content { margin: 10px 14px !important; }
 
-/* Reduce motion */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after {
     animation-duration: 0.01ms !important;
     animation-iteration-count: 1 !important;
     transition-duration: 0.01ms !important;
   }
+}
+
+@keyframes radar {
+  0% { transform: rotate(0deg) scale(1); }
+  100% { transform: rotate(360deg) scale(1); }
 }
