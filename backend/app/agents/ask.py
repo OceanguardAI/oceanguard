@@ -12,9 +12,66 @@ from app.core.config import settings
 from app.models.schemas import AskResponse, RiskEvent
 from app.store.repository import repo
 
-SYSTEM_PROMPT = """You are OceanGuard AI, a marine conservation decision-support assistant.
-Use the provided tools to answer questions accurately from the loaded detection data.
-Never speculate beyond the data and never make accusations."""
+def _build_system_prompt() -> str:
+    """Build a system prompt that embeds a live data snapshot so the agent can
+    answer common questions without needing a tool round-trip."""
+    summary = repo.summary()
+
+    lines = [
+        "You are OceanGuard AI, a marine conservation decision-support assistant.",
+        "Answer questions accurately from the live detection data embedded below.",
+        "Never speculate beyond the data and never make accusations.",
+        "",
+        f"## Live Dataset  ({summary.total_events} events)",
+        (
+            f"Risk levels — CRITICAL: {summary.risk_level_counts.get('CRITICAL', 0)}, "
+            f"HIGH: {summary.risk_level_counts.get('HIGH', 0)}, "
+            f"MEDIUM: {summary.risk_level_counts.get('MEDIUM', 0)}, "
+            f"LOW: {summary.risk_level_counts.get('LOW', 0)}"
+        ),
+        f"Sources — {', '.join(f'{k}: {v}' for k, v in summary.source_counts.items())}",
+        f"Near or inside MPA: {summary.near_mpa_count} events",
+        f"Pending review: {summary.review_status_counts.get('Pending', 0)} events",
+        "",
+    ]
+
+    # All near/inside-MPA events (sorted by risk score descending)
+    near_events = sorted(repo.all(near_mpa=True), key=lambda e: e.risk_score, reverse=True)
+    if near_events:
+        lines.append(f"## Near / Inside MPA  ({len(near_events)} total)")
+        for e in near_events:
+            dist = (
+                f"{e.distance_to_mpa_km:.1f} km from {e.mpa_name or 'MPA'}"
+                if e.distance_to_mpa_km is not None
+                else "inside MPA"
+            )
+            ais = (
+                "no-AIS" if (e.ais_data_available and not e.ais_matched)
+                else "AIS-matched" if e.ais_matched
+                else ""
+            )
+            lines.append(
+                f"- {e.id}: {e.risk_level} ({e.risk_score:.2f}), {dist}"
+                + (f", {ais}" if ais else "")
+                + f", review={e.review_status}"
+            )
+        lines.append("")
+
+    # Top 15 highest-risk events overall
+    top_events = sorted(repo.all(), key=lambda e: e.risk_score, reverse=True)[:15]
+    if top_events:
+        lines.append("## Top 15 by Risk Score")
+        for e in top_events:
+            dist = (
+                f"{e.distance_to_mpa_km:.1f} km from {e.mpa_name or 'MPA'}"
+                if e.distance_to_mpa_km is not None
+                else "no MPA proximity data"
+            )
+            lines.append(f"- {e.id}: {e.risk_level} ({e.risk_score:.2f}), {dist}, review={e.review_status}")
+        lines.append("")
+
+    lines.append("Use the provided tools to look up additional events or details beyond what is shown above.")
+    return "\n".join(lines)
 
 MAX_TOOL_EVENTS = 10
 EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
@@ -310,7 +367,7 @@ async def ask(question: str) -> AskResponse:
         from google.genai import types
 
         config = types.GenerateContentConfig(
-            system_instruction=SYSTEM_PROMPT,
+            system_instruction=_build_system_prompt(),
             tools=[types.Tool(function_declarations=TOOLS)],
             max_output_tokens=settings.agent_ask_max_tokens,
         )
