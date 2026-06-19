@@ -77,8 +77,19 @@ export async function yoloVerifyConfigured(): Promise<boolean> {
   return _yoloConfigured;
 }
 
-export async function verifyYolo(eventId: string): Promise<YoloVerifyResult> {
-  const res = await fetch(`${API_BASE}/verify/yolo?event_id=${encodeURIComponent(eventId)}`, {
+// Verification runs on the point itself (lat/lon/date), so it works even if the
+// live store has refreshed away the event since it was selected. The id is sent
+// only so the backend can apply an agreement boost when the event still exists.
+export async function verifyYolo(event: {
+  id: string; lat: number; lon: number; timestamp: string;
+}): Promise<YoloVerifyResult> {
+  const params = new URLSearchParams({
+    lat: String(event.lat),
+    lon: String(event.lon),
+    date: event.timestamp,
+    event_id: event.id,
+  });
+  const res = await fetch(`${API_BASE}/verify/yolo?${params.toString()}`, {
     method: "POST",
   });
   if (!res.ok) {

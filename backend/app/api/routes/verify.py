@@ -37,23 +37,36 @@ def verify_status() -> dict[str, object]:
 
 
 @router.post("/verify/yolo")
-def verify_yolo(event_id: str = Query(..., description="Detection id to verify")) -> dict[str, object]:
-    """Run the YOLO model on the live Sentinel-1 chip for this detection's point."""
+def verify_yolo(
+    lat: float = Query(..., description="Latitude of the point to verify"),
+    lon: float = Query(..., description="Longitude of the point to verify"),
+    date: str = Query(..., description="ISO timestamp used to pick the Sentinel-1 scene"),
+    event_id: str | None = Query(
+        default=None,
+        description="Optional detection id; when it still exists in the live store, "
+        "an agreement boost is applied to it.",
+    ),
+) -> dict[str, object]:
+    """Run the YOLO model on the live Sentinel-1 chip for a given point.
+
+    Verification is a pure point lookup (lat/lon/date -> Sentinel-1 -> model), so
+    it never depends on the event being present in the in-memory store. The store
+    is refreshed by live ingestion, so an event the operator selected a moment ago
+    may already be gone; passing coordinates directly makes the check robust to
+    that. ``event_id`` is optional and only used to apply the agreement boost when
+    the detection is still loaded.
+    """
     if not _configured():
         raise HTTPException(
             status_code=503,
             detail="YOLO service is not configured. Set YOLO_SERVICE_URL.",
         )
 
-    event = repo.get(event_id)
-    if event is None:
-        raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found")
-
     url = f"{settings.yolo_service_url.rstrip('/')}/detect-point"
     try:
         resp = httpx.post(
             url,
-            json={"lat": event.lat, "lon": event.lon, "date": event.timestamp},
+            json={"lat": lat, "lon": lon, "date": date},
             timeout=_TIMEOUT,
         )
         resp.raise_for_status()
@@ -65,20 +78,23 @@ def verify_yolo(event_id: str = Query(..., description="Detection id to verify")
     result = resp.json()
 
     # When our own model confirms a vessel at the GFW point, the two independent
-    # systems agree — raise the risk and annotate, so the map reflects it.
+    # systems agree — raise the risk and annotate, so the map reflects it. This
+    # only applies when the detection is still in the live store.
     agreement = bool(result.get("found"))
     updated_event = None
-    if agreement:
-        new_score = min(0.99, round(event.risk_score + _AGREEMENT_BOOST, 3))
-        method = event.matching_method
-        if "YOLO-confirmed" not in method:
-            method = f"{method} · YOLO-confirmed (Sentinel-1)".lstrip(" ·")
-        updated = event.model_copy(
-            update={"risk_score": new_score, "matching_method": method}
-        )
-        # In-memory only (persist=False): keep the seed file as offline fallback.
-        repo.upsert_many([updated], persist=False)
-        updated_event = updated.model_dump()
+    if agreement and event_id:
+        event = repo.get(event_id)
+        if event is not None:
+            new_score = min(0.99, round(event.risk_score + _AGREEMENT_BOOST, 3))
+            method = event.matching_method
+            if "YOLO-confirmed" not in method:
+                method = f"{method} · YOLO-confirmed (Sentinel-1)".lstrip(" ·")
+            updated = event.model_copy(
+                update={"risk_score": new_score, "matching_method": method}
+            )
+            # In-memory only (persist=False): keep the seed file as offline fallback.
+            repo.upsert_many([updated], persist=False)
+            updated_event = updated.model_dump()
 
     return {
         "event_id": event_id,

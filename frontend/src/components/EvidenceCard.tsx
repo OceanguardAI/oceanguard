@@ -106,7 +106,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
     setYoloResult(null);
     setYoloLoading(true);
     try {
-      const res = await verifyYolo(event.id);
+      const res = await verifyYolo(event);
       setYoloResult(res);
       // If our model confirmed it, the backend bumped the score — reflect it.
       if (res.updated_event) onUpdate(res.updated_event);
