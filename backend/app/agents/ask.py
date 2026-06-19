@@ -35,42 +35,37 @@ def _build_system_prompt() -> str:
         "",
     ]
 
-    # All near/inside-MPA events (sorted by risk score descending)
-    near_events = sorted(repo.all(near_mpa=True), key=lambda e: e.risk_score, reverse=True)
-    if near_events:
-        lines.append(f"## Near / Inside MPA  ({len(near_events)} total)")
-        for e in near_events:
-            dist = (
-                f"{e.distance_to_mpa_km:.1f} km from {e.mpa_name or 'MPA'}"
-                if e.distance_to_mpa_km is not None
-                else "inside MPA"
-            )
-            ais = (
-                "no-AIS" if (e.ais_data_available and not e.ais_matched)
-                else "AIS-matched" if e.ais_matched
-                else ""
-            )
-            lines.append(
-                f"- {e.id}: {e.risk_level} ({e.risk_score:.2f}), {dist}"
-                + (f", {ais}" if ais else "")
-                + f", review={e.review_status}"
-            )
-        lines.append("")
-
-    # Top 15 highest-risk events overall
-    top_events = sorted(repo.all(), key=lambda e: e.risk_score, reverse=True)[:15]
-    if top_events:
-        lines.append("## Top 15 by Risk Score")
-        for e in top_events:
-            dist = (
-                f"{e.distance_to_mpa_km:.1f} km from {e.mpa_name or 'MPA'}"
-                if e.distance_to_mpa_km is not None
-                else "no MPA proximity data"
-            )
-            lines.append(f"- {e.id}: {e.risk_level} ({e.risk_score:.2f}), {dist}, review={e.review_status}")
-        lines.append("")
-
-    lines.append("Use the provided tools to look up additional events or details beyond what is shown above.")
+    # Full detection list — every event, sorted by risk score descending, so the
+    # agent can answer questions about any detection without a tool round-trip.
+    all_events = sorted(repo.all(), key=lambda e: e.risk_score, reverse=True)
+    lines.append(f"## All Detections  ({len(all_events)} events)")
+    lines.append(
+        "Columns: id | risk | score | lat,lon | MPA proximity | AIS | source | review"
+    )
+    for e in all_events:
+        if e.inside_mpa:
+            mpa = f"INSIDE {e.mpa_name or 'MPA'}"
+        elif e.near_mpa and e.distance_to_mpa_km is not None:
+            mpa = f"{e.distance_to_mpa_km:.1f}km from {e.mpa_name or 'MPA'}"
+        elif e.distance_to_mpa_km is not None:
+            mpa = f"{e.distance_to_mpa_km:.1f}km from {e.mpa_name or 'MPA'}"
+        else:
+            mpa = "no-MPA-data"
+        ais = (
+            "no-AIS" if (e.ais_data_available and not e.ais_matched)
+            else "matched" if e.ais_matched
+            else "no-coverage"
+        )
+        lines.append(
+            f"- {e.id} | {e.risk_level} | {e.risk_score:.2f} | "
+            f"{e.lat:.3f},{e.lon:.3f} | {mpa} | {ais} | {e.source} | {e.review_status}"
+        )
+    lines.append("")
+    lines.append(
+        "The list above is the COMPLETE current dataset — every detection is shown. "
+        "Filter it directly to answer questions (e.g. rows marked INSIDE or 'km from' are near/inside MPAs). "
+        "Use the tools only for full per-event detail (why_flagged, recommended_action, ports, metrics)."
+    )
     return "\n".join(lines)
 
 MAX_TOOL_EVENTS = 10
@@ -211,7 +206,7 @@ def _function_calls(response: Any) -> list[Any]:
 def _run_tool(name: str, inputs: dict) -> str:
     if name == "query_detections":
         limit = int(inputs.get("limit", MAX_TOOL_EVENTS) or MAX_TOOL_EVENTS)
-        limit = max(1, min(limit, 50))
+        limit = max(1, min(limit, 600))
         near_mpa_raw = inputs.get("near_mpa")
         near_mpa = None if near_mpa_raw is None else bool(near_mpa_raw)
         events = repo.all(
