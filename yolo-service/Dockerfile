@@ -11,13 +11,16 @@ RUN apt-get update \
     && apt-get install -y --no-install-recommends libgl1 libglib2.0-0 libgomp1 \
     && rm -rf /var/lib/apt/lists/*
 
-# Install CPU-only torch AND torchvision together from the same index (much
-# smaller than the default CUDA build). They MUST come from the same index in
-# one command so their versions match — otherwise ultralytics pulls a PyPI
-# torchvision built against a different torch and its C++ ops fail to load
-# ("operator torchvision::nms does not exist") at inference time.
-RUN pip install --no-cache-dir torch torchvision --index-url https://download.pytorch.org/whl/cpu
+# Install CPU-only torch AND torchvision as an EXACT, matched pair from the
+# PyTorch CPU index (much smaller than the default CUDA build). The versions are
+# pinned because letting pip pick "latest" can resolve a torch/torchvision pair
+# whose compiled ABIs don't match — torchvision's C++ ops then fail to load
+# ("operator torchvision::nms does not exist") at inference time. 2.5.1/0.20.1
+# is a known-compatible release pair.
+RUN pip install --no-cache-dir torch==2.5.1 torchvision==0.20.1 --index-url https://download.pytorch.org/whl/cpu
 
+# Install the rest from PyPI. torch/torchvision are already satisfied above, so
+# ultralytics will reuse them and pip won't pull a mismatched build.
 COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
