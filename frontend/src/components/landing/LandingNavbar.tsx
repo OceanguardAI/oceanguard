@@ -28,7 +28,13 @@ export default function LandingNavbar({
 
   return (
     <header className="fixed inset-x-0 top-0 z-50 px-4 pt-4 md:px-6">
-      <div className="mx-auto flex max-w-7xl items-center justify-between rounded-full border border-cyan-400/10 bg-ocean-950/70 px-4 py-3 shadow-[0_20px_80px_rgba(2,8,23,0.45)] backdrop-blur-xl md:px-6">
+      <div
+        className="mx-auto flex max-w-7xl items-center justify-between rounded-full border border-white/[0.13] px-4 py-3 backdrop-blur-2xl md:px-6"
+        style={{
+          background: "rgba(14, 28, 44, 0.52)",
+          boxShadow: "0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.09), 0 0 0 0.5px rgba(255,255,255,0.04)",
+        }}
+      >
         <button
           onClick={() => handleJump("hero")}
           className="flex items-center gap-3 text-left"
@@ -86,7 +92,11 @@ export default function LandingNavbar({
             animate={{ opacity: 1, y: 0 }}
             exit={{ opacity: 0, y: -12 }}
             transition={{ duration: 0.2 }}
-            className="mx-auto mt-3 max-w-7xl rounded-3xl border border-cyan-400/10 bg-ocean-950/95 p-4 shadow-2xl backdrop-blur-xl md:hidden"
+            className="mx-auto mt-3 max-w-7xl rounded-3xl border border-white/[0.12] p-4 backdrop-blur-2xl md:hidden"
+            style={{
+              background: "rgba(14,28,44,0.72)",
+              boxShadow: "0 16px 48px rgba(0,0,0,0.6), inset 0 1px 0 rgba(255,255,255,0.08)",
+            }}
           >
             <div className="mb-4 flex items-center gap-2 text-[11px] uppercase tracking-[0.18em] text-slate-500">
               <Waves className="h-3 w-3" />

@@ -66,6 +66,8 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
   const videoRef = useRef<HTMLVideoElement>(null);
   const [muted, setMuted] = useState(true);
   const [videoReady, setVideoReady] = useState(false);
+  const [problemHovered, setProblemHovered] = useState(false);
+  const [solutionHovered, setSolutionHovered] = useState(false);
 
   const jumpTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
@@ -78,19 +80,6 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
 
   return (
     <div className="min-h-screen overflow-x-hidden text-slate-200" style={{ background: "#040C11" }}>
-
-      {/* ── Live ticker ── */}
-      <div className="relative overflow-hidden border-b border-amber-400/15 bg-amber-400/[0.04] py-1.5">
-        <div className="flex items-center gap-10 whitespace-nowrap" style={{ animation: "ticker 50s linear infinite", willChange: "transform" }}>
-          {[...TICKER, ...TICKER].map((item, i) => (
-            <span key={i} className="flex shrink-0 items-center gap-3">
-              {i % TICKER.length === 0
-                ? <span className="font-mono text-[11px] font-bold text-amber-400">{item}</span>
-                : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/50">{item}</span></>}
-            </span>
-          ))}
-        </div>
-      </div>
 
       <LandingNavbar items={navItems} onOpenDashboard={onLaunch} onJump={jumpTo} />
 
@@ -187,12 +176,33 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
           onClick={() => jumpTo("problem")}
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ delay: 1.2, duration: 0.6 }}
-          className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-1 text-white/40 transition hover:text-white/70"
+          className="absolute bottom-20 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-1 text-white/40 transition hover:text-white/70"
           aria-label="Scroll down"
         >
           <span className="font-mono text-[9px] uppercase tracking-[0.2em]">Scroll</span>
           <ChevronDown className="h-4 w-4 animate-bounce" />
         </motion.button>
+
+        {/* ── Live ticker strip — bottom of hero (green line position) ── */}
+        <motion.div
+          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9, duration: 0.5 }}
+          className="absolute inset-x-0 bottom-0 z-30 overflow-hidden border-t border-white/10 backdrop-blur-md"
+          style={{ background: "rgba(4,10,16,0.65)" }}
+        >
+          <div
+            className="flex items-center gap-10 whitespace-nowrap py-2.5"
+            style={{ animation: "ticker 50s linear infinite", willChange: "transform" }}
+          >
+            {[...TICKER, ...TICKER].map((item, i) => (
+              <span key={i} className="flex shrink-0 items-center gap-3">
+                {i % TICKER.length === 0
+                  ? <span className="font-mono text-[11px] font-bold text-amber-400">{item}</span>
+                  : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/45">{item}</span></>}
+              </span>
+            ))}
+          </div>
+        </motion.div>
       </section>
 
       {/* ══════════════════════════════════════════
@@ -202,7 +212,17 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
         id="problem"
         className="relative overflow-hidden border-t border-white/6 px-4 py-24 md:px-6 md:py-32"
         style={{ background: "linear-gradient(165deg,#050f17 0%, #081d28 100%)" }}
+        onMouseEnter={() => setProblemHovered(true)}
+        onMouseLeave={() => setProblemHovered(false)}
       >
+        {/* Hover colour wash — amber */}
+        <div
+          className="pointer-events-none absolute inset-0 transition-opacity duration-700"
+          style={{
+            opacity: problemHovered ? 1 : 0,
+            background: "radial-gradient(ellipse 70% 55% at 25% 50%, rgba(251,191,36,0.07), transparent 75%)",
+          }}
+        />
         <div className="pointer-events-none absolute left-0 top-1/4 h-80 w-80 rounded-full bg-amber-500/5 blur-[120px]" />
 
         <div className="relative mx-auto max-w-6xl">
@@ -261,7 +281,17 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
         id="solution"
         className="relative overflow-hidden border-t border-white/6 px-4 py-24 md:px-6 md:py-32"
         style={{ background: "linear-gradient(165deg,#08191f 0%, #04101a 100%)" }}
+        onMouseEnter={() => setSolutionHovered(true)}
+        onMouseLeave={() => setSolutionHovered(false)}
       >
+        {/* Hover colour wash — cyan */}
+        <div
+          className="pointer-events-none absolute inset-0 transition-opacity duration-700"
+          style={{
+            opacity: solutionHovered ? 1 : 0,
+            background: "radial-gradient(ellipse 70% 55% at 75% 50%, rgba(34,211,238,0.07), transparent 75%)",
+          }}
+        />
         <div className="pointer-events-none absolute inset-0 opacity-[0.35] ocean-grid" />
         <div className="pointer-events-none absolute right-0 top-1/4 h-80 w-80 rounded-full bg-cyan-500/5 blur-[120px]" />
 
