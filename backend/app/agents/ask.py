@@ -12,6 +12,69 @@ from app.core.config import settings
 from app.models.schemas import AskResponse, RiskEvent
 from app.store.repository import repo
 
+# Static description of how the whole system works, so the agent can answer
+# "how does X work" questions (risk scoring, data sources, the dashboard) — not
+# just questions about individual detections. Kept in sync with the live scoring
+# formula in services/gfw_ingest.py and the chip/model settings.
+SYSTEM_KNOWLEDGE = """## How OceanGuard Works
+
+### What it does
+OceanGuard finds "dark vessels" — ships whose AIS transponder is off — near Marine
+Protected Areas (MPAs). It combines an AIS-based global feed with our own satellite-radar
+ship-detection model, then scores and explains each detection for a human officer to review.
+
+### Data sources
+- Global Fishing Watch (GFW) API — global SAR vessel detections. A radar hit GFW could not
+  match to any AIS identity is the core "dark vessel" signal.
+- Sentinel-1 radar (Copernicus / CDSE) — C-band VV backscatter imagery; ships show up as
+  bright spots on dark water. Works through cloud, day or night.
+- WDPA — World Database on Protected Areas; the marine protected-area boundaries.
+- AISStream — live AIS broadcasts, used to confirm whether a contact is "dark".
+- Ports — reference port/marina locations for context (distance from port).
+
+### How the risk score is calculated
+Each detection gets a transparent, deterministic score (0.00–0.99), built up from:
+- 0.25 baseline — any SAR vessel detection.
+- +0.20 — no matching AIS identity (a possible dark vessel).
+- MPA proximity (the biggest factor):
+    +0.45 if INSIDE a protected area,
+    +0.30 if within 10 km of one,
+    +0.15 if within 50 km.
+- +0.05 — repeated detections at the same location.
+The total is capped at 0.99. There is no black box — every point can be explained.
+
+Risk levels come from the score:
+- CRITICAL: score >= 0.80
+- HIGH:     score >= 0.60
+- MEDIUM:   score >= 0.45
+- LOW:      below 0.45
+Example: a dark vessel INSIDE an MPA scores 0.25 + 0.20 + 0.45 = 0.90 -> CRITICAL.
+
+### MPA proximity terms
+- "inside MPA" = the detection falls within a protected-area polygon (distance 0 km).
+- "near MPA" = within 10 km of a boundary.
+- distance_to_mpa_km = great-circle distance to the nearest protected area.
+
+### Our detection model
+- YOLO11n, fine-tuned on the HRSID SAR ship dataset (~3.5k images), mAP@50 0.838.
+- Runs on demand on a fresh Sentinel-1 chip, fully independent of AIS — so it can find
+  vessels the AIS-based feed missed. Officers run it as a single-point check or an
+  "area sweep" that tiles a region and flags contacts with no AIS match.
+
+### What the dashboard shows
+- A world map with each detection as a dot coloured by risk (red CRITICAL, orange HIGH,
+  amber MEDIUM, green LOW); protected areas are dashed teal outlines.
+- Top KPIs: total detections, HIGH/CRITICAL count, count near/inside an MPA, pending review.
+- Panels: Detections (the full queue), Briefing (a daily summary), Patrols (top targets).
+- An Evidence Card per detection: the Sentinel-1 radar chip, AIS status, MPA proximity,
+  recommended action, and an independent YOLO radar check.
+
+### Responsible use
+OceanGuard is decision support, not automatic accusation. Every output must be verified by
+a human officer before any enforcement action.
+"""
+
+
 def _build_system_prompt() -> str:
     """Build a system prompt that embeds a live data snapshot so the agent can
     answer common questions without needing a tool round-trip."""
@@ -19,8 +82,12 @@ def _build_system_prompt() -> str:
 
     lines = [
         "You are OceanGuard AI, a marine conservation decision-support assistant.",
-        "Answer questions accurately from the live detection data embedded below.",
-        "Never speculate beyond the data and never make accusations.",
+        "Answer questions accurately from the live detection data and the system",
+        "description embedded below. Explain how the system works when asked",
+        "(risk scoring, data sources, the model, the dashboard). Never speculate",
+        "beyond what is given and never make accusations.",
+        "",
+        SYSTEM_KNOWLEDGE,
         "",
         f"## Live Dataset  ({summary.total_events} events)",
         (
@@ -250,12 +317,51 @@ def _run_tool(name: str, inputs: dict) -> str:
     return "Unknown tool."
 
 
+def _methodology_answer(lowered: str) -> AskResponse | None:
+    """Answer 'how does it work' questions about the system itself (used when the
+    LLM is unavailable). Returns None if the question isn't about methodology."""
+    if ("risk" in lowered and ("calculat" in lowered or "score" in lowered or "work" in lowered)) or \
+       ("score" in lowered and ("how" in lowered or "calculat" in lowered)):
+        return AskResponse(answer=(
+            "Each detection gets a transparent score from 0.00 to 0.99: a 0.25 baseline for any "
+            "SAR vessel, +0.20 if it has no matching AIS identity (a possible dark vessel), then "
+            "MPA proximity is the biggest factor — +0.45 if inside a protected area, +0.30 within "
+            "10 km, +0.15 within 50 km — plus +0.05 for repeated detections, capped at 0.99. "
+            "Levels: CRITICAL >= 0.80, HIGH >= 0.60, MEDIUM >= 0.45, LOW below 0.45. "
+            "Example: a dark vessel inside an MPA scores 0.25 + 0.20 + 0.45 = 0.90 (CRITICAL)."
+        ))
+    if "dark vessel" in lowered or ("dark" in lowered and ("what" in lowered or "mean" in lowered)):
+        return AskResponse(answer=(
+            "A dark vessel is a ship that radar detects but that has no matching AIS broadcast — "
+            "its transponder is off. SAR satellites see the hull regardless, so a radar contact "
+            "with no AIS identity near a protected area is the core signal OceanGuard surfaces."
+        ))
+    if ("data" in lowered or "source" in lowered) and ("what" in lowered or "where" in lowered or "use" in lowered):
+        return AskResponse(answer=(
+            "OceanGuard uses Global Fishing Watch (global SAR vessel detections), Sentinel-1 radar "
+            "via Copernicus/CDSE (for imagery and our own model), WDPA protected-area boundaries, "
+            "AISStream live AIS broadcasts, and a reference list of ports."
+        ))
+    if ("how" in lowered or "what" in lowered) and ("detect" in lowered or "yolo" in lowered or "model" in lowered or "radar" in lowered or "sar" in lowered):
+        return AskResponse(answer=(
+            "We run our own YOLO11n ship-detection model (fine-tuned on the HRSID SAR dataset, "
+            "mAP@50 0.838) directly on fresh Sentinel-1 C-band radar chips. Ships appear as bright "
+            "returns on dark water. Because it reads radar — not AIS — it can find vessels the "
+            "AIS-based feed missed, either at a single point or across a swept area."
+        ))
+    return None
+
+
 def _fallback(question: str) -> AskResponse:
     lowered = question.lower()
     matched_event = _find_event_from_question(question)
 
     if matched_event is not None:
         return AskResponse(answer=_summarise_event(matched_event))
+
+    methodology = _methodology_answer(lowered)
+    if methodology is not None:
+        return methodology
 
     if "highest" in lowered or "most" in lowered or "bar-reef-003" in lowered:
         return _highest_risk_answer()
@@ -346,9 +452,10 @@ def _fallback(question: str) -> AskResponse:
 
     return AskResponse(
         answer=(
-            "I can answer questions about loaded detections, risk levels, review states, model metrics, "
-            "and proximity to Bar Reef. Try asking which detection is highest risk, how many detections are loaded, "
-            "or what the model map50 is."
+            "I can answer questions about the loaded detections (risk levels, review states, MPA "
+            "proximity, model metrics) and about how OceanGuard works — how the risk score is "
+            "calculated, what a dark vessel is, what data sources we use, and how the detection "
+            "model works. Try \"how is the risk score calculated?\" or \"which detection is highest risk?\""
         )
     )
 
