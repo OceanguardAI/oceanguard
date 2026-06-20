@@ -113,22 +113,25 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
           </div>
         )}
 
-        {/* ── Gradient overlays (depth + readability) ── */}
-        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/25" />
-        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-transparent to-transparent" />
+        {/* ── Gradient overlays (depth + readability for centered text) ── */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/75" />
+        <div
+          className="absolute inset-0"
+          style={{ background: "radial-gradient(ellipse 75% 65% at 50% 48%, rgba(2,8,12,0.40), transparent 78%)" }}
+        />
 
-        {/* ── Content — bottom-left, OceanX-style ── */}
-        <div className="absolute inset-x-0 bottom-0 flex flex-col justify-end px-6 pb-14 md:px-10 lg:px-16">
-          <div className="max-w-7xl w-full mx-auto">
+        {/* ── Content — centered, OceanX-style ── */}
+        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+          <div className="max-w-4xl">
 
-            {/* Small tag line */}
+            {/* Small tag line with square bullet */}
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.2 }}
-              className="mb-4 flex items-center gap-2"
+              className="mb-6 flex items-center justify-center gap-2.5"
             >
-              <span className="h-[3px] w-6 bg-amber-400 rounded-full" />
-              <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-amber-300">
+              <span className="h-2.5 w-2.5 rounded-[3px] bg-amber-400 shadow-[0_0_10px_rgba(251,191,36,0.7)]" />
+              <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-amber-300">
                 SDG 14 · Satellite Intelligence
               </span>
             </motion.div>
@@ -137,34 +140,35 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
             <motion.h1
               initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.3, ease: EASE }}
-              className="font-display font-black text-white leading-[0.95] tracking-[-0.04em]"
-              style={{ fontSize: "clamp(3rem, 6.5vw, 7rem)" }}
+              className="font-display font-black text-white leading-[0.96] tracking-[-0.04em]"
+              style={{ fontSize: "clamp(2.8rem, 6vw, 6.5rem)", textShadow: "0 2px 40px rgba(0,0,0,0.5)" }}
             >
-              Making hidden<br />
-              <span className="text-amber-400">ocean activity</span><br />
-              visible.
+              Making hidden ocean<br />
+              activity <span className="text-amber-400">visible</span>.
             </motion.h1>
 
-            {/* Sub + CTAs */}
+            {/* Sub */}
             <motion.p
               initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0.45, ease: EASE }}
-              className="mt-5 max-w-lg text-base leading-7 text-white/70 md:text-lg"
+              className="mx-auto mt-6 max-w-xl text-base leading-7 text-white/75 md:text-lg"
+              style={{ textShadow: "0 1px 20px rgba(0,0,0,0.6)" }}
             >
               Satellite radar catches vessels that switch their tracking off.
               OceanGuard turns those detections into reviewed evidence cards — in minutes.
             </motion.p>
 
+            {/* CTAs */}
             <motion.div
               initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.56, ease: EASE }}
-              className="mt-7 flex flex-wrap items-center gap-3"
+              className="mt-9 flex flex-wrap items-center justify-center gap-3"
             >
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
                 Open Dashboard <ArrowRight className="h-4 w-4" />
               </GradientButton>
               <GradientButton variant="secondary" size="lg" onClick={() => jumpTo("problem")}>
-                How It Works
+                See the Problem
               </GradientButton>
             </motion.div>
           </div>
