@@ -25,13 +25,22 @@ const navItems = [
   { label: "The System",     target: "solution" },
 ];
 
-const TICKER = [
-  "⬤  LIVE SYSTEM ACTIVE",
-  "Sentinel-1 radar · global ocean coverage",
-  "Global Fishing Watch · live SAR detections",
-  "WDPA · 10 000+ marine protected areas indexed",
-  "YOLO11n detection model · mAP@50 0.838",
-  "AI evidence cards · human review required",
+// Each item: text + color accent
+// "live" = blinking red dot | "stat" = big amber number | "data" = cyan label | "default" = white/slate
+const TICKER: { text: string; type: "live" | "stat" | "data" | "default" }[] = [
+  { text: "SYSTEM ACTIVE",           type: "live"    },
+  { text: "$23 BILLION",             type: "stat"    },
+  { text: "lost to illegal fishing every year",  type: "default" },
+  { text: "1 in 5 fish",             type: "stat"    },
+  { text: "caught outside the rules",type: "default" },
+  { text: "300 000+",                type: "stat"    },
+  { text: "vessels tracked by satellite radar",  type: "data"    },
+  { text: "10 000+",                 type: "stat"    },
+  { text: "marine protected areas monitored",    type: "data"    },
+  { text: "DARK VESSEL DETECTED",    type: "live"    },
+  { text: "AI evidence card generated in",       type: "default" },
+  { text: "< 3 MINUTES",            type: "stat"    },
+  { text: "Human review required before action", type: "data"    },
 ];
 
 const STAKES = [
@@ -183,25 +192,62 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
           <ChevronDown className="h-4 w-4 animate-bounce" />
         </motion.button>
 
-        {/* ── Live ticker strip — bottom of hero (green line position) ── */}
+        {/* ── Live ticker strip — bottom of hero ── */}
         <motion.div
-          initial={{ opacity: 0, y: 8 }} animate={{ opacity: 1, y: 0 }}
-          transition={{ delay: 0.9, duration: 0.5 }}
-          className="absolute inset-x-0 bottom-0 z-30 overflow-hidden border-t border-white/10 backdrop-blur-md"
-          style={{ background: "rgba(4,10,16,0.65)" }}
+          initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+          transition={{ delay: 0.9, duration: 0.6 }}
+          className="absolute inset-x-0 bottom-0 z-30 overflow-hidden backdrop-blur-xl"
+          style={{
+            background: "linear-gradient(to right, rgba(4,10,16,0.92), rgba(6,16,26,0.88), rgba(4,10,16,0.92))",
+            borderTop: "1px solid rgba(255,255,255,0.10)",
+          }}
         >
+          {/* Glowing top accent line */}
+          <div className="absolute inset-x-0 top-0 h-[2px] bg-gradient-to-r from-transparent via-amber-400/70 to-transparent" />
+
           <div
-            className="flex items-center gap-10 whitespace-nowrap py-2.5"
-            style={{ animation: "ticker 50s linear infinite", willChange: "transform" }}
+            className="flex items-center whitespace-nowrap py-3"
+            style={{ animation: "ticker 65s linear infinite", willChange: "transform" }}
           >
-            {[...TICKER, ...TICKER].map((item, i) => (
-              <span key={i} className="flex shrink-0 items-center gap-3">
-                {i % TICKER.length === 0
-                  ? <span className="font-mono text-[11px] font-bold text-amber-400">{item}</span>
-                  : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/45">{item}</span></>}
-              </span>
-            ))}
+            {[...TICKER, ...TICKER].map((item, i) => {
+              const isDivider = i % TICKER.length !== 0 || i === 0;
+              return (
+                <span key={i} className="flex shrink-0 items-center">
+                  {/* divider diamond between items */}
+                  {i !== 0 && (
+                    <span className="mx-5 text-[8px] text-white/20">◆</span>
+                  )}
+                  {item.type === "live" && (
+                    <span className="flex items-center gap-2 font-mono text-[12px] font-bold tracking-[0.18em] text-red-400">
+                      <span className="h-1.5 w-1.5 rounded-full bg-red-400 shadow-[0_0_6px_rgba(248,113,113,0.9)]"
+                        style={{ animation: "blink 1.2s ease-in-out infinite" }} />
+                      {item.text}
+                    </span>
+                  )}
+                  {item.type === "stat" && (
+                    <span className="font-mono text-[14px] font-black tracking-tight text-amber-300"
+                      style={{ textShadow: "0 0 20px rgba(251,191,36,0.5)" }}>
+                      {item.text}
+                    </span>
+                  )}
+                  {item.type === "data" && (
+                    <span className="font-mono text-[11px] tracking-[0.08em] text-cyan-300/80">
+                      {item.text}
+                    </span>
+                  )}
+                  {item.type === "default" && (
+                    <span className="font-mono text-[11px] tracking-[0.06em] text-slate-300/65">
+                      {item.text}
+                    </span>
+                  )}
+                </span>
+              );
+            })}
           </div>
+
+          {/* Left/right fade masks so it looks infinite */}
+          <div className="pointer-events-none absolute inset-y-0 left-0 w-24 bg-gradient-to-r from-[rgba(4,10,16,0.9)] to-transparent" />
+          <div className="pointer-events-none absolute inset-y-0 right-0 w-24 bg-gradient-to-l from-[rgba(4,10,16,0.9)] to-transparent" />
         </motion.div>
       </section>
 
