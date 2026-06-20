@@ -126,3 +126,11 @@
   0%, 100% { background-position: 0% 50%; }
   50%      { background-position: 100% 50%; }
 }
+
+/* Seamless horizontal marquee for the live operations ticker.
+   The element must contain two identical copies of its content so the
+   second copy seamlessly replaces the first when it scrolls out. */
+@keyframes ticker {
+  0%   { transform: translateX(0); }
+  100% { transform: translateX(-50%); }
+}

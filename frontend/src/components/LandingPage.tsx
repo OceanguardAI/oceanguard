@@ -1,25 +1,10 @@
 import React from "react";
 import { motion, Variants } from "framer-motion";
 import {
-  ActivitySquare,
-  AlertTriangle,
-  ArrowRight,
-  Brain,
-  Cpu,
-  Database,
-  Eye,
-  FileText,
-  Gauge,
-  Globe2,
-  LifeBuoy,
-  MapPinned,
-  Radar,
-  Radio,
-  Satellite,
-  ScanSearch,
-  Shield,
-  Sparkles,
-  Waves,
+  Activity, AlertTriangle, ArrowRight, Brain, Cpu,
+  Database, Eye, FileText, Gauge, Globe2, LifeBuoy,
+  MapPinned, Radar, Radio, Satellite, Shield,
+  ScanSearch, Waves,
 } from "lucide-react";
 import GradientButton from "./ui/GradientButton";
 import DashboardPreview from "./landing/DashboardPreview";
@@ -27,212 +12,143 @@ import ArchitectureGraph from "./landing/ArchitectureGraph";
 import LandingNavbar from "./landing/LandingNavbar";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
-
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 28 },
+  hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
-    opacity: 1,
-    y: 0,
-    transition: { duration: 0.55, delay: i * 0.08, ease: EASE },
+    opacity: 1, y: 0,
+    transition: { duration: 0.5, delay: i * 0.07, ease: EASE },
   }),
 };
 
 const navItems = [
-  { label: "How it works", target: "how-it-works" },
-  { label: "Workflow", target: "workflow" },
-  { label: "Technology", target: "technology" },
-  { label: "SDG Impact", target: "sdg-impact" },
-  { label: "Responsible AI", target: "responsible-ai" },
+  { label: "How it works",  target: "how-it-works"   },
+  { label: "Workflow",      target: "workflow"        },
+  { label: "Technology",    target: "technology"      },
+  { label: "SDG Impact",    target: "sdg-impact"      },
+  { label: "Responsible AI",target: "responsible-ai"  },
 ];
 
-// Concrete, citable figures — these give judges and analysts an immediate sense
-// of why the problem matters and what the system covers.
-const impactStats = [
-  { value: "$23B", label: "Lost to illegal fishing every year", sub: "estimated, global (FAO)" },
-  { value: "1 in 5", label: "Fish caught outside the rules", sub: "of the global catch" },
-  { value: "Global", label: "Free Sentinel-1 radar coverage", sub: "6–12 day revisit, all weather" },
-  { value: "Minutes", label: "From satellite signal to evidence card", sub: "not days of manual review" },
+// Scrolling operational ticker — duplicated so the loop is seamless.
+const TICKER = [
+  "⬤  LIVE SYSTEM ACTIVE",
+  "Sentinel-1 radar · 6–12 day global revisit",
+  "Global Fishing Watch · live SAR detections feed",
+  "WDPA · 10 000+ marine protected areas indexed",
+  "YOLO11n detection model · mAP@50 0.838 on HRSID",
+  "Gemini 2.5 Flash · evidence narrative generation",
+  "Human review required before any enforcement action",
 ];
 
 const problemCards = [
-  {
-    title: "AIS gaps",
-    copy: "Some vessels may be missing or difficult to verify from tracking data alone.",
-    icon: Radio,
-  },
-  {
-    title: "Manual review is slow",
-    copy: "Large ocean areas create too many satellite detections for manual inspection.",
-    icon: ScanSearch,
-  },
-  {
-    title: "Protected areas need focus",
-    copy: "Marine protected areas need faster risk prioritization and review workflows.",
-    icon: MapPinned,
-  },
+  { tag: "SIGNAL GAP",  title: "AIS transponders can be switched off",    copy: "Some vessels disable their public ID broadcast, becoming invisible to maritime tracking systems.", icon: Radio      },
+  { tag: "CAPACITY",    title: "Manual review doesn't scale",             copy: "Thousands of daily SAR contacts exceed any team's capacity to check individually.",              icon: ScanSearch  },
+  { tag: "MPA COVERAGE",title: "Protected areas need faster workflows",   copy: "Marine reserves require rapid detection triage — current processes lag by days or weeks.",       icon: MapPinned   },
 ];
 
-const solutionCards = [
-  { title: "Detect vessel-like activity from SAR imagery", icon: Eye },
-  { title: "Compare detections with AIS evidence", icon: ActivitySquare },
-  { title: "Check protected-area proximity", icon: Globe2 },
-  { title: "Generate clear evidence cards for human review", icon: FileText },
+const workflowSteps = [
+  { step: "01", title: "Ingest SAR detections",   tech: "Global Fishing Watch API",        copy: "Pull worldwide vessel contacts from SAR passes. A radar return with no AIS match is the core dark-vessel signal.",                                           icon: Radio     },
+  { step: "02", title: "Fetch live radar imagery", tech: "Sentinel-1 · CDSE / Copernicus", copy: "Retrieve a fresh C-band VV backscatter chip on demand. Radar penetrates cloud cover and works day and night.",                                              icon: Satellite },
+  { step: "03", title: "Run our detection model",  tech: "YOLO11n · fine-tuned on HRSID",  copy: "Our own ship-detector runs on raw radar, fully independent of AIS — so it catches what the feeds miss.",                                                     icon: Cpu       },
+  { step: "04", title: "Cross-reference context",  tech: "AIS broadcasts + WDPA polygons", copy: "Each contact is checked against live vessel IDs and 10 000+ marine protected area boundaries.",                                                             icon: MapPinned },
+  { step: "05", title: "Score the risk",           tech: "Transparent, auditable formula", copy: "A published formula weights dark-vessel status and MPA proximity — no black box, every priority can be explained.",                                          icon: Gauge     },
+  { step: "06", title: "Generate evidence card",   tech: "Gemini 2.5 Flash agents",        copy: "AI writes the narrative, daily briefing, and patrol ranking. A human officer always verifies before any action.",                                            icon: Brain     },
+];
+
+const techRows = [
+  { label: "Detection model",    value: "YOLO11n",      detail: "fine-tuned on HRSID dataset · 1 class",    icon: Cpu       },
+  { label: "Training data",      value: "HRSID",        detail: "~3 500 SAR images, ship class only",        icon: Database  },
+  { label: "Validation quality", value: "mAP@50 0.838", detail: "held-out validation, single class",         icon: Gauge     },
+  { label: "Radar sensor",       value: "Sentinel-1",   detail: "C-band VV · ESA / Copernicus free tier",    icon: Satellite },
+  { label: "Live feeds",         value: "GFW · WDPA",   detail: "+ Copernicus CDSE",                         icon: Globe2    },
+  { label: "AI reasoning",       value: "Gemini 2.5",   detail: "Flash agents · Vertex AI",                  icon: Brain     },
 ];
 
 const impactCards = [
-  {
-    title: "Protect marine resources",
-    copy: "Highlight activity near sensitive waters before it becomes invisible operational noise.",
-    icon: Waves,
-  },
-  {
-    title: "Support sustainable monitoring",
-    copy: "Give conservation teams a repeatable, evidence-grounded workflow for wide-area review.",
-    icon: Globe2,
-  },
-  {
-    title: "Help analysts focus on high-risk cases",
-    copy: "Turn hundreds of signals into a smaller queue of review-ready cases with context.",
-    icon: Sparkles,
-  },
+  { title: "Protect marine resources",   copy: "Surface suspicious activity near sensitive zones before it disappears into operational noise.", icon: Waves  },
+  { title: "Support conservation teams", copy: "Give analysts a repeatable, evidence-grounded workflow for wide-area monitoring.",             icon: Globe2 },
+  { title: "Focus on high-risk cases",   copy: "Turn hundreds of signals into a prioritised queue of review-ready cases, each with context.",  icon: Eye    },
 ];
 
 const responsiblePrinciples = [
-  { title: "Evidence-grounded outputs", icon: FileText },
-  { title: "Human review first", icon: LifeBuoy },
-  { title: "No automatic accusation", icon: Shield },
+  { title: "Evidence-grounded outputs", copy: "Every flag includes the SAR data, AIS comparison, and MPA proximity that drove it.", icon: FileText },
+  { title: "Human review first",        copy: "No action is taken automatically — officers review every evidence card.",           icon: LifeBuoy },
+  { title: "No automatic accusation",   copy: "The system surfaces and explains. It never charges, fines, or accuses a vessel.",   icon: Shield   },
 ];
 
-// The real end-to-end pipeline, named at each stage so technical reviewers can
-// see exactly how a satellite signal becomes a review-ready case.
-const workflowSteps = [
-  {
-    step: "01",
-    title: "Ingest global detections",
-    tech: "Global Fishing Watch API",
-    copy: "Pull SAR vessel detections worldwide. A radar hit with no matching AIS identity is the core dark-vessel signal.",
-    icon: Radio,
-  },
-  {
-    step: "02",
-    title: "Pull live radar imagery",
-    tech: "Sentinel-1 · Copernicus (CDSE)",
-    copy: "Fetch a fresh Sentinel-1 C-band VV backscatter chip for the area on demand. Radar sees through cloud, day or night.",
-    icon: Satellite,
-  },
-  {
-    step: "03",
-    title: "Detect with our own model",
-    tech: "YOLO11n · fine-tuned on SAR",
-    copy: "Run our ship-detection model directly on the raw radar — fully independent of AIS, so it catches vessels the feeds miss.",
-    icon: Cpu,
-  },
-  {
-    step: "04",
-    title: "Cross-reference context",
-    tech: "AIS · WDPA protected areas",
-    copy: "Check each contact against live AIS broadcasts and protected-area boundaries to separate routine traffic from anomalies.",
-    icon: MapPinned,
-  },
-  {
-    step: "05",
-    title: "Score the risk",
-    tech: "Deterministic, auditable formula",
-    copy: "A transparent score weights AIS gaps and MPA proximity — no black box, so every priority can be explained.",
-    icon: Gauge,
-  },
-  {
-    step: "06",
-    title: "Explain for human review",
-    tech: "Gemini 2.5 Flash agents",
-    copy: "AI writes the evidence card, daily briefing, and patrol ranking. A human officer verifies before any action.",
-    icon: Brain,
-  },
-];
-
-// Honest, concrete numbers about what's under the hood.
-const techStack = [
-  { label: "Detection model", value: "YOLO11n", sub: "fine-tuned", icon: Cpu },
-  { label: "Training data", value: "HRSID", sub: "~3.5k SAR images", icon: Database },
-  { label: "Detection quality", value: "mAP@50 0.838", sub: "on validation", icon: Gauge },
-  { label: "Radar sensor", value: "Sentinel-1", sub: "C-band VV", icon: Satellite },
-  { label: "Live feeds", value: "GFW · WDPA", sub: "+ Copernicus", icon: Globe2 },
-  { label: "Reasoning", value: "Gemini 2.5", sub: "Flash agents", icon: Brain },
-];
-
-interface LandingPageProps {
-  onLaunch: () => void;
-  onDemo: () => void;
-}
+interface LandingPageProps { onLaunch: () => void; onDemo: () => void; }
 
 export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
   const jumpTo = (id: string) => {
-    const el = document.getElementById(id);
-    if (el) {
-      el.scrollIntoView({ behavior: "smooth", block: "start" });
-    }
+    document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
   };
 
   return (
-    <div className="min-h-screen overflow-x-hidden bg-ocean-950 text-slate-200">
+    <div className="min-h-screen overflow-x-hidden text-slate-200" style={{ background: "#040C11" }}>
+
+      {/* ── Operational ticker ── */}
+      <div className="relative overflow-hidden border-b border-amber-400/15 bg-amber-400/[0.04] py-1.5">
+        <div
+          className="flex items-center gap-10 whitespace-nowrap"
+          style={{ animation: "ticker 55s linear infinite", willChange: "transform" }}
+        >
+          {[...TICKER, ...TICKER].map((item, i) => (
+            <span key={i} className="flex shrink-0 items-center gap-3">
+              {i % TICKER.length === 0
+                ? <span className="font-mono text-[11px] font-bold text-amber-400">{item}</span>
+                : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/50">{item}</span></>
+              }
+            </span>
+          ))}
+        </div>
+      </div>
+
       <LandingNavbar items={navItems} onOpenDashboard={onLaunch} onJump={jumpTo} />
 
-      <section
-        id="hero"
-        className="relative overflow-hidden px-4 pb-16 pt-32 md:px-6 md:pb-28 md:pt-36"
-      >
-        <div className="absolute inset-0 aurora-bg opacity-90" />
-        <div className="absolute inset-0 ocean-grid opacity-35" />
-        <div className="absolute inset-0 ocean-contours opacity-35" />
-        <div className="absolute inset-0 radar-sweep opacity-30" />
-        <div className="absolute left-[8%] top-28 h-44 w-44 rounded-full border border-cyan-300/10 bg-cyan-300/5 blur-2xl" />
-        <div className="absolute right-[8%] top-48 h-56 w-56 rounded-full bg-teal-500/10 blur-[120px]" />
-        <div className="absolute bottom-20 left-[32%] h-56 w-56 rounded-full bg-sky-500/10 blur-[140px]" />
+      {/* ══════════════════════════════════════════
+          HERO — asymmetric split
+      ══════════════════════════════════════════ */}
+      <section id="hero" className="relative overflow-hidden">
+        <div className="absolute inset-0 ocean-grid opacity-[0.18]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_75%_55%_at_68%_50%,rgba(251,191,36,0.045),transparent)]" />
+        <div className="absolute inset-0 bg-[radial-gradient(ellipse_45%_50%_at_5%_45%,rgba(6,182,212,0.055),transparent)]" />
 
-        <div className="relative mx-auto max-w-7xl">
-          <motion.div
-            initial={{ opacity: 0, y: 16 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.5 }}
-            className="mb-6 inline-flex items-center gap-2 rounded-full border border-cyan-300/15 bg-cyan-300/5 px-4 py-2 text-[11px] uppercase tracking-[0.24em] text-cyan-200/90"
-          >
-            <span className="h-1.5 w-1.5 rounded-full bg-cyan-300 shadow-[0_0_16px_rgba(34,211,238,0.85)]" />
-            SDG 14 · Life Below Water
-          </motion.div>
+        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-12 px-4 py-24 md:px-6 lg:grid-cols-2 lg:gap-14 lg:py-28">
 
-          <div className="max-w-4xl">
-            <motion.h1
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.08, ease: EASE }}
-              className="font-display text-[clamp(3.3rem,7vw,6.5rem)] leading-[0.98] tracking-[-0.04em] text-white"
+          {/* Left — text */}
+          <div>
+            <motion.div
+              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.4 }}
+              className="mb-7 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/8 px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] text-amber-300"
             >
-              Making hidden ocean activity visible with satellite AI
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" />
+              SDG 14 · Satellite Intelligence
+            </motion.div>
+
+            <motion.h1
+              initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.6, delay: 0.08, ease: EASE }}
+              className="font-display text-[clamp(2.8rem,5.2vw,5.2rem)] font-black leading-[0.95] tracking-[-0.04em] text-white"
+            >
+              Making hidden<br />
+              <span className="text-amber-400">ocean activity</span><br />
+              visible.
             </motion.h1>
 
             <motion.p
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.16, ease: EASE }}
-              className="mt-6 max-w-2xl text-lg leading-8 text-slate-300 md:text-xl"
+              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.17, ease: EASE }}
+              className="mt-6 max-w-lg text-lg leading-8 text-slate-400"
             >
-              Turn satellite vessel detections into clear evidence cards for faster human review.
-            </motion.p>
-
-            <motion.p
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.24, ease: EASE }}
-              className="mt-5 max-w-xl text-sm leading-7 text-slate-400 md:text-base"
-            >
-              Built for maritime analysts, conservation teams, and protected-area monitoring.
+              Satellite radar catches vessels that turn their ID transponders off.
+              OceanGuard turns those detections into reviewed evidence cards —
+              in minutes, not days.
             </motion.p>
 
             <motion.div
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.65, delay: 0.28, ease: EASE }}
-              className="mt-10 flex flex-wrap items-center gap-4"
+              initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.5, delay: 0.26, ease: EASE }}
+              className="mt-8 flex flex-wrap items-center gap-3"
             >
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
                 Open Dashboard <ArrowRight className="h-4 w-4" />
@@ -242,46 +158,83 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
               </GradientButton>
             </motion.div>
 
+            {/* Inline stat strip */}
             <motion.div
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ duration: 0.8, delay: 0.4 }}
-              className="mt-10 flex flex-wrap gap-3"
+              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+              transition={{ duration: 0.6, delay: 0.42 }}
+              className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/8 pt-8"
             >
               {[
-                "Sentinel-1 SAR",
-                "AIS evidence comparison",
-                "WDPA protected areas",
-                "AI evidence cards",
-              ].map((item) => (
-                <div
-                  key={item}
-                  className="rounded-full border border-cyan-300/10 bg-ocean-900/65 px-4 py-2 text-xs text-slate-300 backdrop-blur-md"
-                >
-                  {item}
+                { value: "$23B",  label: "lost to IUU fishing / yr" },
+                { value: "1 in 5",label: "fish caught illegally"    },
+                { value: "0.838", label: "model mAP@50"             },
+              ].map(({ value, label }) => (
+                <div key={label} className="flex flex-col gap-0.5">
+                  <span className="font-mono text-2xl font-bold text-white">{value}</span>
+                  <span className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{label}</span>
                 </div>
               ))}
             </motion.div>
           </div>
 
-          <div className="mt-16 md:mt-20">
-            <DashboardPreview />
-          </div>
+          {/* Right — live dashboard preview */}
+          <motion.div
+            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
+            transition={{ duration: 0.7, delay: 0.28, ease: EASE }}
+            className="relative"
+          >
+            <div className="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-[#040C11]/90 px-2.5 py-1 text-[10px] font-mono font-semibold text-amber-300 shadow-lg backdrop-blur-md">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              LIVE DETECTIONS
+            </div>
+            <div className="overflow-hidden rounded-xl border border-white/10 shadow-[0_24px_80px_rgba(0,0,0,0.65)]">
+              <DashboardPreview />
+            </div>
+            <div className="pointer-events-none absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-amber-400/25 to-transparent" />
+          </motion.div>
         </div>
       </section>
 
+      {/* ══════════════════════════════════════════
+          SCALE BAND
+      ══════════════════════════════════════════ */}
+      <div className="border-y border-white/6 bg-[#030A0E] py-12">
+        <div className="mx-auto max-w-7xl px-4 md:px-6">
+          <div className="grid grid-cols-2 gap-px overflow-hidden rounded-xl border border-white/8 bg-white/5 md:grid-cols-4">
+            {[
+              { value: "$23B",    label: "Lost to IUU fishing",   sub: "per year · FAO estimate",   accent: "text-amber-400" },
+              { value: "1 in 5",  label: "Fish caught illegally", sub: "of the global marine catch", accent: "text-amber-300" },
+              { value: "Global",  label: "Free SAR coverage",     sub: "Sentinel-1 · all weather",   accent: "text-cyan-400"  },
+              { value: "Minutes", label: "Signal to evidence",    sub: "vs days of manual review",   accent: "text-teal-400"  },
+            ].map((s) => (
+              <div key={s.label} className="bg-[#040C11] p-6 text-center md:p-8">
+                <div className={`font-mono text-3xl font-bold md:text-4xl ${s.accent}`}>{s.value}</div>
+                <div className="mt-2 text-sm font-semibold text-white">{s.label}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">{s.sub}</div>
+              </div>
+            ))}
+          </div>
+        </div>
+      </div>
+
+      {/* ══════════════════════════════════════════
+          PROBLEM
+      ══════════════════════════════════════════ */}
       <section id="problem" className="px-4 py-20 md:px-6 md:py-28">
-        <div className="mx-auto grid max-w-7xl gap-10 lg:grid-cols-[0.95fr_1.05fr]">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp}>
-            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-300">
-              <AlertTriangle className="h-4 w-4" />
-              The challenge
+        <div className="mx-auto max-w-7xl">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp}
+            className="mb-12 grid gap-6 lg:grid-cols-[1fr_auto] lg:items-end"
+          >
+            <div>
+              <div className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-400">
+                <AlertTriangle className="h-3.5 w-3.5" /> The challenge
+              </div>
+              <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+                The ocean is too large<br className="hidden md:block" /> to monitor manually.
+              </h2>
             </div>
-            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-              The ocean is too large to monitor manually.
-            </h2>
-            <p className="mt-6 max-w-xl text-base leading-8 text-slate-400">
-              Some vessels may not appear clearly in public tracking systems. Patrol and conservation teams need faster ways to identify which satellite detections deserve review.
+            <p className="max-w-sm text-sm leading-7 text-slate-500 lg:text-right">
+              Some vessels don't appear in public tracking systems. Teams need faster ways to find which satellite contacts deserve review.
             </p>
           </motion.div>
 
@@ -289,233 +242,253 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
             {problemCards.map((card, i) => {
               const Icon = card.icon;
               return (
-                <motion.div key={card.title} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={i + 1} variants={fadeUp} className="rounded-[1.75rem] border border-cyan-300/10 bg-ocean-900/55 p-6 backdrop-blur-md">
-                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/6">
+                <motion.div key={card.title}
+                  initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={i + 1} variants={fadeUp}
+                  className="group relative overflow-hidden rounded-xl border border-white/8 bg-white/[0.025] p-6 transition-all duration-300 hover:border-amber-400/20 hover:bg-amber-400/[0.025]"
+                >
+                  <div className="mb-4 inline-flex items-center rounded-md border border-amber-400/15 bg-amber-400/8 px-2 py-0.5 font-mono text-[10px] uppercase tracking-widest text-amber-400/70">
+                    {card.tag}
+                  </div>
+                  <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-lg border border-white/10 bg-white/5">
                     <Icon className="h-5 w-5 text-cyan-300" />
                   </div>
-                  <h3 className="font-display text-xl text-white">{card.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-400">{card.copy}</p>
+                  <h3 className="font-display text-lg font-semibold text-white">{card.title}</h3>
+                  <p className="mt-2.5 text-sm leading-7 text-slate-400">{card.copy}</p>
                 </motion.div>
               );
             })}
           </div>
         </div>
-
-        {/* Impact stats — why this matters, in concrete numbers. */}
-        <motion.div
-          initial="hidden"
-          whileInView="visible"
-          viewport={{ once: true, margin: "-80px" }}
-          custom={1}
-          variants={fadeUp}
-          className="mx-auto mt-12 grid max-w-7xl grid-cols-2 gap-px overflow-hidden rounded-[1.75rem] border border-cyan-300/10 bg-cyan-300/5 lg:grid-cols-4"
-        >
-          {impactStats.map((s) => (
-            <div key={s.label} className="bg-ocean-950/80 p-6 text-center">
-              <div className="font-display text-3xl text-white md:text-4xl">{s.value}</div>
-              <div className="mx-auto mt-2 max-w-[14rem] text-sm leading-6 text-slate-300">{s.label}</div>
-              <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-cyan-300/70">{s.sub}</div>
-            </div>
-          ))}
-        </motion.div>
       </section>
 
-      <section id="technology" className="px-4 py-20 md:px-6 md:py-28">
+      {/* ══════════════════════════════════════════
+          HOW IT WORKS — keeps ArchitectureGraph
+      ══════════════════════════════════════════ */}
+      <section id="how-it-works" className="border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
         <div className="mx-auto max-w-7xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-300">
-              <Sparkles className="h-4 w-4" />
-              Solution
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mb-10">
+            <div className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-400">
+              <Radar className="h-3.5 w-3.5" /> Pipeline
             </div>
-            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-              From satellite signal to evidence card.
+            <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+              From signal to evidence card.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-400">
-              OceanGuard combines SAR detections, AIS comparison, protected-area context, and AI explanation into a clear analyst workflow.
-            </p>
           </motion.div>
-
-          <div className="mt-12 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
-            {solutionCards.map((card, i) => {
-              const Icon = card.icon;
-              return (
-                <motion.div key={card.title} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={i + 1} variants={fadeUp} className="group rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(8,47,58,0.45),rgba(2,8,23,0.8))] p-6 transition-transform duration-300 hover:-translate-y-1">
-                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/8 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
-                    <Icon className="h-5 w-5 text-cyan-300" />
-                  </div>
-                  <h3 className="font-display text-xl leading-7 text-white">{card.title}</h3>
-                </motion.div>
-              );
-            })}
-          </div>
-        </div>
-      </section>
-
-      <section id="how-it-works" className="px-4 py-20 md:px-6 md:py-28">
-        <div className="mx-auto max-w-7xl">
           <ArchitectureGraph />
         </div>
       </section>
 
-      <section id="workflow" className="relative overflow-hidden px-4 py-20 md:px-6 md:py-28">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_15%_15%,rgba(34,211,238,0.06),transparent_30%),radial-gradient(circle_at_85%_60%,rgba(20,184,166,0.06),transparent_30%)]" />
+      {/* ══════════════════════════════════════════
+          WORKFLOW — numbered timeline, not a grid
+      ══════════════════════════════════════════ */}
+      <section id="workflow" className="relative overflow-hidden border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        <div className="absolute inset-0 ocean-grid opacity-[0.12]" />
         <div className="relative mx-auto max-w-7xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-300">
-              <Radar className="h-4 w-4" />
-              Technical workflow
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mb-14">
+            <div className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-400">
+              <Activity className="h-3.5 w-3.5" /> Technical workflow
             </div>
-            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-              How a radar pulse becomes a reviewed case.
+            <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+              Six stages. Fully auditable.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-400">
-              Six stages, each running independently of vessel-reported tracking — so the system surfaces activity that
-              transponder data alone would miss, and explains every step.
+            <p className="mt-4 max-w-2xl text-base leading-8 text-slate-400">
+              Each stage runs independently of vessel-reported data — so the system surfaces activity that transponder broadcasts alone would miss.
             </p>
           </motion.div>
 
-          <div className="mt-14 grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {/* Timeline — single vertical list */}
+          <div>
             {workflowSteps.map((s, i) => {
               const Icon = s.icon;
+              const isLast = i === workflowSteps.length - 1;
               return (
-                <motion.div
-                  key={s.step}
-                  initial="hidden"
-                  whileInView="visible"
-                  viewport={{ once: true, margin: "-80px" }}
-                  custom={i + 1}
-                  variants={fadeUp}
-                  className="group relative overflow-hidden rounded-[1.75rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(8,47,58,0.4),rgba(2,8,23,0.82))] p-6 transition-transform duration-300 hover:-translate-y-1"
+                <motion.div key={s.step}
+                  initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={i} variants={fadeUp}
+                  className="group relative grid grid-cols-[48px_1fr] items-start gap-6 border-t border-white/6 py-6 transition-colors duration-200 hover:bg-white/[0.012] md:grid-cols-[64px_1fr_260px]"
                 >
-                  <div className="absolute right-5 top-4 font-display text-5xl font-bold text-cyan-300/10 transition-colors group-hover:text-cyan-300/20">
-                    {s.step}
+                  {/* Step number + connector */}
+                  <div className="flex flex-col items-center">
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/5 font-mono text-xs font-bold text-slate-500 transition-colors group-hover:border-cyan-400/20 group-hover:text-cyan-300">
+                      {s.step}
+                    </div>
+                    {!isLast && <div className="mt-2 w-px flex-1 min-h-[24px] bg-gradient-to-b from-white/8 to-transparent" />}
                   </div>
-                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/8 shadow-[0_0_30px_rgba(34,211,238,0.08)]">
-                    <Icon className="h-5 w-5 text-cyan-300" />
+
+                  {/* Content */}
+                  <div className="pb-1">
+                    <div className="mb-2 flex flex-wrap items-center gap-2.5">
+                      <Icon className="h-4 w-4 shrink-0 text-cyan-400" />
+                      <h3 className="font-display text-lg font-semibold text-white">{s.title}</h3>
+                      <span className="rounded-full border border-teal-400/15 bg-teal-400/5 px-2.5 py-0.5 font-mono text-[10px] text-teal-200/75">
+                        {s.tech}
+                      </span>
+                    </div>
+                    <p className="max-w-xl text-sm leading-7 text-slate-400">{s.copy}</p>
                   </div>
-                  <h3 className="font-display text-xl leading-7 text-white">{s.title}</h3>
-                  <div className="mt-2 inline-flex rounded-full border border-teal-400/15 bg-teal-400/5 px-3 py-1 text-[11px] font-medium text-teal-200/90">
-                    {s.tech}
+
+                  {/* Icon echo (desktop) */}
+                  <div className="hidden items-center justify-end md:flex">
+                    <div className="flex h-10 w-10 items-center justify-center rounded-xl border border-white/6 bg-white/[0.02] opacity-30 transition-opacity group-hover:opacity-70">
+                      <Icon className="h-4 w-4 text-slate-300" />
+                    </div>
                   </div>
-                  <p className="mt-4 text-sm leading-7 text-slate-400">{s.copy}</p>
                 </motion.div>
               );
             })}
+            {/* close the last border */}
+            <div className="border-t border-white/6" />
           </div>
-
-          {/* Under-the-hood stat band */}
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, margin: "-80px" }}
-            custom={1}
-            variants={fadeUp}
-            className="mt-12 rounded-[2rem] border border-cyan-300/10 bg-ocean-900/55 p-6 backdrop-blur-md md:p-8"
-          >
-            <div className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-slate-400">
-              <Cpu className="h-4 w-4 text-cyan-300" />
-              Under the hood
-            </div>
-            <div className="grid grid-cols-2 gap-y-8 md:grid-cols-3 xl:grid-cols-6">
-              {techStack.map((t) => {
-                const Icon = t.icon;
-                return (
-                  <div key={t.label} className="flex flex-col gap-1">
-                    <Icon className="mb-1 h-4 w-4 text-cyan-300/70" />
-                    <div className="text-[10px] uppercase tracking-[0.18em] text-slate-500">{t.label}</div>
-                    <div className="font-display text-lg text-white">{t.value}</div>
-                    <div className="text-xs text-slate-400">{t.sub}</div>
-                  </div>
-                );
-              })}
-            </div>
-          </motion.div>
         </div>
       </section>
 
-      <section id="sdg-impact" className="relative overflow-hidden px-4 py-20 md:px-6 md:py-28">
-        <div className="absolute inset-0 bg-[radial-gradient(circle_at_20%_20%,rgba(20,184,166,0.08),transparent_35%),radial-gradient(circle_at_80%_40%,rgba(14,165,233,0.08),transparent_32%)]" />
-        <div className="absolute inset-0 ocean-contours opacity-25" />
-        <div className="relative mx-auto max-w-7xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mx-auto max-w-3xl text-center">
-            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-teal-200">
-              <Waves className="h-4 w-4" />
-              Built for SDG 14
+      {/* ══════════════════════════════════════════
+          TECH SPECS — spec-table, not cards
+      ══════════════════════════════════════════ */}
+      <section id="technology" className="border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        <div className="mx-auto max-w-7xl">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mb-10">
+            <div className="mb-3 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-400">
+              <Cpu className="h-3.5 w-3.5" /> Under the hood
             </div>
-            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-              Built for SDG 14: Life Below Water
+            <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+              The full technical stack.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-400">
-              OceanGuard supports responsible ocean monitoring by helping teams review vessel activity near protected marine areas and prioritize conservation attention.
-            </p>
           </motion.div>
 
-          <div className="mt-12 grid gap-4 md:grid-cols-3">
-            {impactCards.map((card, i) => {
-              const Icon = card.icon;
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={1} variants={fadeUp}
+            className="overflow-hidden rounded-xl border border-white/8"
+          >
+            {techRows.map((row, i) => {
+              const Icon = row.icon;
               return (
-                <motion.div key={card.title} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={i + 1} variants={fadeUp} className="rounded-[1.85rem] border border-teal-300/10 bg-ocean-900/55 p-6 backdrop-blur-md">
-                  <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-2xl border border-teal-300/10 bg-teal-300/8">
-                    <Icon className="h-5 w-5 text-teal-200" />
+                <div key={row.label}
+                  className={`grid grid-cols-[1fr_auto] items-center gap-4 px-5 py-4 transition-colors hover:bg-white/[0.025] md:grid-cols-[200px_1fr_auto] ${i !== techRows.length - 1 ? "border-b border-white/6" : ""}`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className="h-3.5 w-3.5 shrink-0 text-slate-600" />
+                    <span className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{row.label}</span>
                   </div>
-                  <h3 className="font-display text-xl text-white">{card.title}</h3>
-                  <p className="mt-3 text-sm leading-7 text-slate-400">{card.copy}</p>
-                </motion.div>
+                  <div className="font-mono text-base font-bold text-white">{row.value}</div>
+                  <div className="hidden text-right font-mono text-xs text-slate-600 md:block">{row.detail}</div>
+                </div>
               );
             })}
-          </div>
+          </motion.div>
         </div>
       </section>
 
-      <section id="responsible-ai" className="px-4 py-20 md:px-6 md:py-28">
-        <div className="mx-auto max-w-7xl rounded-[2rem] border border-cyan-300/10 bg-[linear-gradient(180deg,rgba(6,24,38,0.92),rgba(2,8,23,0.98))] p-8 md:p-10">
-          <div className="grid gap-10 lg:grid-cols-[0.95fr_1.05fr]">
+      {/* ══════════════════════════════════════════
+          SDG IMPACT
+      ══════════════════════════════════════════ */}
+      <section id="sdg-impact" className="relative overflow-hidden border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        <div className="absolute inset-0 ocean-contours opacity-[0.18]" />
+        <div className="relative mx-auto max-w-7xl">
+          <div className="grid items-start gap-10 lg:grid-cols-2 lg:gap-16">
             <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp}>
-              <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-300">
-                <Shield className="h-4 w-4" />
-                Responsible AI
+              <div className="mb-4 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-teal-400">
+                <Waves className="h-3.5 w-3.5" /> Built for SDG 14
               </div>
-              <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-                Decision support, not automatic accusation.
+              <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+                Life Below Water.
               </h2>
-              <p className="mt-6 max-w-xl text-base leading-8 text-slate-400">
-                OceanGuard flags possible risk signals and explains the evidence. Every output is designed for human verification before any action is taken.
+              <p className="mt-6 text-base leading-8 text-slate-400">
+                OceanGuard supports responsible ocean monitoring — helping teams review vessel activity near protected marine areas and prioritise conservation attention where it matters most.
               </p>
+              <div className="mt-8 inline-flex items-center gap-3 rounded-xl border border-teal-400/15 bg-teal-400/[0.05] px-4 py-3">
+                <Globe2 className="h-5 w-5 shrink-0 text-teal-400" />
+                <span className="text-sm text-slate-300">
+                  <span className="font-semibold text-teal-300">SDG 14.6</span> — reduce illegal, unreported and unregulated fishing
+                </span>
+              </div>
             </motion.div>
 
-            <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-1">
-              {responsiblePrinciples.map((item, i) => {
-                const Icon = item.icon;
+            <div className="space-y-3">
+              {impactCards.map((card, i) => {
+                const Icon = card.icon;
                 return (
-                  <motion.div key={item.title} initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={i + 1} variants={fadeUp} className="flex items-center gap-4 rounded-[1.5rem] border border-cyan-300/10 bg-ocean-900/70 p-5">
-                    <div className="flex h-12 w-12 items-center justify-center rounded-2xl border border-cyan-300/10 bg-cyan-300/8">
-                      <Icon className="h-5 w-5 text-cyan-300" />
+                  <motion.div key={card.title}
+                    initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={i + 1} variants={fadeUp}
+                    className="flex items-start gap-4 rounded-xl border border-white/8 bg-white/[0.025] p-5 transition-colors hover:border-teal-400/15"
+                  >
+                    <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-teal-400/15 bg-teal-400/8">
+                      <Icon className="h-4 w-4 text-teal-300" />
                     </div>
-                    <div className="font-display text-lg text-white">{item.title}</div>
+                    <div>
+                      <div className="font-display font-semibold text-white">{card.title}</div>
+                      <p className="mt-1 text-sm leading-6 text-slate-400">{card.copy}</p>
+                    </div>
                   </motion.div>
                 );
               })}
             </div>
           </div>
+        </div>
+      </section>
 
-          <div className="mt-8 rounded-[1.5rem] border border-amber-300/10 bg-amber-300/5 px-5 py-4 text-sm leading-7 text-slate-300">
-            OceanGuard does not accuse vessels. It supports human review with transparent evidence.
+      {/* ══════════════════════════════════════════
+          RESPONSIBLE AI
+      ══════════════════════════════════════════ */}
+      <section id="responsible-ai" className="border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        <div className="mx-auto max-w-7xl">
+          <div className="overflow-hidden rounded-2xl border border-amber-400/15 bg-amber-400/[0.03]">
+            {/* Amber accent bar */}
+            <div className="h-0.5 w-full bg-gradient-to-r from-amber-400/40 via-amber-400/70 to-transparent" />
+            <div className="grid gap-10 p-8 lg:grid-cols-2 lg:gap-16 md:p-10">
+              <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp}>
+                <div className="mb-4 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-400">
+                  <Shield className="h-3.5 w-3.5" /> Responsible AI
+                </div>
+                <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+                  Decision support,<br className="hidden md:block" /> not automatic action.
+                </h2>
+                <p className="mt-5 text-base leading-8 text-slate-400">
+                  OceanGuard flags possible risk signals and explains the evidence. Every output is designed for human verification before any action is taken.
+                </p>
+              </motion.div>
+
+              <div className="space-y-3">
+                {responsiblePrinciples.map((item, i) => {
+                  const Icon = item.icon;
+                  return (
+                    <motion.div key={item.title}
+                      initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={i + 1} variants={fadeUp}
+                      className="flex items-start gap-4 rounded-xl border border-amber-400/10 bg-amber-400/[0.03] p-4"
+                    >
+                      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg border border-amber-400/15 bg-amber-400/8">
+                        <Icon className="h-4 w-4 text-amber-300" />
+                      </div>
+                      <div>
+                        <div className="text-sm font-semibold text-white">{item.title}</div>
+                        <p className="mt-0.5 text-xs leading-5 text-slate-400">{item.copy}</p>
+                      </div>
+                    </motion.div>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
       </section>
 
-      <section className="px-4 pb-20 pt-6 md:px-6 md:pb-28">
-        <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-100px" }} custom={0} variants={fadeUp} className="mx-auto max-w-5xl rounded-[2.4rem] border border-cyan-300/10 bg-[linear-gradient(135deg,rgba(8,47,58,0.85),rgba(2,8,23,0.97))] px-6 py-10 text-center shadow-[0_24px_120px_rgba(8,47,58,0.35)] md:px-10 md:py-14">
-          <div className="mx-auto max-w-3xl">
-            <div className="mb-4 inline-flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-300">
-              <Sparkles className="h-4 w-4" />
-              Final call to action
+      {/* ══════════════════════════════════════════
+          CTA
+      ══════════════════════════════════════════ */}
+      <section className="px-4 pb-24 pt-4 md:px-6">
+        <motion.div
+          initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
+          className="mx-auto max-w-5xl overflow-hidden rounded-2xl border border-white/10 bg-[#040C11]"
+        >
+          <div className="h-0.5 w-full bg-gradient-to-r from-amber-400/50 via-amber-400 to-teal-400/50" />
+          <div className="px-8 py-12 text-center md:px-12 md:py-14">
+            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/8 px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+              System active
             </div>
-            <h2 className="font-display text-4xl leading-tight text-white md:text-5xl">
-              Start reviewing ocean risk with satellite AI.
+            <h2 className="font-display text-4xl font-black text-white md:text-5xl">
+              Start reviewing ocean risk<br className="hidden md:block" /> with satellite AI.
             </h2>
-            <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-slate-300">
-              Open the live dashboard and explore how detections become evidence cards.
+            <p className="mx-auto mt-5 max-w-xl text-base leading-8 text-slate-400">
+              Open the live dashboard and explore how satellite detections become reviewed evidence cards.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
@@ -529,17 +502,18 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
         </motion.div>
       </section>
 
-      <footer className="border-t border-ocean-700/30 px-4 py-8 md:px-6">
+      {/* ── Footer ── */}
+      <footer className="border-t border-white/6 px-4 py-8 md:px-6">
         <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-3">
-            <img src="/branding/oceanguard-mark.png" alt="OceanGuard AI" className="h-8 w-8 rounded-xl object-cover" />
+            <img src="/branding/oceanguard-mark.png" alt="OceanGuard AI" className="h-8 w-8 rounded-lg object-cover" />
             <div>
-              <div className="font-display text-lg text-white">OceanGuard AI</div>
-              <div className="text-xs uppercase tracking-[0.2em] text-slate-500">Conservation intelligence</div>
+              <div className="font-display font-bold text-white">OceanGuard AI</div>
+              <div className="text-[10px] uppercase tracking-[0.2em] text-slate-500">Conservation intelligence</div>
             </div>
           </div>
-          <div className="text-center text-sm text-slate-500 md:text-right">
-            OceanGuard provides decision-support analysis. AI outputs must be verified by a human conservation officer before any enforcement action is taken.
+          <div className="text-center font-mono text-xs text-slate-600 md:text-right">
+            OceanGuard provides decision-support analysis only. AI outputs must be verified by a human conservation officer before any enforcement action.
           </div>
         </div>
       </footer>
