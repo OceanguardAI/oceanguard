@@ -8,6 +8,7 @@ import GradientButton from "./ui/GradientButton";
 import HeroAnimation from "./landing/HeroAnimation";
 import HudOverlay from "./landing/HudOverlay";
 import BlindSpotVisual from "./landing/BlindSpotVisual";
+import EvidenceCardMock from "./landing/EvidenceCardMock";
 import LandingNavbar from "./landing/LandingNavbar";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
@@ -195,33 +196,53 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
       </section>
 
       {/* ══════════════════════════════════════════
-          01 — THE BLIND SPOT  (problem)
+          01 — THE BLIND SPOT  (problem — editorial split)
       ══════════════════════════════════════════ */}
-      <section id="problem" className="relative border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
-        <div className="mx-auto max-w-5xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}>
-            <SectionTag no="01" label="The Blind Spot" accent="text-amber-400" />
-            <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-tight text-white md:text-5xl">
-              Most of the ocean is a blind spot.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-8 text-slate-400">
-              Vessels that want to stay hidden simply switch off their transponders.
-              Public tracking loses them instantly. Radar does not.
-            </p>
-          </motion.div>
+      <section
+        id="problem"
+        className="relative overflow-hidden border-t border-white/6 px-4 py-24 md:px-6 md:py-32"
+        style={{ background: "linear-gradient(165deg,#050f17 0%, #081d28 100%)" }}
+      >
+        <div className="pointer-events-none absolute left-0 top-1/4 h-80 w-80 rounded-full bg-amber-500/5 blur-[120px]" />
 
-          {/* The contrast visual — the whole argument in one picture */}
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={1} variants={fadeUp}
-            className="mt-12"
-          >
-            <BlindSpotVisual />
-          </motion.div>
+        <div className="relative mx-auto max-w-6xl">
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
 
-          {/* Stakes */}
+            {/* Visual — left */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.6, ease: EASE }}
+            >
+              <BlindSpotVisual stacked />
+            </motion.div>
+
+            {/* Text — right (OceanX editorial style) */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
+            >
+              <SectionTag no="01" label="The Blind Spot" accent="text-amber-400" />
+              <h2 className="mt-6 font-display text-3xl font-black leading-tight text-white md:text-4xl">
+                Most of the ocean is a blind spot.
+              </h2>
+              <p className="mt-6 font-display text-2xl font-light leading-[1.4] tracking-tight text-white/90 md:text-[1.9rem]">
+                If a vessel doesn't want to be seen, today's public tracking simply loses it.
+              </p>
+              <p className="mt-6 max-w-md text-base leading-8 text-slate-400">
+                Switching off a transponder takes one button. Satellite radar doesn't care —
+                it photographs every hull on the water, broadcasting or not.
+              </p>
+              <div className="mt-7 font-mono text-[11px] uppercase leading-relaxed tracking-[0.2em] text-slate-500">
+                Source · Sentinel-1 SAR<br />
+                Global Fishing Watch detections
+              </div>
+            </motion.div>
+          </div>
+
+          {/* Stakes — full width */}
           <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={2} variants={fadeUp}
-            className="mt-14 grid grid-cols-3 gap-4 border-t border-white/8 pt-8"
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={0} variants={fadeUp}
+            className="mt-16 grid grid-cols-3 gap-4 border-t border-white/8 pt-8"
           >
             {STAKES.map((s) => (
               <div key={s.label} className="text-center md:text-left">
@@ -234,53 +255,69 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
       </section>
 
       {/* ══════════════════════════════════════════
-          02 — THE SYSTEM  (solution pipeline)
+          02 — THE SYSTEM  (solution — editorial split)
       ══════════════════════════════════════════ */}
-      <section id="solution" className="relative border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
-        {/* faint chart grid texture */}
-        <div className="pointer-events-none absolute inset-0 opacity-[0.4] ocean-grid" />
+      <section
+        id="solution"
+        className="relative overflow-hidden border-t border-white/6 px-4 py-24 md:px-6 md:py-32"
+        style={{ background: "linear-gradient(165deg,#08191f 0%, #04101a 100%)" }}
+      >
+        <div className="pointer-events-none absolute inset-0 opacity-[0.35] ocean-grid" />
+        <div className="pointer-events-none absolute right-0 top-1/4 h-80 w-80 rounded-full bg-cyan-500/5 blur-[120px]" />
 
         <div className="relative mx-auto max-w-6xl">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}>
-            <SectionTag no="02" label="The System" accent="text-cyan-400" />
-            <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-tight text-white md:text-5xl">
-              From raw radar to a reviewed case — in four steps.
-            </h2>
-            <p className="mt-4 max-w-xl text-base leading-8 text-slate-400">
-              A single pipeline does the watching, the ranking and the explaining.
-              People stay in charge of the deciding.
-            </p>
-          </motion.div>
+          <div className="grid items-center gap-12 lg:grid-cols-2 lg:gap-16">
 
-          {/* Pipeline */}
-          <div className="relative mt-14 grid gap-8 md:grid-cols-4 md:gap-5">
-            {/* connecting rail (desktop) */}
-            <div className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-cyan-400/30 via-teal-400/30 to-amber-400/30 md:block" />
+            {/* Text + steps — left */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.6, ease: EASE }}
+            >
+              <SectionTag no="02" label="The System" accent="text-cyan-400" />
+              <h2 className="mt-6 font-display text-3xl font-black leading-tight text-white md:text-4xl">
+                Raw radar becomes a reviewed case.
+              </h2>
+              <p className="mt-6 max-w-md text-base leading-8 text-slate-400">
+                One pipeline does the watching, the ranking and the explaining —
+                then hands a finished case file to a human.
+              </p>
 
-            {STAGES.map((s, i) => {
-              const Icon = s.icon;
-              return (
-                <motion.div
-                  key={s.no}
-                  initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={i + 1} variants={fadeUp}
-                  className="relative"
-                >
-                  <div className={`relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-xl border ${s.ring} bg-[#040c11]`}>
-                    <Icon className={`h-5 w-5 ${s.accent}`} />
-                  </div>
-                  <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${s.accent}`}>
-                    {s.no} · {s.tag}
-                  </div>
-                  <div className="mt-1.5 font-display text-lg font-semibold text-white">{s.title}</div>
-                  <p className="mt-1.5 text-sm leading-6 text-slate-400">{s.copy}</p>
-                </motion.div>
-              );
-            })}
+              {/* 4-step vertical rail */}
+              <div className="relative mt-9 space-y-7">
+                <div className="absolute left-[13px] top-3 bottom-3 w-px bg-gradient-to-b from-cyan-400/40 via-teal-400/30 to-amber-400/30" />
+                {STAGES.map((s) => {
+                  const Icon = s.icon;
+                  return (
+                    <div key={s.no} className="relative flex gap-4">
+                      <div className={`relative z-10 flex h-7 w-7 shrink-0 items-center justify-center rounded-lg border ${s.ring} bg-[#04101a]`}>
+                        <Icon className={`h-3.5 w-3.5 ${s.accent}`} />
+                      </div>
+                      <div className="-mt-0.5">
+                        <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${s.accent}`}>{s.no} · {s.tag}</div>
+                        <div className="mt-0.5 font-semibold text-white">{s.title}</div>
+                        <p className="mt-0.5 max-w-sm text-sm leading-6 text-slate-400">{s.copy}</p>
+                      </div>
+                    </div>
+                  );
+                })}
+              </div>
+            </motion.div>
+
+            {/* Evidence card — right */}
+            <motion.div
+              initial={{ opacity: 0, y: 24 }} whileInView={{ opacity: 1, y: 0 }}
+              viewport={{ once: true, margin: "-80px" }} transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
+            >
+              <EvidenceCardMock />
+              <div className="mt-6 text-center font-mono text-[11px] uppercase tracking-[0.2em] text-slate-500">
+                Output · one evidence card per detection
+              </div>
+            </motion.div>
           </div>
 
           {/* Responsible-AI line */}
           <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={1} variants={fadeUp}
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={0} variants={fadeUp}
             className="mt-16 flex items-start gap-3 rounded-2xl border border-teal-400/15 bg-teal-400/[0.04] p-5"
           >
             <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-300" />

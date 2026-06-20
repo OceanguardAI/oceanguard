@@ -120,10 +120,10 @@ function Panel({
   );
 }
 
-export default function BlindSpotVisual() {
+export default function BlindSpotVisual({ stacked = false }: { stacked?: boolean }) {
   return (
     <div>
-      <div className="grid gap-4 md:grid-cols-2">
+      <div className={`grid gap-4 ${stacked ? "" : "md:grid-cols-2"}`}>
         {/* AIS — only broadcasting vessels */}
         <Panel
           kind="ais"
