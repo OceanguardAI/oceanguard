@@ -588,7 +588,7 @@ export default function App() {
                       onClose={() => setLeftPanel(null)}
                       framed={leftPanel === "detections"}
                       scroll={leftPanel !== "detections"}
-                      className="top-3 left-3 bottom-3 w-[380px]"
+                      className="top-3 left-3 bottom-3 w-[440px]"
                     >
                       {leftPanel === "detections" && (
                         <RiskTable events={events} selected={selectedEvent} onSelect={handleSelect} />
@@ -603,7 +603,7 @@ export default function App() {
                     <Floating
                       key="sweep"
                       onClose={closeSweep}
-                      className="top-3 right-3 bottom-3 w-[440px]"
+                      className="top-3 right-3 bottom-3 w-[500px]"
                     >
                       <SweepPanel
                         loading={sweepLoading}
@@ -615,7 +615,7 @@ export default function App() {
                     <Floating
                       key="scan"
                       onClose={closeScan}
-                      className="top-3 right-3 bottom-3 w-[440px]"
+                      className="top-3 right-3 bottom-3 w-[500px]"
                     >
                       <ScanPanel
                         point={scanPoint!}
@@ -629,7 +629,7 @@ export default function App() {
                       key="assistant"
                       onClose={() => setAssistantOpen(false)}
                       scroll={false}
-                      className="top-3 right-3 bottom-3 w-[440px]"
+                      className="top-3 right-3 bottom-3 w-[500px]"
                     >
                       <AskOceanGuard />
                     </Floating>
@@ -638,7 +638,7 @@ export default function App() {
                       <Floating
                         key="evidence"
                         onClose={() => setEvidenceOpen(false)}
-                        className="top-3 right-3 bottom-3 w-[440px]"
+                        className="top-3 right-3 bottom-3 w-[500px]"
                       >
                         <EvidenceCard event={selectedEvent} onUpdate={updateEvent} />
                       </Floating>
