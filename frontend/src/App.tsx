@@ -504,7 +504,7 @@ export default function App() {
 
         {/* Toolbar: panel navigation (left) + risk legend + KPIs + assistant (right) */}
         {activeTab === "dashboard" && (
-          <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-20 flex-wrap">
+          <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-[1100] flex-wrap">
             {/* Panel toggles */}
             <div className="flex items-center gap-1">
               {navChips.map(({ id, icon: Icon, label, tip }) => (
