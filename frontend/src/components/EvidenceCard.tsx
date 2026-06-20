@@ -15,6 +15,7 @@ import {
 import RiskBadge from "./ui/RiskBadge";
 import GradientButton from "./ui/GradientButton";
 import YoloResultView from "./YoloResultView";
+import Tooltip from "./ui/Tooltip";
 
 interface EvidenceCardProps {
   event: RiskEvent;
@@ -214,21 +215,29 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
             it catches dark vessels that have switched their AIS off.
           </p>
 
-          <button
-            onClick={handleYoloCheck}
-            disabled={yoloLoading}
-            className="group flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-gradient-to-r from-cyan-500/90 to-teal-500/90 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all duration-200 hover:from-cyan-400 hover:to-teal-400 hover:shadow-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+          <Tooltip
+            title="Run YOLO Check"
+            body="Runs our own ship-detection AI on the live radar image for this exact spot — a second, independent opinion, separate from the global feed that first raised this alert."
+            highlight={{ label: "Why run it", text: "The original alert came from a global database. This re-checks the raw satellite radar to confirm a real vessel is there — and can catch a “dark” ship that turned its ID transponder off." }}
+            icon={ScanSearch}
+            align="center"
           >
-            {yoloLoading ? (
-              <>
-                <Loader2 className="w-4 h-4 animate-spin" /> Scanning live radar…
-              </>
-            ) : (
-              <>
-                <ScanSearch className="w-4 h-4" /> Run YOLO Check
-              </>
-            )}
-          </button>
+            <button
+              onClick={handleYoloCheck}
+              disabled={yoloLoading}
+              className="group flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-gradient-to-r from-cyan-500/90 to-teal-500/90 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all duration-200 hover:from-cyan-400 hover:to-teal-400 hover:shadow-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+            >
+              {yoloLoading ? (
+                <>
+                  <Loader2 className="w-4 h-4 animate-spin" /> Scanning live radar…
+                </>
+              ) : (
+                <>
+                  <ScanSearch className="w-4 h-4" /> Run YOLO Check
+                </>
+              )}
+            </button>
+          </Tooltip>
 
           {yoloLoading && (
             <p className="mt-2 text-center text-[10px] text-slate-500">First scan can take ~1 min (radar fetch + model warm-up)</p>
