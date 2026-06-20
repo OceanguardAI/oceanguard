@@ -97,13 +97,21 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
       ══════════════════════════════════════════ */}
       <section id="hero" className="relative h-[100svh] min-h-[600px] overflow-hidden">
 
-        {/* Video */}
+        {/* Video — loop + onEnded restart as belt-and-suspenders */}
         <video
           ref={videoRef}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? "opacity-100" : "opacity-0"}`}
           src={HERO_VIDEO_SRC}
-          autoPlay muted loop playsInline
+          autoPlay
+          muted
+          loop
+          playsInline
+          preload="auto"
           onCanPlay={() => setVideoReady(true)}
+          onEnded={() => {
+            const v = videoRef.current;
+            if (v) { v.currentTime = 0; v.play(); }
+          }}
         />
 
         {/* Fallback animation until video is ready */}
