@@ -45,6 +45,15 @@ const navItems = [
   { label: "Responsible AI", target: "responsible-ai" },
 ];
 
+// Concrete, citable figures — these give judges and analysts an immediate sense
+// of why the problem matters and what the system covers.
+const impactStats = [
+  { value: "$23B", label: "Lost to illegal fishing every year", sub: "estimated, global (FAO)" },
+  { value: "1 in 5", label: "Fish caught outside the rules", sub: "of the global catch" },
+  { value: "Global", label: "Free Sentinel-1 radar coverage", sub: "6–12 day revisit, all weather" },
+  { value: "Minutes", label: "From satellite signal to evidence card", sub: "not days of manual review" },
+];
+
 const problemCards = [
   {
     title: "AIS gaps",
@@ -291,6 +300,24 @@ export default function LandingPage({ onLaunch, onDemo }: LandingPageProps) {
             })}
           </div>
         </div>
+
+        {/* Impact stats — why this matters, in concrete numbers. */}
+        <motion.div
+          initial="hidden"
+          whileInView="visible"
+          viewport={{ once: true, margin: "-80px" }}
+          custom={1}
+          variants={fadeUp}
+          className="mx-auto mt-12 grid max-w-7xl grid-cols-2 gap-px overflow-hidden rounded-[1.75rem] border border-cyan-300/10 bg-cyan-300/5 lg:grid-cols-4"
+        >
+          {impactStats.map((s) => (
+            <div key={s.label} className="bg-ocean-950/80 p-6 text-center">
+              <div className="font-display text-3xl text-white md:text-4xl">{s.value}</div>
+              <div className="mx-auto mt-2 max-w-[14rem] text-sm leading-6 text-slate-300">{s.label}</div>
+              <div className="mt-1 text-[11px] uppercase tracking-[0.16em] text-cyan-300/70">{s.sub}</div>
+            </div>
+          ))}
+        </motion.div>
       </section>
 
       <section id="technology" className="px-4 py-20 md:px-6 md:py-28">

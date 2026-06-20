@@ -198,25 +198,41 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
           The button runs best.pt on this exact point; a vessel that switched
           AIS off is invisible to the AIS feed but still reflects radar. */}
       {yoloOk && (
-        <div className="border-b border-ocean-700/30 p-4 bg-ocean-900/20">
-          <div className="flex items-center justify-between gap-2 flex-wrap">
-            <div className="flex items-center gap-2">
-              <Radar className="w-3.5 h-3.5 text-cyan-400" />
-              <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-400">
-                Independent AI Verification
-              </span>
-            </div>
-            <GradientButton variant="ghost" size="xs" onClick={handleYoloCheck} disabled={yoloLoading}>
-              {yoloLoading
-                ? (<><Loader2 className="w-3 h-3 animate-spin" /> Scanning radar…</>)
-                : (<><ScanSearch className="w-3 h-3" /> Run YOLO check</>)}
-            </GradientButton>
+        <div className="border-b border-ocean-700/30 p-4 bg-gradient-to-br from-cyan-500/10 via-ocean-900/30 to-ocean-900/20">
+          <div className="flex items-center gap-2 mb-1.5">
+            <Radar className="w-3.5 h-3.5 text-cyan-400" />
+            <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300">
+              Independent AI Verification
+            </span>
+            <span className="ml-auto rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-300">
+              Our model
+            </span>
           </div>
 
-          <p className="mt-2 text-[11px] text-slate-500 leading-relaxed">
-            Runs our own ship-detection model on the live Sentinel-1 radar for this exact
-            point — catching dark vessels that have switched their AIS off.
+          <p className="mb-3 text-[11px] text-slate-400 leading-relaxed">
+            Run our own ship-detection model on the live Sentinel-1 radar for this exact point —
+            it catches dark vessels that have switched their AIS off.
           </p>
+
+          <button
+            onClick={handleYoloCheck}
+            disabled={yoloLoading}
+            className="group flex w-full items-center justify-center gap-2 rounded-xl border border-cyan-400/30 bg-gradient-to-r from-cyan-500/90 to-teal-500/90 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-cyan-500/20 transition-all duration-200 hover:from-cyan-400 hover:to-teal-400 hover:shadow-cyan-500/30 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {yoloLoading ? (
+              <>
+                <Loader2 className="w-4 h-4 animate-spin" /> Scanning live radar…
+              </>
+            ) : (
+              <>
+                <ScanSearch className="w-4 h-4" /> Run YOLO Check
+              </>
+            )}
+          </button>
+
+          {yoloLoading && (
+            <p className="mt-2 text-center text-[10px] text-slate-500">First scan can take ~1 min (radar fetch + model warm-up)</p>
+          )}
 
           {yoloError && (
             <div className="mt-3 flex items-start gap-2 text-xs text-risk-high bg-risk-high/8 border border-risk-high/20 rounded-lg p-3">

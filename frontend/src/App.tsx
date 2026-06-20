@@ -302,6 +302,23 @@ export default function App() {
     setSweepLoading(false);
   };
 
+  // The evidence card is the lowest-priority right panel, so it only shows when
+  // nothing else has claimed that slot. The toolbar "Evidence" button lets the
+  // officer reopen it after closing — otherwise a closed card had no way back.
+  const showingEvidence =
+    !sweepActive && !scanActive && !assistantOpen && !!selectedEvent && evidenceOpen;
+
+  const toggleEvidence = () => {
+    if (showingEvidence) {
+      setEvidenceOpen(false);
+      return;
+    }
+    closeSweep();
+    closeScan();
+    setAssistantOpen(false);
+    setEvidenceOpen(true);
+  };
+
   useEffect(() => {
     let cancelled = false;
 
@@ -514,6 +531,19 @@ export default function App() {
                 </>
               )}
               <button
+                onClick={toggleEvidence}
+                disabled={!selectedEvent}
+                title={selectedEvent ? "Show the evidence card for the selected detection" : "Select a detection first"}
+                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-40 ${
+                  showingEvidence
+                    ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                    : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                }`}
+              >
+                <FileText className="w-3.5 h-3.5" />
+                Evidence
+              </button>
+              <button
                 onClick={() => setAssistantOpen((v) => !v)}
                 className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
                   assistantOpen
@@ -558,7 +588,7 @@ export default function App() {
                       onClose={() => setLeftPanel(null)}
                       framed={leftPanel === "detections"}
                       scroll={leftPanel !== "detections"}
-                      className="top-3 left-3 bottom-3 w-[330px]"
+                      className="top-3 left-3 bottom-3 w-[380px]"
                     >
                       {leftPanel === "detections" && (
                         <RiskTable events={events} selected={selectedEvent} onSelect={handleSelect} />
@@ -573,7 +603,7 @@ export default function App() {
                     <Floating
                       key="sweep"
                       onClose={closeSweep}
-                      className="top-3 right-3 bottom-3 w-[380px]"
+                      className="top-3 right-3 bottom-3 w-[440px]"
                     >
                       <SweepPanel
                         loading={sweepLoading}
@@ -585,7 +615,7 @@ export default function App() {
                     <Floating
                       key="scan"
                       onClose={closeScan}
-                      className="top-3 right-3 bottom-3 w-[380px]"
+                      className="top-3 right-3 bottom-3 w-[440px]"
                     >
                       <ScanPanel
                         point={scanPoint!}
@@ -599,7 +629,7 @@ export default function App() {
                       key="assistant"
                       onClose={() => setAssistantOpen(false)}
                       scroll={false}
-                      className="top-3 right-3 bottom-3 w-[380px]"
+                      className="top-3 right-3 bottom-3 w-[440px]"
                     >
                       <AskOceanGuard />
                     </Floating>
@@ -608,7 +638,7 @@ export default function App() {
                       <Floating
                         key="evidence"
                         onClose={() => setEvidenceOpen(false)}
-                        className="top-3 right-3 bottom-3 w-[380px]"
+                        className="top-3 right-3 bottom-3 w-[440px]"
                       >
                         <EvidenceCard event={selectedEvent} onUpdate={updateEvent} />
                       </Floating>
