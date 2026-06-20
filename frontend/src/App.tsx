@@ -247,13 +247,12 @@ export default function App() {
   const [sweepError, setSweepError]     = useState<string | null>(null);
 
   useEffect(() => {
-    document.documentElement.style.overflowY = page === "landing" ? "auto" : "hidden";
-    document.body.style.overflowY = page === "landing" ? "auto" : "hidden";
-
-    return () => {
-      document.documentElement.style.overflowY = "";
-      document.body.style.overflowY = "";
-    };
+    // Landing page scrolls freely; dashboard constrains itself via its own
+    // h-screen overflow-hidden wrapper — do NOT set overflow on <body> because
+    // Chrome uses body as the scroll viewport and overflow:hidden on it clips
+    // position:fixed elements (portaled tooltips, modals, etc.).
+    document.documentElement.style.overflowY = page === "landing" ? "" : "hidden";
+    return () => { document.documentElement.style.overflowY = ""; };
   }, [page]);
 
   useEffect(() => { yoloVerifyConfigured().then(setYoloOk); }, []);
