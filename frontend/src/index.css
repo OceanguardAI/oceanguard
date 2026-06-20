@@ -152,3 +152,21 @@
   75%  { transform: scale(3.2); opacity: 0;    }
   100% { transform: scale(3.2); opacity: 0;    }
 }
+
+/* Surveillance HUD overlay — horizontal scan sweeping top→bottom over the hero */
+@keyframes hudScan {
+  0%   { top: -2%;  opacity: 0; }
+  6%   { opacity: 1; }
+  94%  { opacity: 1; }
+  100% { top: 102%; opacity: 0; }
+}
+/* Blinking REC / live indicators */
+@keyframes blink {
+  0%, 100% { opacity: 1;   }
+  50%      { opacity: 0.2; }
+}
+/* Slow radar sweep used inside the SAR contrast panel */
+@keyframes sweep {
+  0%   { transform: rotate(0deg);   }
+  100% { transform: rotate(360deg); }
+}

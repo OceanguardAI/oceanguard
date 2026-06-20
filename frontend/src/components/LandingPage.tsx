@@ -1,16 +1,18 @@
 import React, { useRef, useState } from "react";
 import { motion, Variants } from "framer-motion";
 import {
-  AlertTriangle, ArrowRight, CheckCircle2,
-  ChevronDown, Eye, FileText, MapPinned, Radio, ScanSearch, Volume2, VolumeX,
+  AlertTriangle, ArrowRight, ChevronDown,
+  FileText, Satellite, ScanSearch, ShieldCheck, Volume2, VolumeX,
 } from "lucide-react";
 import GradientButton from "./ui/GradientButton";
 import HeroAnimation from "./landing/HeroAnimation";
+import HudOverlay from "./landing/HudOverlay";
+import BlindSpotVisual from "./landing/BlindSpotVisual";
 import LandingNavbar from "./landing/LandingNavbar";
 
 const EASE: [number, number, number, number] = [0.22, 1, 0.36, 1];
 const fadeUp: Variants = {
-  hidden: { opacity: 0, y: 20 },
+  hidden: { opacity: 0, y: 22 },
   visible: (i: number) => ({
     opacity: 1, y: 0,
     transition: { duration: 0.55, delay: i * 0.09, ease: EASE },
@@ -18,8 +20,8 @@ const fadeUp: Variants = {
 };
 
 const navItems = [
-  { label: "The Problem",  target: "problem"  },
-  { label: "Our Solution", target: "solution" },
+  { label: "The Blind Spot", target: "problem"  },
+  { label: "The System",     target: "solution" },
 ];
 
 const TICKER = [
@@ -31,27 +33,37 @@ const TICKER = [
   "AI evidence cards · human review required",
 ];
 
-const PROBLEMS = [
-  { icon: Radio,      title: "Ships go dark",                copy: "Vessels switch off their AIS transponders to hide. No public tracking system sees them — but satellite radar does."         },
-  { icon: ScanSearch, title: "Too many contacts to check",   copy: "Thousands of satellite detections arrive daily. No team has the capacity to inspect them one by one."                       },
-  { icon: MapPinned,  title: "Protected areas go unwatched", copy: "Marine reserves need rapid triage. By the time an alert is reviewed manually, the vessel has long gone."                     },
+const STAKES = [
+  { value: "$23B",    label: "lost to illegal fishing / yr" },
+  { value: "1 in 5",  label: "fish caught outside the rules" },
+  { value: "Hours",   label: "to act — not days" },
 ];
 
-const SOLUTIONS = [
-  { icon: Eye,        title: "Radar sees what AIS hides",     copy: "Sentinel-1 SAR satellites photograph the entire ocean day and night, through clouds. Vessel on or off — they show up."     },
-  { icon: ScanSearch, title: "AI scores every contact",        copy: "Our model runs on the raw radar. Each contact is ranked by risk — dark vessel inside a protected area = investigate first." },
-  { icon: FileText,   title: "Officers get a clear case file", copy: "One evidence card per detection: radar image, plain-English explanation, and review buttons. Human judgement stays in the loop." },
+const STAGES = [
+  { no: "01", tag: "ACQUIRE", icon: Satellite,    title: "Global radar passes", copy: "Sentinel-1 SAR images the ocean day and night, straight through cloud cover.",      accent: "text-cyan-300",  ring: "border-cyan-300/25" },
+  { no: "02", tag: "DETECT",  icon: ScanSearch,   title: "AI finds every contact", copy: "YOLO11n scans the raw radar and flags every vessel — broadcasting or dark.",        accent: "text-cyan-300",  ring: "border-cyan-300/25" },
+  { no: "03", tag: "SCORE",   icon: AlertTriangle,title: "Risk gets ranked",      copy: "A dark vessel inside a protected zone scores highest. The queue sorts itself.",      accent: "text-amber-300", ring: "border-amber-300/25" },
+  { no: "04", tag: "REVIEW",  icon: FileText,     title: "An officer decides",    copy: "Each contact becomes an evidence card. A human confirms before any action is taken.", accent: "text-teal-300",  ring: "border-teal-300/25" },
 ];
 
-// Path to the hero video drop — place your file at:
-//   frontend/public/hero-video.mp4
 const HERO_VIDEO_SRC = "/hero-video.mp4";
 
 interface Props { onLaunch: () => void; onDemo: () => void; }
 
+/** Editorial numbered section label: 01 ──── THE BLIND SPOT */
+function SectionTag({ no, label, accent }: { no: string; label: string; accent: string }) {
+  return (
+    <div className="flex items-center gap-3">
+      <span className={`font-mono text-sm font-bold ${accent}`}>{no}</span>
+      <span className={`h-px w-10 ${accent.replace("text-", "bg-")} opacity-40`} />
+      <span className="font-mono text-[11px] uppercase tracking-[0.3em] text-slate-400">{label}</span>
+    </div>
+  );
+}
+
 export default function LandingPage({ onLaunch, onDemo }: Props) {
-  const videoRef  = useRef<HTMLVideoElement>(null);
-  const [muted, setMuted]         = useState(true);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted] = useState(true);
   const [videoReady, setVideoReady] = useState(false);
 
   const jumpTo = (id: string) =>
@@ -66,65 +78,52 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
   return (
     <div className="min-h-screen overflow-x-hidden text-slate-200" style={{ background: "#040C11" }}>
 
-      {/* ── Ticker ── */}
+      {/* ── Live ticker ── */}
       <div className="relative overflow-hidden border-b border-amber-400/15 bg-amber-400/[0.04] py-1.5">
-        <div
-          className="flex items-center gap-10 whitespace-nowrap"
-          style={{ animation: "ticker 50s linear infinite", willChange: "transform" }}
-        >
+        <div className="flex items-center gap-10 whitespace-nowrap" style={{ animation: "ticker 50s linear infinite", willChange: "transform" }}>
           {[...TICKER, ...TICKER].map((item, i) => (
             <span key={i} className="flex shrink-0 items-center gap-3">
               {i % TICKER.length === 0
                 ? <span className="font-mono text-[11px] font-bold text-amber-400">{item}</span>
-                : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/50">{item}</span></>
-              }
+                : <><span className="text-amber-400/20">│</span><span className="font-mono text-[11px] text-amber-200/50">{item}</span></>}
             </span>
           ))}
         </div>
       </div>
 
-      {/* Nav sits above the video */}
       <LandingNavbar items={navItems} onOpenDashboard={onLaunch} onJump={jumpTo} />
 
       {/* ══════════════════════════════════════════
-          HERO — full-screen video (OceanX style)
-          Falls back to HeroAnimation if no video.
+          HERO — satellite feed (video + HUD frame)
       ══════════════════════════════════════════ */}
       <section id="hero" className="relative h-[100svh] min-h-[600px] overflow-hidden">
 
-        {/* ── Video background ── */}
+        {/* Video */}
         <video
           ref={videoRef}
           className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? "opacity-100" : "opacity-0"}`}
           src={HERO_VIDEO_SRC}
-          autoPlay
-          muted
-          loop
-          playsInline
+          autoPlay muted loop playsInline
           onCanPlay={() => setVideoReady(true)}
         />
 
-        {/* ── Fallback animation shown until / unless video loads ── */}
+        {/* Fallback animation until video is ready */}
         {!videoReady && (
           <div className="absolute inset-0 flex items-center justify-center bg-[#040C11]">
-            <div className="w-full max-w-2xl px-4">
-              <HeroAnimation />
-            </div>
+            <div className="w-full max-w-2xl px-4"><HeroAnimation /></div>
           </div>
         )}
 
-        {/* ── Gradient overlays (depth + readability for centered text) ── */}
-        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/75" />
-        <div
-          className="absolute inset-0"
-          style={{ background: "radial-gradient(ellipse 75% 65% at 50% 48%, rgba(2,8,12,0.40), transparent 78%)" }}
-        />
+        {/* Readability overlays */}
+        <div className="absolute inset-0 bg-gradient-to-b from-black/55 via-black/25 to-black/80" />
+        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 75% 65% at 50% 46%, rgba(2,8,12,0.42), transparent 78%)" }} />
 
-        {/* ── Content — centered, OceanX-style ── */}
-        <div className="absolute inset-0 flex flex-col items-center justify-center px-6 text-center">
+        {/* Surveillance HUD frame */}
+        <HudOverlay />
+
+        {/* Centered content */}
+        <div className="absolute inset-0 z-30 flex flex-col items-center justify-center px-6 text-center">
           <div className="max-w-4xl">
-
-            {/* Small tag line with square bullet */}
             <motion.div
               initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.45, delay: 0.2 }}
@@ -136,18 +135,16 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               </span>
             </motion.div>
 
-            {/* Main headline */}
             <motion.h1
               initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.65, delay: 0.3, ease: EASE }}
               className="font-display font-black text-white leading-[0.96] tracking-[-0.04em]"
-              style={{ fontSize: "clamp(2.8rem, 6vw, 6.5rem)", textShadow: "0 2px 40px rgba(0,0,0,0.5)" }}
+              style={{ fontSize: "clamp(2.8rem, 6vw, 6.5rem)", textShadow: "0 2px 40px rgba(0,0,0,0.55)" }}
             >
               Making hidden ocean<br />
               activity <span className="text-amber-400">visible</span>.
             </motion.h1>
 
-            {/* Sub */}
             <motion.p
               initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.55, delay: 0.45, ease: EASE }}
@@ -158,7 +155,6 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               OceanGuard turns those detections into reviewed evidence cards — in minutes.
             </motion.p>
 
-            {/* CTAs */}
             <motion.div
               initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.5, delay: 0.56, ease: EASE }}
@@ -174,23 +170,23 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
           </div>
         </div>
 
-        {/* ── Controls: mute / scroll hint ── */}
+        {/* Mute toggle */}
         {videoReady && (
           <button
             onClick={toggleMute}
-            className="absolute bottom-6 right-6 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 backdrop-blur-sm transition hover:border-white/40 hover:text-white"
+            className="absolute bottom-6 right-6 z-30 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 backdrop-blur-sm transition hover:border-white/40 hover:text-white"
             aria-label={muted ? "Unmute" : "Mute"}
           >
             {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
           </button>
         )}
 
-        {/* Scroll-down indicator */}
+        {/* Scroll hint */}
         <motion.button
           onClick={() => jumpTo("problem")}
           initial={{ opacity: 0 }} animate={{ opacity: 1 }}
           transition={{ delay: 1.2, duration: 0.6 }}
-          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/40 transition hover:text-white/70"
+          className="absolute bottom-6 left-1/2 z-30 flex -translate-x-1/2 flex-col items-center gap-1 text-white/40 transition hover:text-white/70"
           aria-label="Scroll down"
         >
           <span className="font-mono text-[9px] uppercase tracking-[0.2em]">Scroll</span>
@@ -199,92 +195,101 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
       </section>
 
       {/* ══════════════════════════════════════════
-          PROBLEM + SOLUTION
+          01 — THE BLIND SPOT  (problem)
       ══════════════════════════════════════════ */}
-      <section id="problem" className="border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
-        <div className="mx-auto max-w-7xl">
-
-          <motion.div
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
-            className="mb-14 text-center"
-          >
-            <h2 className="font-display text-4xl font-black text-white md:text-5xl">
-              A real problem. A clear answer.
+      <section id="problem" className="relative border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        <div className="mx-auto max-w-5xl">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}>
+            <SectionTag no="01" label="The Blind Spot" accent="text-amber-400" />
+            <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-tight text-white md:text-5xl">
+              Most of the ocean is a blind spot.
             </h2>
-            <p className="mx-auto mt-4 max-w-xl text-base leading-8 text-slate-500">
-              Illegal fishing costs the world $23 billion a year.
-              The ocean is too large to watch manually — but not for a satellite.
+            <p className="mt-4 max-w-xl text-base leading-8 text-slate-400">
+              Vessels that want to stay hidden simply switch off their transponders.
+              Public tracking loses them instantly. Radar does not.
             </p>
           </motion.div>
 
-          <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
+          {/* The contrast visual — the whole argument in one picture */}
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={1} variants={fadeUp}
+            className="mt-12"
+          >
+            <BlindSpotVisual />
+          </motion.div>
 
-            {/* Problems */}
-            <div>
-              <motion.div
-                initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
-                className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-400"
-              >
-                <AlertTriangle className="h-3.5 w-3.5" /> The challenge
-              </motion.div>
-              <div className="space-y-3">
-                {PROBLEMS.map((p, i) => {
-                  const Icon = p.icon;
-                  return (
-                    <motion.div key={p.title}
-                      initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={i + 1} variants={fadeUp}
-                      className="flex items-start gap-4 rounded-xl border border-amber-400/10 bg-amber-400/[0.03] p-4 transition-colors hover:border-amber-400/20"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-amber-400/15 bg-amber-400/8">
-                        <Icon className="h-4 w-4 text-amber-300" />
-                      </div>
-                      <div>
-                        <div className="font-display font-semibold text-white">{p.title}</div>
-                        <p className="mt-0.5 text-sm leading-6 text-slate-400">{p.copy}</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
+          {/* Stakes */}
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={2} variants={fadeUp}
+            className="mt-14 grid grid-cols-3 gap-4 border-t border-white/8 pt-8"
+          >
+            {STAKES.map((s) => (
+              <div key={s.label} className="text-center md:text-left">
+                <div className="font-mono text-2xl font-bold text-white md:text-3xl">{s.value}</div>
+                <div className="mt-1 text-[11px] uppercase tracking-[0.14em] text-slate-500">{s.label}</div>
               </div>
-            </div>
+            ))}
+          </motion.div>
+        </div>
+      </section>
 
-            {/* Solutions */}
-            <div id="solution">
-              <motion.div
-                initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
-                className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-400"
-              >
-                <CheckCircle2 className="h-3.5 w-3.5" /> Our answer
-              </motion.div>
-              <div className="space-y-3">
-                {SOLUTIONS.map((s, i) => {
-                  const Icon = s.icon;
-                  return (
-                    <motion.div key={s.title}
-                      initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={i + 1} variants={fadeUp}
-                      className="flex items-start gap-4 rounded-xl border border-cyan-400/10 bg-cyan-400/[0.03] p-4 transition-colors hover:border-cyan-400/20"
-                    >
-                      <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg border border-cyan-400/15 bg-cyan-400/8">
-                        <Icon className="h-4 w-4 text-cyan-300" />
-                      </div>
-                      <div>
-                        <div className="font-display font-semibold text-white">{s.title}</div>
-                        <p className="mt-0.5 text-sm leading-6 text-slate-400">{s.copy}</p>
-                      </div>
-                    </motion.div>
-                  );
-                })}
-              </div>
-            </div>
+      {/* ══════════════════════════════════════════
+          02 — THE SYSTEM  (solution pipeline)
+      ══════════════════════════════════════════ */}
+      <section id="solution" className="relative border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
+        {/* faint chart grid texture */}
+        <div className="pointer-events-none absolute inset-0 opacity-[0.4] ocean-grid" />
+
+        <div className="relative mx-auto max-w-6xl">
+          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}>
+            <SectionTag no="02" label="The System" accent="text-cyan-400" />
+            <h2 className="mt-5 max-w-2xl font-display text-4xl font-black leading-tight text-white md:text-5xl">
+              From raw radar to a reviewed case — in four steps.
+            </h2>
+            <p className="mt-4 max-w-xl text-base leading-8 text-slate-400">
+              A single pipeline does the watching, the ranking and the explaining.
+              People stay in charge of the deciding.
+            </p>
+          </motion.div>
+
+          {/* Pipeline */}
+          <div className="relative mt-14 grid gap-8 md:grid-cols-4 md:gap-5">
+            {/* connecting rail (desktop) */}
+            <div className="absolute left-0 right-0 top-7 hidden h-px bg-gradient-to-r from-cyan-400/30 via-teal-400/30 to-amber-400/30 md:block" />
+
+            {STAGES.map((s, i) => {
+              const Icon = s.icon;
+              return (
+                <motion.div
+                  key={s.no}
+                  initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={i + 1} variants={fadeUp}
+                  className="relative"
+                >
+                  <div className={`relative z-10 mb-5 flex h-14 w-14 items-center justify-center rounded-xl border ${s.ring} bg-[#040c11]`}>
+                    <Icon className={`h-5 w-5 ${s.accent}`} />
+                  </div>
+                  <div className={`font-mono text-[10px] uppercase tracking-[0.22em] ${s.accent}`}>
+                    {s.no} · {s.tag}
+                  </div>
+                  <div className="mt-1.5 font-display text-lg font-semibold text-white">{s.title}</div>
+                  <p className="mt-1.5 text-sm leading-6 text-slate-400">{s.copy}</p>
+                </motion.div>
+              );
+            })}
           </div>
 
-          <motion.p
-            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={0} variants={fadeUp}
-            className="mx-auto mt-12 max-w-2xl text-center text-sm leading-7 text-slate-600"
+          {/* Responsible-AI line */}
+          <motion.div
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={1} variants={fadeUp}
+            className="mt-16 flex items-start gap-3 rounded-2xl border border-teal-400/15 bg-teal-400/[0.04] p-5"
           >
-            OceanGuard does not accuse vessels. It surfaces evidence and explains it.
-            A human officer reviews every case before any action is taken.
-          </motion.p>
+            <ShieldCheck className="mt-0.5 h-5 w-5 shrink-0 text-teal-300" />
+            <p className="text-sm leading-7 text-slate-300">
+              <span className="font-semibold text-white">OceanGuard never accuses.</span>{" "}
+              It surfaces evidence and explains it in plain language. Every case is reviewed by a
+              human officer before any enforcement action — the AI advises, people decide.
+            </p>
+          </motion.div>
         </div>
       </section>
 
@@ -294,19 +299,24 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
       <section className="px-4 pb-24 pt-4 md:px-6">
         <motion.div
           initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
-          className="mx-auto max-w-4xl overflow-hidden rounded-2xl border border-white/10 bg-[#040C11]"
+          className="relative mx-auto max-w-4xl overflow-hidden rounded-2xl border border-white/10 bg-[#040C11]"
         >
-          <div className="h-0.5 bg-gradient-to-r from-amber-400/50 via-amber-400 to-teal-400/50" />
-          <div className="px-8 py-12 text-center md:px-10 md:py-14">
-            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/8 px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] text-amber-300">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
+          {/* corner brackets — echo the hero HUD */}
+          <span className="absolute left-3 top-3 h-5 w-5 border-l-2 border-t-2 border-amber-400/40" />
+          <span className="absolute right-3 top-3 h-5 w-5 border-r-2 border-t-2 border-amber-400/40" />
+          <span className="absolute left-3 bottom-3 h-5 w-5 border-l-2 border-b-2 border-amber-400/40" />
+          <span className="absolute right-3 bottom-3 h-5 w-5 border-r-2 border-b-2 border-amber-400/40" />
+
+          <div className="px-8 py-14 text-center md:px-10 md:py-16">
+            <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/8 px-3.5 py-1.5 font-mono text-[11px] uppercase tracking-[0.22em] text-amber-300">
+              <span className="h-1.5 w-1.5 rounded-full bg-amber-400" style={{ animation: "blink 1.6s ease-in-out infinite" }} />
               System active
             </div>
             <h2 className="font-display text-4xl font-black text-white md:text-5xl">
-              See hidden vessels.<br className="hidden md:block" /> Review the evidence.
+              See the vessels that<br className="hidden md:block" /> don't want to be seen.
             </h2>
             <p className="mx-auto mt-5 max-w-lg text-base leading-8 text-slate-400">
-              Open the live dashboard — real satellite detections, AI evidence cards, human review built in.
+              Open the live console — real satellite detections, AI evidence cards, human review built in.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
@@ -322,7 +332,7 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
 
       {/* ── Footer ── */}
       <footer className="border-t border-white/6 px-4 py-8 md:px-6">
-        <div className="mx-auto flex max-w-7xl flex-col items-center justify-between gap-4 md:flex-row">
+        <div className="mx-auto flex max-w-6xl flex-col items-center justify-between gap-4 md:flex-row">
           <div className="flex items-center gap-3">
             <img src="/branding/oceanguard-mark.png" alt="OceanGuard AI" className="h-8 w-8 rounded-lg object-cover" />
             <div>
