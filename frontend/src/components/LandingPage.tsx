@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useRef, useState } from "react";
 import { motion, Variants } from "framer-motion";
 import {
   AlertTriangle, ArrowRight, CheckCircle2,
-  Eye, FileText, MapPinned, Radio, ScanSearch,
+  ChevronDown, Eye, FileText, MapPinned, Radio, ScanSearch, Volume2, VolumeX,
 } from "lucide-react";
 import GradientButton from "./ui/GradientButton";
 import HeroAnimation from "./landing/HeroAnimation";
@@ -13,13 +13,13 @@ const fadeUp: Variants = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({
     opacity: 1, y: 0,
-    transition: { duration: 0.5, delay: i * 0.08, ease: EASE },
+    transition: { duration: 0.55, delay: i * 0.09, ease: EASE },
   }),
 };
 
 const navItems = [
-  { label: "The Problem",   target: "problem"  },
-  { label: "Our Solution",  target: "solution" },
+  { label: "The Problem",  target: "problem"  },
+  { label: "Our Solution", target: "solution" },
 ];
 
 const TICKER = [
@@ -32,27 +32,41 @@ const TICKER = [
 ];
 
 const PROBLEMS = [
-  { icon: Radio,     title: "Ships go dark",             copy: "Vessels switch off their AIS transponders to hide. No public tracking system sees them — but satellite radar does." },
-  { icon: ScanSearch,title: "Too many contacts to check", copy: "Thousands of satellite detections arrive daily. No team has the capacity to inspect them one by one." },
-  { icon: MapPinned, title: "Protected areas go unwatched", copy: "Marine reserves need rapid triage. By the time an alert is reviewed, the vessel has long gone." },
+  { icon: Radio,      title: "Ships go dark",                copy: "Vessels switch off their AIS transponders to hide. No public tracking system sees them — but satellite radar does."         },
+  { icon: ScanSearch, title: "Too many contacts to check",   copy: "Thousands of satellite detections arrive daily. No team has the capacity to inspect them one by one."                       },
+  { icon: MapPinned,  title: "Protected areas go unwatched", copy: "Marine reserves need rapid triage. By the time an alert is reviewed manually, the vessel has long gone."                     },
 ];
 
 const SOLUTIONS = [
-  { icon: Eye,         title: "Radar sees what AIS hides",     copy: "Sentinel-1 SAR satellites photograph the entire ocean day and night, through clouds — vessel on or off, they show up." },
-  { icon: ScanSearch,  title: "AI scores every contact",        copy: "Our model runs on the raw radar. Each contact is ranked by risk — dark vessel + inside a protected area = investigate first." },
-  { icon: FileText,    title: "Officers get a clear case file", copy: "One evidence card per detection: radar image, plain-English explanation, and review buttons. Human judgement stays in the loop." },
+  { icon: Eye,        title: "Radar sees what AIS hides",     copy: "Sentinel-1 SAR satellites photograph the entire ocean day and night, through clouds. Vessel on or off — they show up."     },
+  { icon: ScanSearch, title: "AI scores every contact",        copy: "Our model runs on the raw radar. Each contact is ranked by risk — dark vessel inside a protected area = investigate first." },
+  { icon: FileText,   title: "Officers get a clear case file", copy: "One evidence card per detection: radar image, plain-English explanation, and review buttons. Human judgement stays in the loop." },
 ];
+
+// Path to the hero video drop — place your file at:
+//   frontend/public/hero-video.mp4
+const HERO_VIDEO_SRC = "/hero-video.mp4";
 
 interface Props { onLaunch: () => void; onDemo: () => void; }
 
 export default function LandingPage({ onLaunch, onDemo }: Props) {
+  const videoRef  = useRef<HTMLVideoElement>(null);
+  const [muted, setMuted]         = useState(true);
+  const [videoReady, setVideoReady] = useState(false);
+
   const jumpTo = (id: string) =>
     document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+
+  const toggleMute = () => {
+    if (!videoRef.current) return;
+    videoRef.current.muted = !muted;
+    setMuted((v) => !v);
+  };
 
   return (
     <div className="min-h-screen overflow-x-hidden text-slate-200" style={{ background: "#040C11" }}>
 
-      {/* ── Live operations ticker ── */}
+      {/* ── Ticker ── */}
       <div className="relative overflow-hidden border-b border-amber-400/15 bg-amber-400/[0.04] py-1.5">
         <div
           className="flex items-center gap-10 whitespace-nowrap"
@@ -69,63 +83,82 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
         </div>
       </div>
 
+      {/* Nav sits above the video */}
       <LandingNavbar items={navItems} onOpenDashboard={onLaunch} onJump={jumpTo} />
 
       {/* ══════════════════════════════════════════
-          HERO
+          HERO — full-screen video (OceanX style)
+          Falls back to HeroAnimation if no video.
       ══════════════════════════════════════════ */}
-      <section id="hero" className="relative overflow-hidden">
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 80% 60% at 70% 50%, rgba(251,191,36,0.04), transparent)" }} />
-        <div className="absolute inset-0" style={{ background: "radial-gradient(ellipse 45% 55% at 5% 45%, rgba(6,182,212,0.05), transparent)" }} />
+      <section id="hero" className="relative h-[100svh] min-h-[600px] overflow-hidden">
 
-        <div className="relative mx-auto grid max-w-7xl grid-cols-1 items-center gap-10 px-4 py-24 md:px-6 lg:grid-cols-2 lg:gap-12 lg:py-28">
+        {/* ── Video background ── */}
+        <video
+          ref={videoRef}
+          className={`absolute inset-0 h-full w-full object-cover transition-opacity duration-700 ${videoReady ? "opacity-100" : "opacity-0"}`}
+          src={HERO_VIDEO_SRC}
+          autoPlay
+          muted
+          loop
+          playsInline
+          onCanPlay={() => setVideoReady(true)}
+        />
 
-          {/* Left: copy */}
-          <div>
+        {/* ── Fallback animation shown until / unless video loads ── */}
+        {!videoReady && (
+          <div className="absolute inset-0 flex items-center justify-center bg-[#040C11]">
+            <div className="w-full max-w-2xl px-4">
+              <HeroAnimation />
+            </div>
+          </div>
+        )}
+
+        {/* ── Gradient overlays (depth + readability) ── */}
+        <div className="absolute inset-0 bg-gradient-to-t from-black/90 via-black/35 to-black/25" />
+        <div className="absolute inset-0 bg-gradient-to-r from-black/55 via-transparent to-transparent" />
+
+        {/* ── Content — bottom-left, OceanX-style ── */}
+        <div className="absolute inset-x-0 bottom-0 flex flex-col justify-end px-6 pb-14 md:px-10 lg:px-16">
+          <div className="max-w-7xl w-full mx-auto">
+
+            {/* Small tag line */}
             <motion.div
-              initial={{ opacity: 0, y: 12 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.4 }}
-              className="mb-7 inline-flex items-center gap-2 rounded-full border border-amber-400/25 bg-amber-400/8 px-3.5 py-1.5 text-[11px] uppercase tracking-[0.22em] text-amber-300"
+              initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.45, delay: 0.2 }}
+              className="mb-4 flex items-center gap-2"
             >
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 shadow-[0_0_8px_rgba(251,191,36,0.8)] animate-pulse" />
-              SDG 14 · Satellite Intelligence
+              <span className="h-[3px] w-6 bg-amber-400 rounded-full" />
+              <span className="font-mono text-[11px] uppercase tracking-[0.28em] text-amber-300">
+                SDG 14 · Satellite Intelligence
+              </span>
             </motion.div>
 
-            {/* Name reveal — clips left to right */}
-            <div className="overflow-hidden mb-2">
-              <motion.div
-                initial={{ y: "110%" }} animate={{ y: 0 }}
-                transition={{ duration: 0.55, delay: 0.05, ease: EASE }}
-                className="font-mono text-xs uppercase tracking-[0.25em] text-slate-500"
-              >
-                OceanGuard AI
-              </motion.div>
-            </div>
-
+            {/* Main headline */}
             <motion.h1
-              initial={{ opacity: 0, y: 22 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6, delay: 0.1, ease: EASE }}
-              className="font-display text-[clamp(2.8rem,5.2vw,5.4rem)] font-black leading-[0.95] tracking-[-0.04em] text-white"
+              initial={{ opacity: 0, y: 28 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.65, delay: 0.3, ease: EASE }}
+              className="font-display font-black text-white leading-[0.95] tracking-[-0.04em]"
+              style={{ fontSize: "clamp(3rem, 6.5vw, 7rem)" }}
             >
               Making hidden<br />
               <span className="text-amber-400">ocean activity</span><br />
               visible.
             </motion.h1>
 
+            {/* Sub + CTAs */}
             <motion.p
-              initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.55, delay: 0.2, ease: EASE }}
-              className="mt-6 max-w-lg text-lg leading-8 text-slate-400"
+              initial={{ opacity: 0, y: 18 }} animate={{ opacity: 1, y: 0 }}
+              transition={{ duration: 0.55, delay: 0.45, ease: EASE }}
+              className="mt-5 max-w-lg text-base leading-7 text-white/70 md:text-lg"
             >
               Satellite radar catches vessels that switch their tracking off.
-              OceanGuard turns those detections into reviewed evidence cards —
-              in minutes, not days.
+              OceanGuard turns those detections into reviewed evidence cards — in minutes.
             </motion.p>
 
             <motion.div
               initial={{ opacity: 0, y: 14 }} animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5, delay: 0.3, ease: EASE }}
-              className="mt-8 flex flex-wrap items-center gap-3"
+              transition={{ duration: 0.5, delay: 0.56, ease: EASE }}
+              className="mt-7 flex flex-wrap items-center gap-3"
             >
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
                 Open Dashboard <ArrowRight className="h-4 w-4" />
@@ -134,48 +167,39 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
                 How It Works
               </GradientButton>
             </motion.div>
-
-            {/* Quick stats */}
-            <motion.div
-              initial={{ opacity: 0 }} animate={{ opacity: 1 }}
-              transition={{ duration: 0.6, delay: 0.45 }}
-              className="mt-10 flex flex-wrap gap-x-8 gap-y-4 border-t border-white/8 pt-8"
-            >
-              {[
-                { value: "$23B",  label: "lost to illegal fishing / yr" },
-                { value: "1 in 5",label: "fish caught outside the rules" },
-                { value: "Minutes",label: "from satellite to evidence"   },
-              ].map(({ value, label }) => (
-                <div key={label}>
-                  <div className="font-mono text-2xl font-bold text-white">{value}</div>
-                  <div className="text-[11px] uppercase tracking-[0.14em] text-slate-500">{label}</div>
-                </div>
-              ))}
-            </motion.div>
           </div>
-
-          {/* Right: animated satellite view */}
-          <motion.div
-            initial={{ opacity: 0, y: 24 }} animate={{ opacity: 1, y: 0 }}
-            transition={{ duration: 0.7, delay: 0.25, ease: EASE }}
-            className="relative"
-          >
-            <div className="absolute -top-3 -right-3 z-10 flex items-center gap-1.5 rounded-full border border-amber-400/30 bg-[#040C11]/90 px-2.5 py-1 text-[10px] font-mono font-semibold text-amber-300 shadow-lg backdrop-blur-md">
-              <span className="h-1.5 w-1.5 rounded-full bg-amber-400 animate-pulse" />
-              LIVE SATELLITE SCAN
-            </div>
-            <HeroAnimation />
-          </motion.div>
         </div>
+
+        {/* ── Controls: mute / scroll hint ── */}
+        {videoReady && (
+          <button
+            onClick={toggleMute}
+            className="absolute bottom-6 right-6 flex h-9 w-9 items-center justify-center rounded-full border border-white/20 bg-black/40 text-white/70 backdrop-blur-sm transition hover:border-white/40 hover:text-white"
+            aria-label={muted ? "Unmute" : "Mute"}
+          >
+            {muted ? <VolumeX className="h-4 w-4" /> : <Volume2 className="h-4 w-4" />}
+          </button>
+        )}
+
+        {/* Scroll-down indicator */}
+        <motion.button
+          onClick={() => jumpTo("problem")}
+          initial={{ opacity: 0 }} animate={{ opacity: 1 }}
+          transition={{ delay: 1.2, duration: 0.6 }}
+          className="absolute bottom-6 left-1/2 -translate-x-1/2 flex flex-col items-center gap-1 text-white/40 transition hover:text-white/70"
+          aria-label="Scroll down"
+        >
+          <span className="font-mono text-[9px] uppercase tracking-[0.2em]">Scroll</span>
+          <ChevronDown className="h-4 w-4 animate-bounce" />
+        </motion.button>
       </section>
 
       {/* ══════════════════════════════════════════
-          PROBLEM + SOLUTION (one section, two columns)
+          PROBLEM + SOLUTION
       ══════════════════════════════════════════ */}
       <section id="problem" className="border-t border-white/6 px-4 py-20 md:px-6 md:py-28">
         <div className="mx-auto max-w-7xl">
 
-          {/* Section label */}
           <motion.div
             initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
             className="mb-14 text-center"
@@ -184,20 +208,20 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               A real problem. A clear answer.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-base leading-8 text-slate-500">
-              Illegal fishing costs the world $23 billion a year. The ocean is too large to watch manually — but not for a satellite.
+              Illegal fishing costs the world $23 billion a year.
+              The ocean is too large to watch manually — but not for a satellite.
             </p>
           </motion.div>
 
           <div className="grid gap-8 lg:grid-cols-2 lg:gap-12">
 
-            {/* PROBLEM column */}
+            {/* Problems */}
             <div>
               <motion.div
                 initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
                 className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-amber-400"
               >
-                <AlertTriangle className="h-3.5 w-3.5" />
-                The challenge
+                <AlertTriangle className="h-3.5 w-3.5" /> The challenge
               </motion.div>
               <div className="space-y-3">
                 {PROBLEMS.map((p, i) => {
@@ -220,14 +244,13 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               </div>
             </div>
 
-            {/* SOLUTION column */}
+            {/* Solutions */}
             <div id="solution">
               <motion.div
                 initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-80px" }} custom={0} variants={fadeUp}
                 className="mb-6 flex items-center gap-2 text-[11px] uppercase tracking-[0.24em] text-cyan-400"
               >
-                <CheckCircle2 className="h-3.5 w-3.5" />
-                Our answer
+                <CheckCircle2 className="h-3.5 w-3.5" /> Our answer
               </motion.div>
               <div className="space-y-3">
                 {SOLUTIONS.map((s, i) => {
@@ -251,12 +274,12 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
             </div>
           </div>
 
-          {/* Responsible AI notice — small, honest */}
           <motion.p
             initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-60px" }} custom={0} variants={fadeUp}
             className="mx-auto mt-12 max-w-2xl text-center text-sm leading-7 text-slate-600"
           >
-            OceanGuard does not accuse vessels. It surfaces evidence and explains it. A human officer reviews every case before any action is taken.
+            OceanGuard does not accuse vessels. It surfaces evidence and explains it.
+            A human officer reviews every case before any action is taken.
           </motion.p>
         </div>
       </section>
