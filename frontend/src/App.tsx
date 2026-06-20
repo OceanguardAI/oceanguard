@@ -17,6 +17,7 @@ import DataSources from "./components/DataSources";
 import ResponsibleAIFooter from "./components/ResponsibleAIFooter";
 import LandingPage from "./components/LandingPage";
 import AnimatedNumber from "./components/ui/AnimatedNumber";
+import Tooltip from "./components/ui/Tooltip";
 import {
   Activity, BarChart3, Database,
   AlertTriangle, Eye, Layers, Clock,
@@ -386,16 +387,41 @@ export default function App() {
     setLeftPanel((curr) => (curr === id ? null : id));
 
   const kpis = [
-    { icon: Layers,        label: "Total Detections", value: events.length,                                                                                color: "text-teal-400",    bg: "bg-teal-400/8" },
-    { icon: AlertTriangle, label: "High / Critical",  value: events.filter((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL").length,           color: "text-risk-high",   bg: "bg-risk-high/8" },
-    { icon: Eye,           label: "Near MPA",         value: events.filter((e) => e.inside_mpa || e.near_mpa).length,                                       color: "text-risk-medium", bg: "bg-risk-medium/8" },
-    { icon: Clock,         label: "Pending Review",   value: events.filter((e) => e.review_status === "Pending").length,                                    color: "text-slate-300",   bg: "bg-slate-700/25" },
+    {
+      icon: Layers, label: "Total Detections", color: "text-teal-400", bg: "bg-teal-400/8",
+      value: events.length,
+      tip: { title: "Total Detections", body: "All SAR vessel contacts processed this session. Each is a radar reflection from the Sentinel-1 satellite that our pipeline turned into a structured event." },
+    },
+    {
+      icon: AlertTriangle, label: "High / Critical", color: "text-risk-high", bg: "bg-risk-high/8",
+      value: events.filter((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL").length,
+      tip: { title: "High / Critical Risk", body: "Vessels scoring ≥ 0.60 on our risk model — typically dark (no AIS broadcast) and operating near or inside a Marine Protected Area." },
+    },
+    {
+      icon: Eye, label: "Near MPA", color: "text-risk-medium", bg: "bg-risk-medium/8",
+      value: events.filter((e) => e.inside_mpa || e.near_mpa).length,
+      tip: { title: "Near a Protected Area", body: "Vessels detected within 50 km of a Marine Protected Area (MPA). MPAs are internationally designated zones where industrial fishing is restricted or banned." },
+    },
+    {
+      icon: Clock, label: "Pending Review", color: "text-slate-300", bg: "bg-slate-700/25",
+      value: events.filter((e) => e.review_status === "Pending").length,
+      tip: { title: "Awaiting Human Review", body: "Detections not yet reviewed by an analyst. OceanGuard flags and explains — a real officer always makes the final call before any action is taken." },
+    },
   ];
 
   const navChips = [
-    { id: "detections" as const, icon: List,      label: "Detections" },
-    { id: "briefing"   as const, icon: FileText,  label: "Briefing"   },
-    { id: "patrols"    as const, icon: Crosshair, label: "Patrols"    },
+    {
+      id: "detections" as const, icon: List, label: "Detections",
+      tip: { title: "Detection Queue", body: "Live table of all SAR contacts sorted by risk score. Click any row to open its full evidence card with AI analysis and review actions." },
+    },
+    {
+      id: "briefing" as const, icon: FileText, label: "Briefing",
+      tip: { title: "Daily Briefing", body: "AI-generated situational summary of today's highest-risk activity — the first thing to read at the start of a shift to understand the threat picture." },
+    },
+    {
+      id: "patrols" as const, icon: Crosshair, label: "Patrols",
+      tip: { title: "Patrol Planner", body: "Suggested patrol routes based on detection clusters. Shows where suspicious vessels are concentrated and which protected areas need the most attention." },
+    },
   ];
 
   const showBackendError = eventsError && events.length === 0 && !eventsLoading;
@@ -453,19 +479,20 @@ export default function App() {
           <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-20 flex-wrap">
             {/* Panel toggles */}
             <div className="flex items-center gap-1">
-              {navChips.map(({ id, icon: Icon, label }) => (
-                <button
-                  key={id}
-                  onClick={() => toggleLeft(id)}
-                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                    leftPanel === id
-                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
-                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                  }`}
-                >
-                  <Icon className="w-3.5 h-3.5" />
-                  {label}
-                </button>
+              {navChips.map(({ id, icon: Icon, label, tip }) => (
+                <Tooltip key={id} title={tip.title} body={tip.body} align="left">
+                  <button
+                    onClick={() => toggleLeft(id)}
+                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                      leftPanel === id
+                        ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                </Tooltip>
               ))}
             </div>
 
@@ -486,16 +513,17 @@ export default function App() {
               {kpis.map((kpi) => {
                 const Icon = kpi.icon;
                 return (
-                  <div
-                    key={kpi.label}
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${kpi.bg} border border-ocean-700/30`}
-                  >
-                    <Icon className={`w-3 h-3 ${kpi.color} shrink-0`} />
-                    <span className="text-[11px] text-slate-500 hidden lg:inline">{kpi.label}:</span>
-                    <span className={`text-sm font-bold ${kpi.color} tabular-nums`}>
-                      <AnimatedNumber value={kpi.value} />
-                    </span>
-                  </div>
+                  <Tooltip key={kpi.label} title={kpi.tip.title} body={kpi.tip.body} align="right">
+                    <div
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg ${kpi.bg} border border-ocean-700/30 cursor-default`}
+                    >
+                      <Icon className={`w-3 h-3 ${kpi.color} shrink-0`} />
+                      <span className="text-[11px] text-slate-500 hidden lg:inline">{kpi.label}:</span>
+                      <span className={`text-sm font-bold ${kpi.color} tabular-nums`}>
+                        <AnimatedNumber value={kpi.value} />
+                      </span>
+                    </div>
+                  </Tooltip>
                 );
               })}
               {eventsLoading && (
@@ -503,57 +531,78 @@ export default function App() {
               )}
               {yoloOk && (
                 <>
-                  <button
-                    onClick={handleSweep}
-                    disabled={sweepLoading || !mapBounds}
-                    title="Sweep the visible area (e.g. an MPA) with our YOLO model on the latest Sentinel-1 radar to surface dark vessels the AIS feed missed"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
-                      sweepActive
-                        ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                    }`}
+                  <Tooltip
+                    title="Sweep Area"
+                    body="Run our YOLO ship-detection model across the entire visible map on the latest Sentinel-1 radar. Finds dark vessels the global AIS feed never logged — the core surveillance use case."
+                    align="right"
                   >
-                    <Radar className="w-3.5 h-3.5" />
-                    {sweepLoading ? "Sweeping…" : "Sweep area"}
-                  </button>
-                  <button
-                    onClick={() => { setScanMode((v) => !v); if (scanMode) closeScan(); }}
-                    title="Scan a single point you click on the map"
-                    className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                      scanMode
-                        ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
-                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                    }`}
+                    <button
+                      onClick={handleSweep}
+                      disabled={sweepLoading || !mapBounds}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+                        sweepActive
+                          ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                      }`}
+                    >
+                      <Radar className="w-3.5 h-3.5" />
+                      {sweepLoading ? "Sweeping…" : "Sweep area"}
+                    </button>
+                  </Tooltip>
+                  <Tooltip
+                    title="Point Scan"
+                    body="Click any spot on the map to run an instant radar check. Our model fetches the latest Sentinel-1 satellite pass and looks for ship-like returns at that exact coordinate."
+                    align="right"
                   >
-                    <ScanSearch className="w-3.5 h-3.5" />
-                    {scanMode ? "Click a point" : "Point scan"}
-                  </button>
+                    <button
+                      onClick={() => { setScanMode((v) => !v); if (scanMode) closeScan(); }}
+                      className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                        scanMode
+                          ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                      }`}
+                    >
+                      <ScanSearch className="w-3.5 h-3.5" />
+                      {scanMode ? "Click a point" : "Point scan"}
+                    </button>
+                  </Tooltip>
                 </>
               )}
-              <button
-                onClick={toggleEvidence}
-                disabled={!selectedEvent}
-                title={selectedEvent ? "Show the evidence card for the selected detection" : "Select a detection first"}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-40 ${
-                  showingEvidence
-                    ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                }`}
+              <Tooltip
+                title="Evidence Card"
+                body="Open the full evidence card for the selected detection — includes the SAR radar chip, AI narrative explaining why it was flagged, and review actions to confirm or dismiss."
+                align="right"
               >
-                <FileText className="w-3.5 h-3.5" />
-                Evidence
-              </button>
-              <button
-                onClick={() => setAssistantOpen((v) => !v)}
-                className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                  assistantOpen
-                    ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
-                }`}
+                <button
+                  onClick={toggleEvidence}
+                  disabled={!selectedEvent}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 disabled:opacity-40 ${
+                    showingEvidence
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Evidence
+                </button>
+              </Tooltip>
+              <Tooltip
+                title="AI Assistant"
+                body="Ask OceanGuard any question — how risk scores work, what a specific detection means, which data sources we use, or anything about the methodology."
+                align="right"
               >
-                <MessageSquare className="w-3.5 h-3.5" />
-                Assistant
-              </button>
+                <button
+                  onClick={() => setAssistantOpen((v) => !v)}
+                  className={`flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    assistantOpen
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Assistant
+                </button>
+              </Tooltip>
             </div>
           </div>
         )}
