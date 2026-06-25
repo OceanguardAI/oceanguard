@@ -191,12 +191,8 @@ export async function narrateEvent(event: RiskEvent): Promise<NarrateResponse> {
   return res.json();
 }
 
-export async function getBriefing(events: RiskEvent[]): Promise<BriefingResponse> {
-  const res = await fetch(`${API_BASE}/agents/briefing`, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify(events)
-  });
+export async function getBriefing(): Promise<BriefingResponse> {
+  const res = await fetch(`${API_BASE}/agents/briefing/current`, { method: "POST" });
   if (!res.ok) throw new Error("Briefing failed");
   return res.json();
 }

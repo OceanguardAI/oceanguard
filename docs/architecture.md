@@ -2,7 +2,7 @@
 
 ## Overview
 
-OceanGuard is a three-tier decision-support system. The ML pipeline (offline, heavy) is decoupled from the API (stateless, fast) which is decoupled from the UI. Each tier can be developed, tested, and deployed independently.
+OceanGuard is a four-tier decision-support system. The ML pipeline (offline, batch) is decoupled from the live ingestion layer, which is decoupled from the API, which is decoupled from the UI. Each tier can be developed, tested, and deployed independently.
 
 ---
 
@@ -11,52 +11,70 @@ OceanGuard is a three-tier decision-support system. The ML pipeline (offline, he
 ```
 ────────────────────────────────────────────────────────────────────────
                        DATA SOURCES (external)
-  Sentinel-1 SAR scenes   Global Fishing Watch   WDPA      OSM
-  (xView3 / Copernicus)   (dark-vessel + AIS)  (MPA polys) (ports)
-────────────────────────┬────────────────────┬──────────────┬───────────
-                        │                    │              │
-                        ▼                    ▼              ▼
+  Global Fishing Watch    AISStream.io     WDPA (UNEP-WCMC)   OSM
+  (SAR dark-vessel API)   (Live AIS WS)    (open ArcGIS)      (ports)
+         │                     │                 │               │
+         ▼                     ▼                 ▼               ▼
 ────────────────────────────────────────────────────────────────────────
-         ML PIPELINE  (offline / batch — Python modules)
+         LIVE INGESTION LAYER  (backend startup + on-demand)
 
-  tiling.py ──► detect.py ──► georeference.py
-  (SAR→640px)  (YOLO best.pt) (pixel→lat/lon, pyproj/rasterio)
+  gfw_ingest.py        ais_stream.py       mpa_index.py
+  POST /ingest/gfw     POST /ais/verify-dark  GET /mpa
+  (SAR detections      (AIS cross-check     (polygon layer +
+   + AIS cross-match    dark confirmed)      spatial scoring)
+   from GFW API)
+────────────────────────────────────────────────────────────────────────
+         ML PIPELINE  (offline / batch — Python modules in ml/)
+
+  fetch_sentinel1.py ──► run_inference_from_tif.py ──► georeference
+  (Sentinel-1 GRD)      (YOLO11n best.pt)             (pyproj/rasterio)
                                     │
                                     ▼
-                           enrich.py
-                  (MPA distance · port distance · AIS match)
+                           build_risk_events.py
+                  (MPA distance · AIS match · risk formula)
                                     │
                                     ▼
-                           risk.py  ←── DETERMINISTIC ENGINE
-              inputs: detection conf · AIS match · MPA distance · port dist
-              output: risk_score, risk_level, structured evidence
+                         outputs/risk_events.json  ──► backend/data/
 ──────────────────────────────────┬─────────────────────────────────────
-                                  │ writes processed artifacts
-                                  ▼
-                    risk_events.json / SQLite (the "store")
-                                  │
+                                  │ in-memory store (repository.py)
                                   ▼
 ────────────────────────────────────────────────────────────────────────
-                   BACKEND  (FastAPI — Python)
+                   BACKEND  (FastAPI — Python, Google Cloud Run)
 
-  REST API                          AGENT LAYER (Anthropic API)
-  ── GET  /health                   ── POST /agents/narrate   (#1)
-  ── GET  /detections               ── POST /agents/briefing  (#4)
-  ── GET  /risk-events              ── POST /agents/patrol    (#5)
-  ── GET  /risk-events/{id}         ── POST /agents/ask       (#2, tool-calling)
-  ── POST /risk-events/{id}/review
+  Core REST                           Live Ingestion
+  ── GET  /health                     ── GET  /ingest/status
+  ── GET  /risk-events                ── POST /ingest/gfw
+  ── GET  /risk-events/{id}           ── GET  /ais/live
+  ── POST /risk-events/{id}/review    ── POST /ais/verify-dark
   ── GET  /mpa
-  ── GET  /ports
-  ── GET  /model-metrics
+  ── GET  /mpa/status                 YOLO Verification (shipped)
+  ── GET  /ports                      ── GET  /verify/yolo/status
+  ── GET  /model-metrics              ── POST /verify/yolo
+                                      ── POST /verify/yolo/sweep
+  AI Agents (Gemini 2.5 Flash)
+  ── POST /agents/narrate
+  ── POST /agents/briefing
+  ── POST /agents/patrol
+  ── POST /agents/ask
 ──────────────────────────────────┬─────────────────────────────────────
                                   │ JSON over HTTP
                                   ▼
 ────────────────────────────────────────────────────────────────────────
-              FRONTEND  (React + Vite + Tailwind)
+              FRONTEND  (React 18 + Vite + TypeScript + Tailwind)
 
-  Map Dashboard ── Evidence Cards ── Ask OceanGuard ── Daily Briefing
-  Patrol Board ── Data Sources ── Model Metrics ── Responsible-AI footer
-  (react-leaflet map · recharts metrics · lucide icons)
+  Landing Page (/)
+  ── Hero video, HUD overlay, BlindSpotVisual, EvidenceCardMock
+  ── How It Works, CTA
+
+  Dashboard (/dashboard)
+  ── MapView (Leaflet) — color-coded vessel dots, scan mode, sweep mode
+  ── EvidenceCard — per-detection detail + YOLO verify button
+  ── DailyBriefing — Gemini executive summary
+  ── PatrolBoard — AI-ranked top 3 patrol locations
+  ── RiskTable — all events, review actions
+  ── AskOceanGuard — conversational Q&A
+  ── ModelMetrics — YOLO training stats + validation
+  ── DataSources — provenance reference
 ────────────────────────────────────────────────────────────────────────
                                   │
                                   ▼
@@ -69,82 +87,109 @@ OceanGuard is a three-tier decision-support system. The ML pipeline (offline, he
 
 ### 1. Deterministic Core + AI Explanation Layer
 
-The risk score and risk level are computed by a deterministic function (`risk.py`) with explicit weights and thresholds. Claude is used only to explain the result in plain language — it never changes the score.
+The risk score and risk level are computed by a deterministic function with explicit weights and thresholds. Gemini 2.5 Flash is used only to explain the result in plain language — it never changes the score.
 
-**Why this matters:** An enforcement authority needs to be able to answer "why did this get flagged?" with a traceable audit trail. A neural network answering that question is not auditable. A weighted formula is.
+**Why this matters:** An enforcement authority needs to answer "why did this get flagged?" with a traceable audit trail. A weighted formula is auditable; a neural network output is not.
 
-### 2. Right-Sized Persistence
+### 2. GFW as Primary Detection Feed
 
-The demo dataset is ~126 events. JSON in memory is perfectly adequate. The architecture documents the exact upgrade path to SQLite (for hundreds of thousands of events) and then PostGIS (for spatial queries at scale) — signalling awareness of when to add complexity.
+The live system uses the Global Fishing Watch SAR API as its primary detection source. GFW does the Sentinel-1 SAR processing and AIS cross-matching server-side. OceanGuard ingests the pre-processed results at startup (`GFW_INGEST_ON_STARTUP=true`) and applies its own risk scoring on top.
 
-**Upgrade path:**
-- JSON (MVP, ~100s of events) → already in `store/repository.py`
-- SQLite (thousands of events) → swap `repository.py` to use `aiosqlite`
-- PostgreSQL + PostGIS (millions of events, spatial queries) → add `asyncpg` + spatial indices
+**YOLO is on-demand only.** The YOLO service runs when an officer clicks "Run YOLO Check" (single point) or "Sweep Area" (viewport grid). It is not the primary detection pipeline.
 
-### 3. Offline ML + Online API
+### 3. YOLO Verification — Two Modes (both shipped)
 
-The ML pipeline (tiling, detection, georeferencing) is a separate offline batch job. The API never runs YOLO inference on request — it serves pre-computed results. This means:
+```
+POST /verify/yolo         → single-point confirm (lat/lon/date → Sentinel-1 chip → YOLO)
+POST /verify/yolo/sweep   → area sweep (bbox tiled at ~0.04°, max 12 tiles, 4 parallel workers)
+```
 
-- The API has no GPU dependency and can run anywhere
-- Detection can be re-run on new scenes without touching the API
-- Results are reproducible and storable
+Sweep contacts are classified:
+- **teal diamond** — confirmed (matches a known GFW detection within 2 km)
+- **red pulsing diamond** — new (no known detection nearby → dark-vessel candidate the GFW feed missed)
 
-### 4. Twelve-Factor Friendly
+Agreement boost: when YOLO confirms a GFW detection, `risk_score += 0.10`.
 
-- Config via environment variables (`ANTHROPIC_API_KEY`, `GFW_TOKEN`)
-- No secrets in code
-- Docker containers for both services
-- Stateless API (any instance serves any request)
+### 4. Right-Sized Persistence
 
-### 5. Two-Proof Narrative (why two data sources)
+The live store is in-memory (repository.py). Reviews written via `POST /risk-events/{id}/review` are in-memory only (`persist=False`) to preserve the seed file as offline fallback. Upgrade path: JSON → SQLite → PostgreSQL+PostGIS.
 
-The xView3 SAR scene and the GFW dark-vessel data are complementary, not redundant:
+### 5. Twelve-Factor Friendly
 
-| | xView3 / YOLO | GFW Dark Vessels |
+- Config via environment variables only (never hardcoded)
+- Secrets in `.env` (local) and GitHub Secrets (Cloud Run)
+- Stateless API containers — any instance serves any request
+- Push-to-main auto-deploys via GitHub Actions → Cloud Run
+
+---
+
+## AI Agent Layer (Gemini 2.5 Flash)
+
+All four agents use `gemini-2.5-flash` via the Google GenAI SDK. The model ID is set in `backend/app/core/config.py` as `gemini_model = "gemini-2.5-flash"`.
+
+| Agent | Route | What it does |
 |---|---|---|
-| Geography | Gulf of Guinea (global scene) | Bar Reef, Sri Lanka |
-| Purpose | Proves the detector works on real SAR | Proves the risk framework flags real threats |
-| UI location | Model Metrics page | Map Dashboard (headline demo) |
-| Source | Our own YOLO11n inference | GFW public API (SAR-derived) |
+| Narrator | `POST /agents/narrate` | Explains why a single detection was flagged, in plain English |
+| Briefing | `POST /agents/briefing` | Writes a 2–4 sentence executive summary of all current events |
+| Patrol | `POST /agents/patrol` | Ranks top 3 detections by patrol urgency with justification |
+| Ask | `POST /agents/ask` | Tool-calling Q&A — answers officer questions about live data |
 
-Merging them on the same map would be misleading. Presenting them separately, each with its own framing, is honest and stronger.
+**Reliability boundary:** Each agent has a deterministic fallback. If Gemini is unavailable, the UI still returns useful output. Gemini explains scores; it never sets them.
 
 ---
 
 ## Data Flow (per request)
 
-### Map load
+### Dashboard load
 ```
-GET /mpa         → bar_reef.geojson → Leaflet Polygon (teal)
-GET /risk-events?source=GFW → 4 events → Leaflet CircleMarkers (risk-colored)
-GET /model-metrics → metrics.json → recharts on Metrics page
+GET /risk-events          → live GFW detections → Leaflet CircleMarkers (risk-colored dots)
+GET /mpa                  → WDPA FeatureCollection → Leaflet Polygon overlay
+GET /model-metrics        → metrics.json → recharts on Metrics page
+GET /ingest/status        → feed config + event counts
 ```
 
-### Click a marker → Evidence Card
+### Click a detection → Evidence Card
 ```
-UI has the event already (from /risk-events)
+UI already has the event (from /risk-events)
 → POST /agents/narrate  { event }
-  → narrator.py calls Anthropic API (or fallback)
+  → narrator.py calls Gemini (or fallback)
   → returns { why_flagged, uncertainty }
   → displayed in Evidence Card
+```
+
+### Run YOLO Check (single point)
+```
+POST /verify/yolo?lat=&lon=&date=&event_id=
+→ verify.py fetches Sentinel-1 chip via Sentinel Hub/CDSE
+→ calls oceanguard-yolo service → YOLO inference
+→ if found + event_id: risk_score += 0.10 in store
+→ returns { agreement, yolo: { found, chip_png_b64, detections, best_confidence } }
+→ YoloResultView.tsx renders the SAR chip with bounding boxes
+```
+
+### Sweep Area
+```
+POST /verify/yolo/sweep?min_lon=&min_lat=&max_lon=&max_lat=&date=
+→ verify.py tiles bbox into ≤12 chips (0.04° spacing)
+→ 4 parallel YOLO workers
+→ each contact classified: confirmed (≤2 km from known) or new
+→ map shows teal/red diamond markers
 ```
 
 ### Review button
 ```
 POST /risk-events/{id}/review  { review_status: "Confirmed Risk" }
-→ repository.py updates in-memory store
+→ repository.py updates in-memory store (persist=False)
 → UI optimistically updates badge
 ```
 
 ### Ask OceanGuard
 ```
 POST /agents/ask  { question: "Which is highest risk?" }
-→ ask.py sends to Claude with tools
-→ Claude calls query_detections({ risk_level: "HIGH" })
+→ ask.py sends to Gemini with tool definitions
+→ Gemini calls query_detections({ risk_level: "HIGH" })
 → ask.py executes tool, returns event list
-→ Claude reads result, answers in plain English
-→ displayed in chat thread
+→ Gemini reads result, answers in plain English
 ```
 
 ---
@@ -153,28 +198,33 @@ POST /agents/ask  { question: "Which is highest risk?" }
 
 | Component | Responsibility | Does NOT do |
 |---|---|---|
-| `tiling.py` | SAR GeoTIFF → 640px PNG tiles | Inference |
-| `detect.py` | YOLO inference over tiles | Georeferencing |
-| `georeference.py` | Pixel coords → WGS84 lat/lon | Enrichment |
-| `enrich.py` | MPA distance, port distance, AIS check | Risk scoring |
-| `risk.py` | Deterministic risk score + level | Explanation |
-| `build_risk_events.py` | Orchestrates pipeline → JSON | Serving |
-| `repository.py` | In-memory store, CRUD | Business logic |
-| `narrator.py` | Plain-language explanation via Claude | Risk scoring |
-| `briefing.py` | Situational summary via Claude | Individual event detail |
-| `patrol.py` | Priority ranking via Claude | Scoring |
-| `ask.py` | Tool-calling Q&A via Claude | Serving events directly |
-| `MapView.tsx` | Leaflet map + marker interaction | Sidebar content |
-| `EvidenceCard.tsx` | Full event detail + review | Map rendering |
+| `gfw_ingest.py` | Pull SAR detections from GFW API at startup | AIS broadcasts |
+| `ais_stream.py` | WebSocket AIS feed, dark-vessel cross-check | Risk scoring |
+| `mpa_index.py` | Shapely STRtree spatial lookup for MPA distance | Serving polygons |
+| `repository.py` | In-memory store, CRUD, upsert | Business logic |
+| `narrator.py` | Plain-language explanation via Gemini | Risk scoring |
+| `briefing.py` | Situational summary via Gemini | Individual event detail |
+| `patrol.py` | Priority ranking via Gemini | Scoring |
+| `ask.py` | Tool-calling Q&A via Gemini | Serving events directly |
+| `verify.py` | YOLO point + sweep endpoints, agreement boost | Primary detection |
+| `MapView.tsx` | Leaflet map, scan mode, sweep mode, bounds reporting | Sidebar content |
+| `EvidenceCard.tsx` | Full event detail, YOLO verify trigger, review | Map rendering |
+| `YoloResultView.tsx` | Renders SAR chip + YOLO bounding boxes | Triggering YOLO |
+| `DailyBriefing.tsx` | Fetches + displays Gemini briefing | Agent logic |
+| `PatrolBoard.tsx` | Fetches + displays Gemini patrol ranking | Map interaction |
+| `AskOceanGuard.tsx` | Chat interface for Gemini Q&A | Agent logic |
 
 ---
 
-## Deployment Targets
+## Deployment
 
 | Service | Local | Production |
 |---|---|---|
-| Backend | `uvicorn app.main:app --reload` | Google Cloud Run |
-| Frontend | `npm run dev` | Vercel / Netlify |
-| Full stack | `docker-compose up` | Cloud Run + CDN |
+| Backend | `uvicorn app.main:app --reload --port 8000` | Google Cloud Run (auto-deploy on push to main) |
+| YOLO service | separate FastAPI + torch container | Google Cloud Run (separate service) |
+| Frontend | `npm run dev` | Google Cloud Run (nginx static) |
+| Full stack | `docker-compose up` | GitHub Actions → Cloud Run |
 
-The backend container is stateless (data files are mounted volumes in production). The frontend is a static build served by nginx.
+Push to `main` branch triggers GitHub Actions CI/CD → builds Docker images → pushes to Artifact Registry → deploys to Cloud Run.
+
+Credentials: `GFW_API_TOKEN`, `AISSTREAM_API_KEY`, `SENTINELHUB_CLIENT_ID`, `SENTINELHUB_CLIENT_SECRET`, `GEMINI_API_KEY` — all in GitHub Secrets, never in code.

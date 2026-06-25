@@ -17,7 +17,9 @@ Formatting rules (important):
   no headings (#), no bullet characters, no bold markers.
 - Do NOT use placeholder text such as [Insert Date] or [Location]. You are
   given the real date and figures; use them directly.
-- Write 2 to 4 flowing sentences an officer can read at a glance."""
+- Write exactly 3 complete, finished sentences. Every sentence must end with a period.
+- Never stop mid-sentence. If you are running out of space, shorten your sentences.
+- Do not list individual vessel IDs. Summarise counts, risk levels, and MPA context only."""
 
 
 def _build_user_prompt(events: list[RiskEvent]) -> str:

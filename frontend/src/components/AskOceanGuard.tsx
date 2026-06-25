@@ -1,7 +1,18 @@
 import React, { useState, useRef, useEffect } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { askOceanGuard } from "../lib/api";
-import { MessageSquare, Send, Bot, User, Loader2 } from "lucide-react";
+import { Send, Bot, User, Loader2 } from "lucide-react";
+
+function cleanAnswer(text: string): string {
+  return text
+    .replace(/\*\*(.*?)\*\*/g, "$1")   // **bold**
+    .replace(/__(.*?)__/g, "$1")        // __bold__
+    .replace(/^\s*#{1,6}\s*/gm, "")    // # headings
+    .replace(/^\s*\*\s+/gm, "- ")      // * bullets → - bullets
+    .replace(/[*_`]+/g, "")            // stray emphasis chars
+    .replace(/\n{3,}/g, "\n\n")        // collapse excess blank lines
+    .trim();
+}
 
 interface Message { role: "user" | "ai"; text: string; }
 
@@ -93,7 +104,14 @@ export default function AskOceanGuard() {
                   ? "bg-ocean-700/60 text-slate-200 rounded-tr-none"
                   : "bg-teal-400/6 border border-teal-400/10 text-slate-300 rounded-tl-none"
               }`}>
-                {m.text}
+                {m.role === "ai"
+                  ? cleanAnswer(m.text).split("\n").map((line, li, arr) => (
+                      <React.Fragment key={li}>
+                        {line}
+                        {li < arr.length - 1 && <br />}
+                      </React.Fragment>
+                    ))
+                  : m.text}
               </div>
             </motion.div>
           ))}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import { RiskEvent } from "../types";
 import { getBriefing } from "../lib/api";
@@ -22,25 +22,30 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
   const [briefing, setBriefing] = useState<string | null>(null);
   const [loading, setLoading]   = useState(false);
   const [error, setError]       = useState<string | null>(null);
+  const loadRef = useRef<(() => void) | undefined>(undefined);
 
-  const requestKey = events
-    .map((e) => `${e.id}:${e.risk_score}:${e.risk_level}:${e.distance_to_mpa_km ?? "na"}:${e.inside_mpa ? 1 : 0}:${e.near_mpa ? 1 : 0}`)
-    .join("|");
+  // Lightweight key: refetch when event count or top-risk ID changes.
+  // briefing/current reads from the server store — no events sent in the body.
+  const topId = [...events].sort((a, b) => b.risk_score - a.risk_score)[0]?.id ?? "";
+  const requestKey = `${events.length}:${topId}`;
 
-  const load = (key: string) => {
+  const load = () => {
     if (events.length === 0) { setBriefing(null); setError(null); return; }
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getBriefing(events)
+    getBriefing()
       .then((res) => { if (!cancelled) setBriefing(res.briefing); })
       .catch(() => { if (!cancelled) { setBriefing(null); setError("Couldn't load the daily briefing."); } })
       .finally(() => { if (!cancelled) setLoading(false); });
     return () => { cancelled = true; };
   };
 
+  // Keep a stable ref to load so the Retry button always calls the latest version.
+  loadRef.current = load;
+
   useEffect(() => {
-    const cleanup = load(requestKey);
+    const cleanup = load();
     return cleanup;
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [requestKey]);
@@ -48,7 +53,7 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
   if (!loading && !briefing && !error) return null;
 
   return (
-    <div className="rounded-xl border border-ocean-700/60 bg-ocean-800/50 backdrop-blur-sm overflow-hidden shadow-lg">
+    <div className="rounded-xl border border-ocean-700/60 bg-ocean-800/50 backdrop-blur-sm shadow-lg">
       {/* Header */}
       <div className="flex items-center justify-between px-4 py-3 border-b border-ocean-700/40">
         <div className="flex items-center gap-2">
@@ -59,7 +64,7 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
         </div>
         {!loading && error && (
           <button
-            onClick={() => load(requestKey)}
+            onClick={() => loadRef.current?.()}
             className="flex items-center gap-1 text-[10px] text-slate-400 hover:text-teal-400 transition-colors"
           >
             <RefreshCw className="w-3 h-3" /> Retry
@@ -75,7 +80,7 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
               className="space-y-2.5 py-1"
             >
               {[3, 4, 3].map((w, i) => (
-                <div key={i} className={`h-2 bg-ocean-700/60 rounded-full animate-pulse`}
+                <div key={i} className="h-2 bg-ocean-700/60 rounded-full animate-pulse"
                   style={{ width: `${w * 25}%` }} />
               ))}
             </motion.div>
@@ -95,12 +100,18 @@ export default function DailyBriefing({ events }: { events: RiskEvent[] }) {
               initial={{ opacity: 0, y: 4 }} animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
             >
-              {/* Loader indicator */}
               <div className="flex items-center gap-1.5 mb-2.5">
                 <Loader2 className="w-2.5 h-2.5 text-teal-400 opacity-0" />
                 <span className="text-[10px] text-slate-500">AI-generated · {new Date().toLocaleDateString()}</span>
               </div>
-              <p className="text-xs text-slate-300 leading-[1.8] whitespace-pre-wrap">{cleanBriefing(briefing)}</p>
+              <p className="text-xs text-slate-300 leading-[1.8] whitespace-pre-wrap">
+                {cleanBriefing(briefing).split("\n").map((line, li, arr) => (
+                  <React.Fragment key={li}>
+                    {line}
+                    {li < arr.length - 1 && <br />}
+                  </React.Fragment>
+                ))}
+              </p>
             </motion.div>
           )}
         </AnimatePresence>

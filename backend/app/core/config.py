@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-2.5-flash"
     agent_max_tool_rounds: int = 5
     agent_narrator_max_tokens: int = 500
-    agent_briefing_max_tokens: int = 400
+    agent_briefing_max_tokens: int = 600
     agent_patrol_max_tokens: int = 600
     agent_ask_max_tokens: int = 700
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
