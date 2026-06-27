@@ -2,13 +2,24 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import build_event_context, extract_json_array, extract_text
+from app.agents.helpers import (
+    build_event_context,
+    extract_json_array,
+    extract_text,
+    strip_markdown,
+)
 from app.core.config import settings
 from app.models.schemas import PatrolItem, RiskEvent
 
 SYSTEM_PROMPT = """You are a patrol planning assistant for marine conservation officers.
 Rank detections by patrol priority using risk score and MPA proximity.
-Be cautious, factual, and avoid any accusatory framing."""
+Be cautious, factual, and avoid any accusatory framing.
+
+Formatting rules (important):
+- The "justification" value must be plain text only.
+- Do NOT use Markdown: no asterisks (* or **), no bold, no headings (#),
+  no backticks, no bullet characters, no underscores for emphasis.
+- Keep each justification to 1 or 2 complete sentences."""
 
 
 def _deterministic_rank(events: list[RiskEvent]) -> list[PatrolItem]:
@@ -77,6 +88,9 @@ async def patrol(events: list[RiskEvent]) -> list[PatrolItem]:
         items = [PatrolItem(**item) for item in payload]
         if not items:
             return _deterministic_rank(events)
+        for item in items:
+            if item.justification:
+                item.justification = strip_markdown(item.justification)
         return items
     except Exception:
         return _deterministic_rank(events)

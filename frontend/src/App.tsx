@@ -33,6 +33,25 @@ const RISK_DOT: Record<string, string> = {
   CRITICAL: "#dc2626", HIGH: "#f97316", MEDIUM: "#fbbf24", LOW: "#22c55e",
 };
 
+/** Pick the most compelling detection for a scripted demo. Live data is
+ *  gfw-sar-NNNN (no fixed ids), so we choose by signal, not id: a dark vessel
+ *  inside an MPA is the strongest story, then any inside-MPA, then the
+ *  highest-risk CRITICAL/HIGH, finally the top score. Always returns something
+ *  if any event exists, so the demo button never lands on an empty console. */
+function pickHeroEvent(events: RiskEvent[]): RiskEvent | null {
+  if (events.length === 0) return null;
+  const byScore = (a: RiskEvent, b: RiskEvent) => b.risk_score - a.risk_score;
+  const firstOf = (pred: (e: RiskEvent) => boolean) =>
+    events.filter(pred).sort(byScore)[0];
+  return (
+    firstOf((e) => e.inside_mpa && !e.ais_matched) ||
+    firstOf((e) => e.inside_mpa) ||
+    firstOf((e) => e.risk_level === "CRITICAL") ||
+    firstOf((e) => e.risk_level === "HIGH") ||
+    [...events].sort(byScore)[0]
+  );
+}
+
 /** A glass panel floating over the map. Components inside bring their own card
  *  chrome, so this just positions, frames, scrolls, and adds a close button. */
 function Floating({
@@ -228,6 +247,9 @@ export default function App() {
   const [leftPanel, setLeftPanel]       = useState<LeftPanel>("detections");
   const [evidenceOpen, setEvidenceOpen] = useState(true);
   const [assistantOpen, setAssistantOpen] = useState(false);
+  // Set when "View Demo" is clicked before live events have loaded; an effect
+  // selects the hero detection as soon as data arrives.
+  const [pendingDemo, setPendingDemo] = useState(false);
 
   // Area-scan: click any point on the map to run YOLO on its Sentinel-1 radar,
   // independent of the GFW detections.
@@ -334,8 +356,7 @@ export default function App() {
           setEventsError(null);
           setSelectedEvent((prev) => {
             if (prev && data.some((e) => e.id === prev.id)) return prev;  // keep selection
-            return data.find((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL")
-              ?? data[0] ?? null;
+            return pickHeroEvent(data) ?? null;  // best default lead (same as demo hero)
           });
         })
         .catch(() => {
@@ -370,12 +391,19 @@ export default function App() {
   const handleDemo = () => {
     setPage("dashboard");
     setActiveTab("dashboard");
-    const demo =
-      events.find((e) => e.id === "bar-reef-003") ||
-      events.find((e) => e.risk_level === "CRITICAL") ||
-      events.find((e) => e.risk_level === "HIGH");
-    if (demo) handleSelect(demo);
+    const hero = pickHeroEvent(events);
+    if (hero) handleSelect(hero);
+    else setPendingDemo(true);  // cold start: events not loaded yet — resolve in effect
   };
+
+  // Resolve a demo click that happened before events loaded.
+  useEffect(() => {
+    if (!pendingDemo || events.length === 0) return;
+    const hero = pickHeroEvent(events);
+    if (hero) handleSelect(hero);
+    setPendingDemo(false);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pendingDemo, events]);
 
   const updateEvent = (updated: RiskEvent) => {
     setEvents((curr) => curr.map((e) => (e.id === updated.id ? updated : e)));
@@ -452,6 +480,9 @@ export default function App() {
   ];
 
   const showBackendError = eventsError && events.length === 0 && !eventsLoading;
+  // First load with nothing yet: show a "connecting" state and keep the rest of
+  // the console clear until detections arrive.
+  const coldStart = eventsLoading && events.length === 0 && !eventsError;
 
   if (page === "landing") {
     return <LandingPage onLaunch={handleLaunch} onDemo={handleDemo} />;
@@ -666,7 +697,7 @@ export default function App() {
               <div className="absolute inset-0 pointer-events-none z-[1000]">
                 <AnimatePresence>
                   {/* Left: detections / briefing / patrols */}
-                  {leftPanel && !showBackendError && (
+                  {leftPanel && !showBackendError && !coldStart && (
                     <Floating
                       key={leftPanel}
                       onClose={() => setLeftPanel(null)}
@@ -729,6 +760,32 @@ export default function App() {
                     )
                   )}
                 </AnimatePresence>
+
+                {/* Cold start: the first fetch can take ~30s while Cloud Run
+                    wakes the container and live GFW ingestion runs. Show a
+                    "connecting" state instead of a blank map so a demo never
+                    opens on emptiness. */}
+                {coldStart && (
+                  <div className="pointer-events-auto absolute inset-0 flex items-center justify-center p-8">
+                    <motion.div
+                      initial={{ opacity: 0, scale: 0.97 }}
+                      animate={{ opacity: 1, scale: 1 }}
+                      className="max-w-sm rounded-2xl border border-teal-400/20 bg-ocean-900/95 backdrop-blur-md p-8 text-center space-y-3 shadow-2xl"
+                    >
+                      <div className="relative w-10 h-10 mx-auto">
+                        <span className="absolute inset-0 rounded-full bg-teal-400/20 animate-ping" />
+                        <div className="relative w-10 h-10 rounded-full bg-teal-400/10 border border-teal-400/30 flex items-center justify-center">
+                          <Radar className="w-5 h-5 text-teal-400 animate-pulse" />
+                        </div>
+                      </div>
+                      <p className="font-semibold text-white">Connecting to live detection feed</p>
+                      <p className="text-slate-400 text-sm">
+                        Waking the satellite-radar service and pulling the latest Global Fishing Watch
+                        detections. This can take up to a minute on first load.
+                      </p>
+                    </motion.div>
+                  </div>
+                )}
 
                 {/* Backend offline: a single centered notice over the (empty) map */}
                 {showBackendError && (

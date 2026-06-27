@@ -2,14 +2,25 @@
 from __future__ import annotations
 
 from app.agents.client import get_client
-from app.agents.helpers import event_summary_line, extract_json_object, extract_text
+from app.agents.helpers import (
+    event_summary_line,
+    extract_json_object,
+    extract_text,
+    strip_markdown,
+)
 from app.core.config import settings
 from app.models.schemas import NarrateResponse, RiskEvent
 
 SYSTEM_PROMPT = """You are a marine conservation analyst for OceanGuard AI.
 Explain SAR vessel detections clearly for patrol officers.
 Always use cautious language such as may, could, or suggests.
-Never accuse anyone or imply certainty. Human officers make decisions."""
+Never accuse anyone or imply certainty. Human officers make decisions.
+
+Formatting rules (important):
+- The "why_flagged" and "uncertainty" values must be plain text only.
+- Do NOT use Markdown: no asterisks (* or **), no bold, no headings (#),
+  no backticks, no bullet characters, no underscores for emphasis.
+- Each value is 1 to 3 complete sentences of flowing prose."""
 
 
 def _build_user_prompt(event: RiskEvent) -> str:
@@ -79,8 +90,8 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
         text = extract_text(response)
         payload = extract_json_object(text)
         response = NarrateResponse(
-            why_flagged=payload.get("why_flagged", "").strip(),
-            uncertainty=payload.get("uncertainty", "").strip(),
+            why_flagged=strip_markdown(payload.get("why_flagged", "")),
+            uncertainty=strip_markdown(payload.get("uncertainty", "")),
         )
         if not response.why_flagged or not response.uncertainty:
             return _fallback(event)
