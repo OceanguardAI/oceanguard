@@ -47,15 +47,15 @@ The `risk_event` is the spine of the application. The live ingestion pipeline pr
 | `source` | enum | Pipeline | `"GFW"` = from Global Fishing Watch dark-vessel API. `"YOLO_SAR"` = from YOLO11n inference. |
 | `lat` | float | GFW API / georef | WGS84 decimal degrees, north positive. |
 | `lon` | float | GFW API / georef | WGS84 decimal degrees, east positive. |
-| `risk_score` | float 0–1 | `risk.py` / `gfw_ingest.py` | Weighted deterministic score. See Risk Engine section below. |
-| `risk_level` | enum | Risk engine | `LOW` (<0.35) / `MEDIUM` (0.35–0.55) / `HIGH` (0.55–0.75) / `CRITICAL` (≥0.75). |
+| `risk_score` | float 0–1 | `gfw_ingest.py` (live) / `risk.py` (seed) | Deterministic score. See Risk Engine section below. |
+| `risk_level` | enum | Risk engine | `LOW` (<0.45) / `MEDIUM` (0.45–0.60) / `HIGH` (0.60–0.80) / `CRITICAL` (≥0.80). |
 | `sar_confidence` | float 0–1 | YOLO / GFW | Detection confidence from the underlying SAR model. |
 | `image_quality` | enum | Pipeline | `"Good"` / `"Degraded"` / `"Poor"`. Degrades `effective_conf` in risk formula. |
 | `ais_matched` | bool | GFW / AISStream | Whether a matching AIS broadcast was found within 2 km / ±3 h. `false` = potential dark vessel. |
 | `ais_data_available` | bool | Pipeline | Whether AIS coverage existed for this area and time. `false` = absence of data, not evidence of evasion. |
 | `matching_method` | string | GFW / system | Describes the AIS matching algorithm. GFW does server-side matching; annotated as `"GFW server-side AIS cross-match"`. |
 | `inside_mpa` | bool | `mpa_index.py` | Point-in-polygon test against WDPA MPA polygons (Shapely STRtree). |
-| `near_mpa` | bool | `mpa_index.py` | Distance to nearest MPA boundary ≤ 5 km. |
+| `near_mpa` | bool | `mpa_index.py` | Distance to nearest MPA boundary ≤ 10 km (`NEAR_MPA_KM`). |
 | `mpa_name` | string | WDPA | Name of the nearest MPA. |
 | `distance_to_mpa_km` | float | `mpa_index.py` | Geodesic distance in km from detection point to nearest MPA boundary. |
 | `distance_from_port_km` | float | `enrich.py` | Geodesic distance in km to nearest OSM port/marina. |
@@ -72,47 +72,56 @@ The `risk_event` is the spine of the application. The live ingestion pipeline pr
 
 ## Risk Engine Formula
 
+The **live** system scores detections additively as they are ingested from the
+Global Fishing Watch SAR feed (`backend/app/services/gfw_ingest.py::_score_detection`).
+Every term is transparent and explainable — there is no black box.
+
 ```
-effective_conf = detection_conf × image_quality_score
+score = 0.25                      # baseline: any SAR vessel detection
+      + 0.20  if not ais_matched  # no matching AIS identity — possible dark vessel
+      + mpa_proximity_bonus:      # proximity to a protected area (largest factor)
+            +0.45  if inside an MPA          (distance_to_mpa_km <= 0)
+            +0.30  if within 10 km of one    (<= 10)
+            +0.15  if within 50 km           (<= 50)
+            +0.00  otherwise (open ocean)
+      + 0.05  if detections > 1   # repeated presence at the same SAR cell
 
-if not ais_data_available:
-    ais_score = 0.3     ← neutral; absence of data ≠ guilt
-else:
-    ais_score = 0.0 if ais_matched else 1.0
-
-mpa_score = 1.0 if inside_mpa else (0.6 if near_mpa else 0.0)
-
-risk_score = (0.30 × effective_conf
-            + 0.25 × ais_score
-            + 0.25 × mpa_score
-            + 0.10 × fishing_score
-            + 0.10 × repeated_activity_score)
+score = min(score, 0.99)          # capped; nothing is ever "certain"
 
 risk_level:
-    CRITICAL  if risk_score ≥ 0.75
-    HIGH      if risk_score ≥ 0.55
-    MEDIUM    if risk_score ≥ 0.35
+    CRITICAL  if score >= 0.80
+    HIGH      if score >= 0.60
+    MEDIUM    if score >= 0.45
     LOW       otherwise
 ```
 
-**Weight rationale:**
+**Factor rationale:**
 
-| Factor | Weight | Rationale |
+| Factor | Contribution | Rationale |
 |---|---|---|
-| SAR detection confidence | 0.30 | Core signal — degraded by image quality |
-| AIS non-match | 0.25 | Strong indicator of dark-vessel behaviour |
-| MPA proximity | 0.25 | Ecological stakes — near/inside an MPA is the primary concern |
-| Fishing activity | 0.10 | GFW fishing signals (vessel behaviour patterns) |
-| Repeated activity | 0.10 | Historical presence at same location |
+| SAR detection baseline | 0.25 | A confirmed radar vessel is the starting signal |
+| No AIS identity | +0.20 | GFW could not match the hit to any AIS broadcast — the core dark-vessel signal |
+| MPA proximity | up to +0.45 | Ecological stakes — inside/near an MPA is the primary concern; tiered by distance |
+| Repeated presence | +0.05 | Multiple SAR detections at the same cell |
 
-**AIS matching rule:** spatial ≤ 2 km + time window ± 3 hours.
-**Near-MPA threshold:** ≤ 5 km from MPA boundary.
+**Near-MPA threshold:** ≤ 10 km from the MPA boundary (`mpa_index.NEAR_MPA_KM`).
 **Confidence threshold:** 0.45 — tuned for recall (a missed dark vessel is worse than a false alarm).
-**YOLO agreement boost:** +0.10 to `risk_score` (capped at 0.99) when YOLO independently confirms a GFW detection.
+**YOLO agreement boost:** +0.10 to `risk_score` (capped at 0.99) when an officer's on-demand YOLO check independently confirms a GFW detection (`verify.py::_AGREEMENT_BOOST`).
 
-**Worked example — bar-reef-003:**
-- conf=0.70, ais_matched=False, ais_data_available=True, inside_mpa=False, near_mpa=True, image_quality=1.0
-- `0.30×0.70 + 0.25×1.0 + 0.25×0.6 + 0 + 0 = 0.21 + 0.25 + 0.15 = 0.61 → HIGH`
+**Worked example — a dark vessel inside an MPA:**
+- `ais_matched=False`, `inside_mpa=True` (distance 0 km), single detection
+- `0.25 + 0.20 + 0.45 = 0.90 → CRITICAL`
+- If the same cell shows repeated detections: `0.90 + 0.05 = 0.95 → CRITICAL`
+
+**Worked example — a dark vessel ~8 km from an MPA boundary:**
+- `ais_matched=False`, `near_mpa=True` (≤ 10 km)
+- `0.25 + 0.20 + 0.30 = 0.75 → HIGH`
+
+> **Offline seed-data note:** The bundled `risk_events.json` fallback (used only
+> when no `GFW_API_TOKEN` is configured) was generated by the offline ML pipeline
+> (`ml/pipeline/risk.py`), which uses a more detailed weighted variant with a
+> `bar-reef-NNN` id scheme. In any deployed environment with a GFW token, live
+> ingestion replaces it and the additive formula above is authoritative.
 
 ---
 

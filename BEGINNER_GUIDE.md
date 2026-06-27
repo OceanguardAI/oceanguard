@@ -50,14 +50,14 @@ GFW compares each radar detection to nearby AIS broadcasts. If a bright spot has
 At startup, the OceanGuard backend calls the GFW API and loads the latest dark-vessel detections into memory. This happens automatically — no manual step needed.
 
 ### Step 4 — Risk scoring
-For each detection, the system calculates a risk score using a fixed formula:
-- How confident was the radar detection? (30%)
-- Was AIS absent? (25%)
-- Is the vessel near or inside an MPA? (25%)
-- Does GFW show fishing activity patterns? (10%)
-- Has this location been flagged before? (10%)
+For each detection, the system builds up a risk score by adding transparent points:
+- **0.25** — baseline, just for being a real radar vessel detection
+- **+0.20** — if there is no matching AIS identity (a possible dark vessel)
+- **+0.45 / +0.30 / +0.15** — for being inside an MPA / within 10 km / within 50 km
+- **+0.05** — if the same spot has been detected more than once
 
-This formula is fully transparent — every number can be checked by hand.
+The total is capped at 0.99. This is fully transparent — every point can be
+checked by hand, and there is no black box.
 
 ### Step 5 — Gemini explains it
 Google's Gemini 2.5 Flash AI model reads the risk score and evidence and writes a 2–3 sentence plain-English explanation: why this was flagged, and what is uncertain about it.
@@ -214,10 +214,10 @@ Every detection gets a score from 0 to 1. Here is how to read it:
 
 | Score | Level | Color | Meaning |
 |---|---|---|---|
-| 0.00 – 0.34 | LOW | 🟢 Green | Weak signal, low confidence, or far from any MPA |
-| 0.35 – 0.54 | MEDIUM | 🟡 Yellow | Some concerning signals but not urgent |
-| 0.55 – 0.74 | HIGH | 🟠 Orange | Dark vessel near an MPA — patrol recommended |
-| 0.75 – 1.00 | CRITICAL | 🔴 Red | Dark vessel inside or very close to MPA — immediate review |
+| 0.00 – 0.44 | LOW | 🟢 Green | Open-water detection, far from any MPA |
+| 0.45 – 0.59 | MEDIUM | 🟡 Yellow | Some concerning signals but not urgent |
+| 0.60 – 0.79 | HIGH | 🟠 Orange | Dark vessel near an MPA — patrol recommended |
+| 0.80 – 0.99 | CRITICAL | 🔴 Red | Dark vessel inside or very close to MPA — immediate review |
 
 **The score is never a guess.** It is computed from the exact formula in `docs/data-dictionary.md`. Any officer can verify it by hand.
 

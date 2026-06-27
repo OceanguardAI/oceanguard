@@ -89,7 +89,7 @@ OceanGuard is a four-tier decision-support system. The ML pipeline (offline, bat
 
 The risk score and risk level are computed by a deterministic function with explicit weights and thresholds. Gemini 2.5 Flash is used only to explain the result in plain language — it never changes the score.
 
-**Why this matters:** An enforcement authority needs to answer "why did this get flagged?" with a traceable audit trail. A weighted formula is auditable; a neural network output is not.
+**Why this matters:** An enforcement authority needs to answer "why did this get flagged?" with a traceable audit trail. A deterministic additive formula is auditable; a neural network output is not.
 
 ### 2. GFW as Primary Detection Feed
 
