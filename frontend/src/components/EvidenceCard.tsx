@@ -258,7 +258,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
       )}
 
       {/* Fields grid */}
-      <div className="p-4 grid grid-cols-2 gap-4 border-b border-ocean-700/30 bg-ocean-900/20">
+      <div className="grid grid-cols-1 gap-4 border-b border-ocean-700/30 bg-ocean-900/20 p-4 sm:grid-cols-2">
         <FieldRow
           label="Location"
           icon={<Map className="w-2.5 h-2.5" />}
@@ -288,7 +288,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
           value={`${(event.sar_confidence * 100).toFixed(1)}% · ${event.image_quality}`}
         />
         {event.recommended_action && (
-          <div className="col-span-2">
+          <div className="sm:col-span-2">
             <FieldRow
               label="Recommended Action"
               icon={<Shield className="w-2.5 h-2.5" />}
@@ -347,7 +347,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
 
       {/* Review Actions */}
       <div className="p-4 bg-ocean-900/30">
-        <div className="flex items-center justify-between flex-wrap gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="text-xs text-slate-500">
             Status:&nbsp;
             <span className={`font-semibold ${event.review_status === "Confirmed Risk" ? "text-risk-critical" : event.review_status === "False Positive" ? "text-slate-400" : "text-slate-300"}`}>
@@ -355,7 +355,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
             </span>
           </div>
           {event.review_status === "Pending" && (
-            <div className="flex gap-2">
+            <div className="flex flex-col gap-2 sm:flex-row">
               <GradientButton variant="ghost" size="xs" onClick={() => handleReview("False Positive")}>
                 <XCircle className="w-3 h-3" /> False Positive
               </GradientButton>

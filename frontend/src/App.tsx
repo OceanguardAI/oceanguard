@@ -33,6 +33,23 @@ const RISK_DOT: Record<string, string> = {
   CRITICAL: "#dc2626", HIGH: "#f97316", MEDIUM: "#fbbf24", LOW: "#22c55e",
 };
 
+function useMediaQuery(query: string) {
+  const getMatches = () =>
+    typeof window !== "undefined" ? window.matchMedia(query).matches : false;
+
+  const [matches, setMatches] = useState(getMatches);
+
+  useEffect(() => {
+    const media = window.matchMedia(query);
+    const handleChange = () => setMatches(media.matches);
+    handleChange();
+    media.addEventListener("change", handleChange);
+    return () => media.removeEventListener("change", handleChange);
+  }, [query]);
+
+  return matches;
+}
+
 /** Pick the most compelling detection for a scripted demo. Live data is
  *  gfw-sar-NNNN (no fixed ids), so we choose by signal, not id: a dark vessel
  *  inside an MPA is the strongest story, then any inside-MPA, then the
@@ -236,6 +253,7 @@ function SweepPanel({
 }
 
 export default function App() {
+  const isMobile = useMediaQuery("(max-width: 1023px)");
   const [page, setPage]                   = useState<Page>("landing");
   const [events, setEvents]               = useState<RiskEvent[]>([]);
   const [selectedEvent, setSelectedEvent] = useState<RiskEvent | null>(null);
@@ -283,6 +301,7 @@ export default function App() {
   const sweepActive = sweepBbox !== null;
 
   const handleScanPick = (lat: number, lon: number) => {
+    if (isMobile) setLeftPanel(null);
     setScanPoint({ lat, lon });
     setScanResult(null);
     setScanError(null);
@@ -304,6 +323,7 @@ export default function App() {
 
   const handleSweep = () => {
     if (!mapBounds) return;
+    if (isMobile) setLeftPanel(null);
     // Point-scan and assistant step aside for the sweep result.
     closeScan();
     setAssistantOpen(false);
@@ -335,6 +355,7 @@ export default function App() {
       setEvidenceOpen(false);
       return;
     }
+    if (isMobile) setLeftPanel(null);
     closeSweep();
     closeScan();
     setAssistantOpen(false);
@@ -376,6 +397,7 @@ export default function App() {
   // Selecting a detection (from the map, queue, or patrol board) brings its
   // evidence to the front and steps the assistant aside so it doesn't cover it.
   const handleSelect = (e: RiskEvent) => {
+    if (isMobile) setLeftPanel(null);
     setSelectedEvent(e);
     setEvidenceOpen(true);
     setAssistantOpen(false);
@@ -410,8 +432,16 @@ export default function App() {
     setSelectedEvent((curr) => (curr?.id === updated.id ? updated : curr));
   };
 
-  const toggleLeft = (id: Exclude<LeftPanel, null>) =>
-    setLeftPanel((curr) => (curr === id ? null : id));
+  const toggleLeft = (id: Exclude<LeftPanel, null>) => {
+    const next = leftPanel === id ? null : id;
+    if (next && isMobile) {
+      closeSweep();
+      closeScan();
+      setAssistantOpen(false);
+      setEvidenceOpen(false);
+    }
+    setLeftPanel(next);
+  };
 
   const kpis = [
     {
@@ -483,6 +513,12 @@ export default function App() {
   // First load with nothing yet: show a "connecting" state and keep the rest of
   // the console clear until detections arrive.
   const coldStart = eventsLoading && events.length === 0 && !eventsError;
+  const leftPanelClass = isMobile
+    ? "left-2 right-2 bottom-2 top-auto h-[min(30rem,calc(100vh-10.5rem))]"
+    : "top-3 left-3 bottom-3 w-[440px]";
+  const rightPanelClass = isMobile
+    ? "left-2 right-2 bottom-2 top-auto h-[min(38rem,calc(100vh-10.5rem))]"
+    : "top-3 right-3 bottom-3 w-[500px]";
 
   if (page === "landing") {
     return <LandingPage onLaunch={handleLaunch} onDemo={handleDemo} />;
@@ -498,43 +534,82 @@ export default function App() {
         className="flex flex-col h-screen overflow-hidden bg-ocean-950"
       >
         {/* Header */}
-        <header className="glass-dark border-b border-ocean-700/40 h-[52px] flex items-center justify-between px-4 shrink-0 z-30">
-          <button
-            onClick={() => setPage("landing")}
-            className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
-          >
-            <img src="/logo.png" alt="OceanGuard AI" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-teal-500/20" />
-            <span className="text-sm font-bold text-white tracking-tight">
-              OceanGuard <span className="text-teal-400">AI</span>
-              <span className="text-slate-500 font-normal ml-1.5 text-xs">· Sentinel Dashboard</span>
-            </span>
-          </button>
+        <header className="glass-dark border-b border-ocean-700/40 shrink-0 z-30">
+          <div className="hidden h-[52px] items-center justify-between px-4 lg:flex">
+            <button
+              onClick={() => setPage("landing")}
+              className="flex items-center gap-2.5 hover:opacity-80 transition-opacity"
+            >
+              <img src="/logo.png" alt="OceanGuard AI" className="w-8 h-8 rounded-lg object-cover shadow-lg shadow-teal-500/20" />
+              <span className="text-sm font-bold text-white tracking-tight">
+                OceanGuard <span className="text-teal-400">AI</span>
+                <span className="text-slate-500 font-normal ml-1.5 text-xs">· Sentinel Dashboard</span>
+              </span>
+            </button>
 
-          <nav className="flex items-center gap-1">
-            {([
-              { id: "dashboard" as Tab, icon: Activity,  label: "Monitoring"    },
-              { id: "metrics"   as Tab, icon: BarChart3, label: "ML Validation" },
-              { id: "sources"   as Tab, icon: Database,  label: "Data Sources"  },
-            ]).map(({ id, icon: Icon, label }) => (
-              <button
-                key={id}
-                onClick={() => setActiveTab(id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
-                  activeTab === id
-                    ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
-                    : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50"
-                }`}
-              >
-                <Icon className="w-3.5 h-3.5" />
-                {label}
-              </button>
-            ))}
-          </nav>
+            <nav className="flex items-center gap-1">
+              {([
+                { id: "dashboard" as Tab, icon: Activity,  label: "Monitoring"    },
+                { id: "metrics"   as Tab, icon: BarChart3, label: "ML Validation" },
+                { id: "sources"   as Tab, icon: Database,  label: "Data Sources"  },
+              ]).map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium transition-all duration-200 ${
+                    activeTab === id
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </div>
+
+          <div className="space-y-2 px-3 py-3 lg:hidden">
+            <button
+              onClick={() => setPage("landing")}
+              className="flex w-full items-center gap-2.5 text-left hover:opacity-80 transition-opacity"
+            >
+              <img src="/logo.png" alt="OceanGuard AI" className="w-9 h-9 rounded-xl object-cover shadow-lg shadow-teal-500/20" />
+              <div className="min-w-0">
+                <div className="truncate text-sm font-bold text-white tracking-tight">
+                  OceanGuard <span className="text-teal-400">AI</span>
+                </div>
+                <div className="text-[11px] text-slate-500">Sentinel Dashboard</div>
+              </div>
+            </button>
+
+            <nav className="flex items-center gap-2 overflow-x-auto pb-1">
+              {([
+                { id: "dashboard" as Tab, icon: Activity,  label: "Monitoring"    },
+                { id: "metrics"   as Tab, icon: BarChart3, label: "ML Validation" },
+                { id: "sources"   as Tab, icon: Database,  label: "Data Sources"  },
+              ]).map(({ id, icon: Icon, label }) => (
+                <button
+                  key={id}
+                  onClick={() => setActiveTab(id)}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                    activeTab === id
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" />
+                  {label}
+                </button>
+              ))}
+            </nav>
+          </div>
         </header>
 
         {/* Toolbar: panel navigation (left) + risk legend + KPIs + assistant (right) */}
         {activeTab === "dashboard" && (
-          <div className="shrink-0 flex items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-[1100] flex-wrap">
+          <>
+          <div className="hidden shrink-0 items-center gap-2 px-4 py-2 border-b border-ocean-700/30 bg-ocean-950/80 z-[1100] flex-wrap lg:flex">
             {/* Panel toggles */}
             <div className="flex items-center gap-1">
               {navChips.map(({ id, icon: Icon, label, tip }) => (
@@ -671,6 +746,158 @@ export default function App() {
               </Tooltip>
             </div>
           </div>
+          <div className="shrink-0 border-b border-ocean-700/30 bg-ocean-950/90 px-3 py-3 lg:hidden">
+            <div className="flex items-center gap-2 overflow-x-auto pb-1">
+              {navChips.map(({ id, icon: Icon, label, tip }) => (
+                <Tooltip key={id} title={tip.title} body={tip.body} highlight={tip.highlight} icon={Icon} align="left">
+                  <button
+                    onClick={() => toggleLeft(id)}
+                    className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                      leftPanel === id
+                        ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                        : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-transparent"
+                    }`}
+                  >
+                    <Icon className="w-3.5 h-3.5" />
+                    {label}
+                  </button>
+                </Tooltip>
+              ))}
+            </div>
+
+            <div className="mt-2 flex items-center gap-2 overflow-x-auto pb-1">
+              {(["CRITICAL", "HIGH", "MEDIUM", "LOW"] as const).map((lvl) => (
+                <span key={lvl} className="flex shrink-0 items-center gap-1 rounded-full border border-ocean-700/40 bg-ocean-900/70 px-2.5 py-1 text-[10px] text-slate-400">
+                  <span className="w-2 h-2 rounded-full shrink-0" style={{ background: RISK_DOT[lvl] }} />
+                  {lvl}
+                </span>
+              ))}
+              {eventsLoading && (
+                <span className="shrink-0 text-[11px] text-slate-600 animate-pulse">Loading…</span>
+              )}
+            </div>
+
+            <div className="mt-3 grid grid-cols-2 gap-2">
+              {kpis.map((kpi) => {
+                const Icon = kpi.icon;
+                return (
+                  <Tooltip key={kpi.label} title={kpi.tip.title} body={kpi.tip.body} highlight={kpi.tip.highlight} icon={Icon} align="center">
+                    <div className={`flex min-w-0 items-center gap-2 rounded-xl border border-ocean-700/30 px-3 py-2 ${kpi.bg}`}>
+                      <Icon className={`w-3.5 h-3.5 shrink-0 ${kpi.color}`} />
+                      <div className="min-w-0">
+                        <div className="truncate text-[10px] uppercase tracking-[0.18em] text-slate-500">{kpi.label}</div>
+                        <div className={`text-sm font-bold tabular-nums ${kpi.color}`}>
+                          <AnimatedNumber value={kpi.value} />
+                        </div>
+                      </div>
+                    </div>
+                  </Tooltip>
+                );
+              })}
+            </div>
+
+            <div className="mt-3 flex items-center gap-2 overflow-x-auto pb-1">
+              {yoloOk && (
+                <>
+                  <Tooltip
+                    title="Sweep Area"
+                    body="Scans the whole patch of ocean you're looking at with our own ship-detection AI, using the freshest radar satellite pass. It checks every contact against the global ship database."
+                    highlight={{ label: "Why scan an area", text: "The global feed only sees ships that broadcast their ID. This finds the ones hiding — vessels with their transponder off that no other system logged. This is the heart of catching illegal activity." }}
+                    icon={Radar}
+                    align="center"
+                  >
+                    <button
+                      onClick={handleSweep}
+                      disabled={sweepLoading || !mapBounds}
+                      className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 disabled:opacity-50 ${
+                        sweepActive
+                          ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-ocean-700/30"
+                      }`}
+                    >
+                      <Radar className="w-3.5 h-3.5" />
+                      {sweepLoading ? "Sweeping…" : "Sweep area"}
+                    </button>
+                  </Tooltip>
+                  <Tooltip
+                    title="Point Scan"
+                    body="Pick one exact spot on the map and our AI checks just that location on the latest radar image — a focused look rather than a wide sweep."
+                    highlight={{ label: "Why scan a point", text: "Use it when you have a tip-off or a hunch about a specific coordinate, or to double-check a single contact, without waiting for a full area sweep to finish." }}
+                    icon={ScanSearch}
+                    align="center"
+                  >
+                    <button
+                      onClick={() => {
+                        if (isMobile) setLeftPanel(null);
+                        setScanMode((v) => !v);
+                        if (scanMode) closeScan();
+                        else {
+                          closeSweep();
+                          setAssistantOpen(false);
+                          setEvidenceOpen(false);
+                        }
+                      }}
+                      className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                        scanMode
+                          ? "bg-cyan-400/15 text-cyan-300 border border-cyan-400/30"
+                          : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-ocean-700/30"
+                      }`}
+                    >
+                      <ScanSearch className="w-3.5 h-3.5" />
+                      {scanMode ? "Tap map" : "Point scan"}
+                    </button>
+                  </Tooltip>
+                </>
+              )}
+              <Tooltip
+                title="Evidence Card"
+                body="Opens the full case file for the vessel you've selected: its radar snapshot, a plain-language write-up of why it was flagged, and buttons to confirm or dismiss it."
+                highlight={{ label: "When to use it", text: "Open it before making a call on a detection. It gathers everything you need to decide in one place — and reopens the card if you closed it." }}
+                icon={FileText}
+                align="center"
+              >
+                <button
+                  onClick={toggleEvidence}
+                  disabled={!selectedEvent}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 disabled:opacity-40 ${
+                    showingEvidence
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-ocean-700/30"
+                  }`}
+                >
+                  <FileText className="w-3.5 h-3.5" />
+                  Evidence
+                </button>
+              </Tooltip>
+              <Tooltip
+                title="AI Assistant"
+                body="A chat box where you can ask questions in plain English — “how is the risk score worked out?”, “what does dark vessel mean?”, or “which one is most urgent right now?”"
+                highlight={{ label: "When to use it", text: "Use it when a term or number on screen isn't clear, or to get a quick second opinion on the data without digging through menus." }}
+                icon={MessageSquare}
+                align="center"
+              >
+                <button
+                  onClick={() => {
+                    if (isMobile) {
+                      setLeftPanel(null);
+                      closeSweep();
+                      closeScan();
+                    }
+                    setAssistantOpen((v) => !v);
+                  }}
+                  className={`flex shrink-0 items-center gap-1.5 rounded-xl px-3 py-2 text-xs font-medium transition-all duration-200 ${
+                    assistantOpen
+                      ? "bg-teal-400/12 text-teal-400 border border-teal-400/20"
+                      : "text-slate-400 hover:text-slate-200 hover:bg-ocean-800/50 border border-ocean-700/30"
+                  }`}
+                >
+                  <MessageSquare className="w-3.5 h-3.5" />
+                  Assistant
+                </button>
+              </Tooltip>
+            </div>
+          </div>
+          </>
         )}
 
         {/* Main content */}
@@ -703,7 +930,7 @@ export default function App() {
                       onClose={() => setLeftPanel(null)}
                       framed={leftPanel === "detections"}
                       scroll={leftPanel !== "detections"}
-                      className="top-3 left-3 bottom-3 w-[440px]"
+                      className={leftPanelClass}
                     >
                       {leftPanel === "detections" && (
                         <RiskTable events={events} selected={selectedEvent} onSelect={handleSelect} />
@@ -718,7 +945,7 @@ export default function App() {
                     <Floating
                       key="sweep"
                       onClose={closeSweep}
-                      className="top-3 right-3 bottom-3 w-[500px]"
+                      className={rightPanelClass}
                     >
                       <SweepPanel
                         loading={sweepLoading}
@@ -730,7 +957,7 @@ export default function App() {
                     <Floating
                       key="scan"
                       onClose={closeScan}
-                      className="top-3 right-3 bottom-3 w-[500px]"
+                      className={rightPanelClass}
                     >
                       <ScanPanel
                         point={scanPoint!}
@@ -744,7 +971,7 @@ export default function App() {
                       key="assistant"
                       onClose={() => setAssistantOpen(false)}
                       scroll={false}
-                      className="top-3 right-3 bottom-3 w-[500px]"
+                      className={rightPanelClass}
                     >
                       <AskOceanGuard />
                     </Floating>
@@ -753,7 +980,7 @@ export default function App() {
                       <Floating
                         key="evidence"
                         onClose={() => setEvidenceOpen(false)}
-                        className="top-3 right-3 bottom-3 w-[500px]"
+                        className={rightPanelClass}
                       >
                         <EvidenceCard event={selectedEvent} onUpdate={updateEvent} />
                       </Floating>
@@ -807,7 +1034,7 @@ export default function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="absolute inset-0 overflow-y-auto p-8"
+              className="absolute inset-0 overflow-y-auto p-4 sm:p-6 lg:p-8"
             >
               <ModelMetricsComponent />
             </motion.div>
@@ -819,7 +1046,7 @@ export default function App() {
               initial={{ opacity: 0, y: 8 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ duration: 0.3 }}
-              className="absolute inset-0 overflow-y-auto p-8"
+              className="absolute inset-0 overflow-y-auto p-4 sm:p-6 lg:p-8"
             >
               <DataSources />
             </motion.div>
@@ -831,4 +1058,3 @@ export default function App() {
     </AnimatePresence>
   );
 }
-

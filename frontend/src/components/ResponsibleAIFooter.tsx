@@ -3,8 +3,8 @@ import { AlertCircle } from "lucide-react";
 
 export default function ResponsibleAIFooter() {
   return (
-    <footer className="shrink-0 border-t border-ocean-700/20 bg-ocean-950/80 py-2 px-4">
-      <div className="max-w-7xl mx-auto flex items-center justify-center gap-2 text-[11px] text-slate-600">
+    <footer className="shrink-0 border-t border-ocean-700/20 bg-ocean-950/80 px-3 py-2 sm:px-4">
+      <div className="mx-auto flex max-w-7xl flex-col items-center justify-center gap-1 text-center text-[10px] text-slate-600 sm:flex-row sm:gap-2 sm:text-[11px]">
         <AlertCircle className="w-3 h-3 text-risk-medium shrink-0" />
         <span className="font-semibold text-slate-500">Responsible AI Notice:</span>
         <span>
