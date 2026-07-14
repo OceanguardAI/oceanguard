@@ -1,5 +1,7 @@
 # OceanGuard AI — System Architecture
 
+See also: `docs/live-sar-and-user-selection-flow.md` for the detailed live SAR, point-scan, and area-sweep request flow.
+
 ## Overview
 
 OceanGuard is a four-tier decision-support system. The ML pipeline (offline, batch) is decoupled from the live ingestion layer, which is decoupled from the API, which is decoupled from the UI. Each tier can be developed, tested, and deployed independently.
