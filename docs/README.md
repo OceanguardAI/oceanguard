@@ -15,10 +15,11 @@ If you want to learn the project after having developed it with agents, start he
 7. `live-sar-and-user-selection-flow.md`
 8. `modules/agents-and-explanations.md`
 9. `modules/ml-pipeline-and-models.md`
-10. `modules/deployment-and-runtime.md`
-11. `data-dictionary.md`
-12. `responsible-ai.md`
-13. `GCP_API_SETUP_CLI.md`
+10. `modules/model-training-and-evaluation.md`
+11. `modules/deployment-and-runtime.md`
+12. `data-dictionary.md`
+13. `responsible-ai.md`
+14. `GCP_API_SETUP_CLI.md`
 
 ## What each document is for
 
@@ -55,6 +56,9 @@ If you want to learn the project after having developed it with agents, start he
 
 - `modules/ml-pipeline-and-models.md`
   - Offline ML workflow, artifacts, model validation, risk-event building, and backend handoff.
+
+- `modules/model-training-and-evaluation.md`
+  - Why YOLO11n was used, why mAP/precision/recall were chosen, what the tracked epoch history shows, and how the published model numbers should be interpreted.
 
 - `modules/deployment-and-runtime.md`
   - Docker, GitHub Actions, Cloud Run, runtime services, and environment configuration.
