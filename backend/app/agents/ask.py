@@ -368,10 +368,6 @@ def _fallback(question: str) -> AskResponse:
     if matched_event is not None:
         return AskResponse(answer=_summarise_event(matched_event))
 
-    methodology = _methodology_answer(lowered)
-    if methodology is not None:
-        return methodology
-
     if "highest" in lowered or "most" in lowered or "bar-reef-003" in lowered:
         return _highest_risk_answer()
 
@@ -387,6 +383,18 @@ def _fallback(question: str) -> AskResponse:
                 f"Resolved={counts.get('Resolved', 0)}."
             )
         )
+
+    if "map50" in lowered or "precision" in lowered or "recall" in lowered or "model" in lowered:
+        metrics_path = settings.data_dir / "metrics.json"
+        if metrics_path.exists():
+            metrics = _load_json(metrics_path)
+            return AskResponse(
+                answer=(
+                    f"The backend metrics file reports {metrics['model']} trained on {metrics['dataset']} "
+                    f"with map50={metrics['map50']}, precision={metrics['precision']}, "
+                    f"recall={metrics['recall']}, and {metrics['detections_on_real_scene']} detections on the validation scene."
+                )
+            )
 
     if "how many" in lowered or "count" in lowered or "total" in lowered:
         summary = repo.summary()
@@ -413,18 +421,6 @@ def _fallback(question: str) -> AskResponse:
         return AskResponse(
             answer=answer
         )
-
-    if "map50" in lowered or "precision" in lowered or "recall" in lowered or "model" in lowered:
-        metrics_path = settings.data_dir / "metrics.json"
-        if metrics_path.exists():
-            metrics = _load_json(metrics_path)
-            return AskResponse(
-                answer=(
-                    f"The backend metrics file reports {metrics['model']} trained on {metrics['dataset']} "
-                    f"with map50={metrics['map50']}, precision={metrics['precision']}, "
-                    f"recall={metrics['recall']}, and {metrics['detections_on_real_scene']} detections on the validation scene."
-                )
-            )
 
     if "near mpa" in lowered or "inside mpa" in lowered or (
         ("mpa" in lowered or "protected area" in lowered or "protected" in lowered)
@@ -458,6 +454,10 @@ def _fallback(question: str) -> AskResponse:
                         f"at {port['lat']}N, {port['lon']}E from {port.get('source', 'the backend data store')}."
                     )
                 )
+
+    methodology = _methodology_answer(lowered)
+    if methodology is not None:
+        return methodology
 
     return AskResponse(
         answer=(

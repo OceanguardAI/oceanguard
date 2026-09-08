@@ -20,6 +20,7 @@ If you want to learn the project after having developed it with agents, start he
 12. `data-dictionary.md`
 13. `responsible-ai.md`
 14. `GCP_API_SETUP_CLI.md`
+15. `system-health-and-recovery-plan.md`
 
 ## What each document is for
 
@@ -73,6 +74,9 @@ If you want to learn the project after having developed it with agents, start he
 
 - `GCP_API_SETUP_CLI.md`
   - Practical setup for GCP, GitHub Actions, and cloud secrets/runtime configuration.
+
+- `system-health-and-recovery-plan.md`
+  - Current full-system health status, degraded integrations, and the recovery order for API keys, Gemini, GFW ingest, CORS, and Secret Manager.
 
 ## Best way to learn this repo
 

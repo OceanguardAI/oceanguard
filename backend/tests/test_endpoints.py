@@ -235,7 +235,7 @@ def test_agent_status_without_api_key(client: TestClient) -> None:
     assert body["model"] == settings.gemini_model
     assert body["agent_max_tool_rounds"] == 5
     assert body["agent_narrator_max_tokens"] == 500
-    assert body["agent_briefing_max_tokens"] == 400
+    assert body["agent_briefing_max_tokens"] == 600
     assert body["agent_patrol_max_tokens"] == 600
     assert body["agent_ask_max_tokens"] == 700
 
