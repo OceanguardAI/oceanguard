@@ -34,7 +34,7 @@ class Settings(BaseSettings):
     aisstream_api_key: str = ""
     # Monitored area: min_lon, min_lat, max_lon, max_lat. Default = whole world,
     # so we surface dark vessels globally and rank them by MPA proximity.
-    gfw_region_bbox: list[float] = [-180.0, -90.0, 180.0, 90.0]
+    gfw_region_bbox: Annotated[list[float], NoDecode] = [-180.0, -90.0, 180.0, 90.0]
     # How many days back to query SAR detections each ingest run. Kept short for
     # the global query, which returns tens of thousands of detections per week.
     gfw_lookback_days: int = 7
@@ -61,7 +61,13 @@ class Settings(BaseSettings):
     @classmethod
     def _split_bbox(cls, value: object) -> object:
         if isinstance(value, str):
-            return [float(item.strip()) for item in value.split(",") if item.strip()]
+            text = value.strip()
+            if text.startswith("["):
+                try:
+                    return json.loads(text)
+                except json.JSONDecodeError:
+                    pass
+            return [float(item.strip()) for item in text.split(",") if item.strip()]
         return value
 
     @field_validator("cors_origins", mode="before")

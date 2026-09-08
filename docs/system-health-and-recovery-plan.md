@@ -48,6 +48,7 @@ The following live checks passed:
 | Backend Sentinel chip fetch | `200 OK`, image returned |
 | AISStream sample | `200 OK`, live vessels returned |
 | YOLO live point check | `200 OK`, inference completed |
+| GFW regional live ingest | `56` current backend events after repair |
 | CORS from main frontend URL | `200 OK` |
 | CORS from project-number frontend alias | `200 OK` after manual Cloud Run update |
 
@@ -102,10 +103,10 @@ Most likely fix:
 Observed behavior:
 
 - `/ingest/status` shows `gfw_token_configured=true`
-- `/ingest/gfw` returned `200 OK`
-- the returned ingest count was `0`
-- Cloud Run logs show startup ingest loaded `0` GFW SAR events
-- direct follow-up GFW diagnostics returned `429 Too Many Requests`
+- the earlier deployed whole-world, 7-day query returned `0` current events
+- direct follow-up GFW diagnostics also returned `429 Too Many Requests` while a whole-world report was already running
+- a smaller Sri Lanka bbox with a 120-day lookback returned live rows from GFW
+- after updating Cloud Run to that regional 120-day setting, the backend loaded `56` GFW events
 
 The GFW error said the application token is allowed only one concurrent report and that a whole-world report was already running.
 
@@ -113,12 +114,13 @@ What this means:
 
 - the token is present
 - this does not look like an expired-token error
-- the current whole-world GFW query is too heavy and can lock the token
+- whole-world GFW queries are too heavy for this token and can lock report generation
+- the short 7-day window can be empty because the GFW SAR feed is not guaranteed to have very recent rows in the selected area
 - Cloud Run autoscaling can make this worse because each new backend instance may start a live ingest
 
 Most likely fixes:
 
-- stop using startup whole-world GFW ingest for every Cloud Run instance
+- avoid startup whole-world GFW ingest for every Cloud Run instance
 - move GFW ingest to one controlled job or manual refresh path
 - use smaller region bboxes for demo-critical areas
 - add a cooldown/backoff when GFW returns `429`
@@ -290,13 +292,13 @@ Recommended production behavior:
 - use cached last-known-good results when GFW is busy
 - add `429` handling with a clear message like "GFW report already running; retry later"
 
-Suggested short-term hackathon setting:
+Applied short-term demo setting:
 
 ```text
 GFW_REGION_BBOX=78.0,5.5,82.5,10.0
-GFW_LOOKBACK_DAYS=30
+GFW_LOOKBACK_DAYS=120
 GFW_MAX_EVENTS=600
-GFW_INGEST_ON_STARTUP=false
+GFW_INGEST_ON_STARTUP=true
 ```
 
 Then trigger refresh manually only when needed:
@@ -356,7 +358,7 @@ Working:
 
 - frontend loads
 - backend routes serve
-- seed detections load
+- regional GFW detections load
 - model metrics serve
 - global MPA index loads
 - Sentinel Hub chip fetch works
@@ -366,6 +368,6 @@ Working:
 Needs repair:
 
 - Gemini/Vertex AI is blocked by a GCP billing/quota/account denial
-- GFW whole-world ingest is currently rate-limited/locked and returning no live events
+- whole-world GFW ingest is too heavy/rate-limited; regional GFW ingest is currently working
 - CORS is fixed live, but the GitHub `CORS_ORIGINS` variable should be updated to preserve it
 - runtime credentials should be moved from plain Cloud Run env vars to Secret Manager references
