@@ -102,40 +102,43 @@ class PostgresActivityStore:
         return psycopg.connect(self._dsn, row_factory=dict_row, connect_timeout=10)
 
     def replace(self, items: list[ActivityAggregate]) -> int:
+        with self._connect() as conn:
+            return self.write_snapshot(conn, items)
+
+    def write_snapshot(self, conn, items: list[ActivityAggregate]) -> int:
         snapshot_id = _snapshot_id(items)
         start = items[0].report_start if items else None
         end = items[0].report_end if items else None
         if any(item.report_start != start or item.report_end != end for item in items):
             raise ValueError("Activity snapshot contains multiple report windows")
-        with self._connect() as conn:
-            if items:
-                with conn.cursor() as cur:
-                    cur.executemany(
-                        """INSERT INTO og_activity
-                           (snapshot_id, id, dataset, detection_count, report_start,
-                            report_end, provider_time, ingested_at, geom)
-                           VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
-                                   ST_SetSRID(ST_MakePoint(%s, %s), 4326))
-                           ON CONFLICT (snapshot_id, id) DO NOTHING""",
-                        [
-                            (snapshot_id, item.id, item.dataset, item.detection_count,
-                             item.report_start, item.report_end, item.provider_time,
-                             item.ingested_at, item.lon, item.lat)
-                            for item in items
-                        ],
-                    )
-            conn.execute(
-                """INSERT INTO og_source_state
-                   (source_key, last_attempt_at, last_success_at, error_category,
-                    snapshot_id, report_start, report_end)
-                   VALUES ('gfw_4wings', now(), now(), NULL, %s, %s, %s)
-                   ON CONFLICT (source_key) DO UPDATE SET
-                     last_attempt_at = now(), last_success_at = now(),
-                     error_category = NULL, snapshot_id = EXCLUDED.snapshot_id,
-                     report_start = EXCLUDED.report_start,
-                     report_end = EXCLUDED.report_end""",
-                (snapshot_id, start, end),
-            )
+        if items:
+            with conn.cursor() as cur:
+                cur.executemany(
+                    """INSERT INTO og_activity
+                       (snapshot_id, id, dataset, detection_count, report_start,
+                        report_end, provider_time, ingested_at, geom)
+                       VALUES (%s, %s, %s, %s, %s, %s, %s, %s,
+                               ST_SetSRID(ST_MakePoint(%s, %s), 4326))
+                       ON CONFLICT (snapshot_id, id) DO NOTHING""",
+                    [
+                        (snapshot_id, item.id, item.dataset, item.detection_count,
+                         item.report_start, item.report_end, item.provider_time,
+                         item.ingested_at, item.lon, item.lat)
+                        for item in items
+                    ],
+                )
+        conn.execute(
+            """INSERT INTO og_source_state
+               (source_key, last_attempt_at, last_success_at, error_category,
+                snapshot_id, report_start, report_end)
+               VALUES ('gfw_4wings', now(), now(), NULL, %s, %s, %s)
+               ON CONFLICT (source_key) DO UPDATE SET
+                 last_attempt_at = now(), last_success_at = now(),
+                 error_category = NULL, snapshot_id = EXCLUDED.snapshot_id,
+                 report_start = EXCLUDED.report_start,
+                 report_end = EXCLUDED.report_end""",
+            (snapshot_id, start, end),
+        )
         return len(items)
 
     def failure(self, error: Exception) -> None:

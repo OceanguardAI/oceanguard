@@ -6,7 +6,9 @@ from datetime import datetime, timezone
 from uuid import uuid4
 
 import pytest
+import psycopg
 
+from app.jobs.queue import PostgresJobQueue
 from app.models.schemas import ActivityAggregate, RiskEvent
 from app.store.activity import PostgresActivityStore
 from app.store.migrate import apply_migrations
@@ -51,3 +53,36 @@ def test_migration_restart_review_and_activity_survive_new_instances() -> None:
     assert page.items[0].id == activity.id
     restarted.failure(ValueError("invalid provider response"))
     assert PostgresActivityStore(TEST_DSN).page().data_state == "stale"
+
+
+def test_gfw_job_deduplication_retry_and_expired_lease_fencing() -> None:
+    assert TEST_DSN is not None
+    apply_migrations(TEST_DSN)
+    queue = PostgresJobQueue(TEST_DSN)
+    key = f"integration-gfw-{uuid4()}"
+    job_id = queue.enqueue_gfw(key)
+    assert queue.enqueue_gfw(key) == job_id
+    first = queue.claim()
+    assert first is not None and first.id == job_id
+    assert queue.fail(first, "timeout")
+    assert queue.status(job_id)["status"] == "queued"
+
+    with psycopg.connect(TEST_DSN) as conn:
+        conn.execute("UPDATE og_jobs SET available_at = now() - interval '1 minute' WHERE id = %s", (job_id,))
+    second = queue.claim()
+    assert second is not None and second.id == job_id and second.attempts == 2
+
+    with psycopg.connect(TEST_DSN) as conn:
+        conn.execute("UPDATE og_jobs SET lease_until = now() - interval '1 minute' WHERE id = %s", (job_id,))
+    third = queue.claim()
+    assert third is not None and third.id == job_id and third.attempts == 3
+    activity = PostgresActivityStore(TEST_DSN)
+    item = ActivityAggregate(
+        id=f"integration-{uuid4()}", dataset="test-sar", lat=9.0, lon=80.0,
+        detection_count=1, report_start="2026-09-01", report_end="2026-09-08",
+        provider_time=None, ingested_at=datetime.now(timezone.utc),
+    )
+    assert not queue.complete_gfw(second, activity, [item])
+    assert queue.complete_gfw(third, activity, [item])
+    assert queue.status(job_id)["status"] == "succeeded"
+    assert activity.page(bbox=(79.9, 8.9, 80.1, 9.1)).items[0].id == item.id

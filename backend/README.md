@@ -167,6 +167,31 @@ Do not point that test at production. Database-backed review and ingest routes
 still need authenticated access before production use. Snapshot retention and
 backup/restore drills are also pending.
 
+### Durable GFW refresh jobs
+
+After applying migrations with `DATABASE_URL` set, a separate worker can run a
+bounded GFW refresh. It does not require the API container to stay alive during
+the fetch. The same daily key enqueues only one job; provide a distinct key for
+an intentional re-run. A job may be retried after a provider failure or a lost
+worker lease, up to five attempts. Snapshot publication and job completion are
+one transaction, so an expired worker cannot publish over a newer claim.
+
+```powershell
+cd backend
+python -m app.store.migrate
+python -m app.jobs.cli enqueue-gfw
+python -m app.jobs.cli run-once
+```
+
+`run-once` handles at most one ready job, then exits. A scheduler must invoke
+the enqueue command daily and the worker command repeatedly to process retries;
+neither schedule nor a Cloud Run Job is configured by this code slice. Keep
+`GFW_API_TOKEN` in a managed secret, not in source control. The existing
+startup refresh and manual API path still operate independently until the
+queue has been validated against a live database and worker deployment. A
+provider or storage failure exits nonzero; the job remains queued for a later
+run unless its attempt limit was reached.
+
 ### Risk summary
 
 `GET /risk-summary` returns:

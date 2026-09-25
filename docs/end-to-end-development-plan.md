@@ -317,4 +317,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - When `DATABASE_URL` is supplied, the API selects PostgreSQL repositories for case records and GFW activity. Repeated identical GFW reports reuse a content-derived snapshot; changed reports retain separate snapshots. Review updates lock the case row and append a history record in one transaction.
 - Local mode remains available for development. No Cloud SQL database, credentials, or live migration was supplied, so the database path still requires integration and restart tests against a dedicated instance. Persistent observations, tracks, evidence objects, durable jobs, and authenticated mutations remain for subsequent slices.
 
+### Durable-job checkpoint (September 25, 2026)
+
+- A second migration adds a database-backed GFW refresh queue with stable deduplication keys, leased claims, bounded retry delays, and a terminal state after exhausted attempts. Lease-token fencing prevents a prior worker from completing a reclaimed job.
+- The finite worker command fetches one report and publishes the snapshot in the same transaction as job completion. Source failure retains the previous snapshot and records a sanitized failure category. Provider fetch and database storage failures remain distinct.
+- This is queue infrastructure, not a deployed schedule. A dedicated PostGIS integration test is opt-in; Cloud SQL, Cloud Run Jobs/Scheduler, live credentials, and production operation still require setup and validation. The API startup/manual refresh path remains in place for compatibility until cutover.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
