@@ -38,7 +38,7 @@ class Settings(BaseSettings):
     # How many days back to query SAR detections each ingest run. Kept short for
     # the global query, which returns tens of thousands of detections per week.
     gfw_lookback_days: int = 7
-    # Cap how many (highest-risk) detections we keep, so the map/store stay light.
+    # Legacy setting; activity is retained in full and paginated by the API.
     gfw_max_events: int = 600
     # Auto-ingest live data at startup when a GFW token is present.
     gfw_ingest_on_startup: bool = True

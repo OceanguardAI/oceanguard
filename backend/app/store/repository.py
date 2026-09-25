@@ -16,6 +16,11 @@ class RiskEventRepository:
         self._events: dict[str, RiskEvent] = {}
         self._path: Path | None = None
         self._lock = RLock()
+        self._mode = "not_loaded"
+
+    @property
+    def mode(self) -> str:
+        return self._mode
 
     def load(self) -> None:
         path = settings.data_dir / "risk_events.json"
@@ -28,6 +33,7 @@ class RiskEventRepository:
         raw = json.loads(path.read_text(encoding="utf-8"))
         self._path = path
         self._events = {item["id"]: RiskEvent(**item) for item in raw}
+        self._mode = "sample"
 
     def save(self) -> None:
         with self._lock:
@@ -52,6 +58,7 @@ class RiskEventRepository:
         """Replace the entire store with a fresh set of events (e.g. from a live feed)."""
         with self._lock:
             self._events = {event.id: event for event in events}
+            self._mode = "external"
             if persist:
                 self.save()
             return len(self._events)
@@ -61,6 +68,8 @@ class RiskEventRepository:
         with self._lock:
             for event in events:
                 self._events[event.id] = event
+            if events:
+                self._mode = "mixed" if self._mode in ("sample", "mixed") else "external"
             if persist:
                 self.save()
             return len(self._events)

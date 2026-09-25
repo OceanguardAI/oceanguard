@@ -1,35 +1,45 @@
-"""Endpoints to pull live detection data and refresh the in-memory store."""
+"""GFW activity reporting and external event ingestion endpoints."""
 from __future__ import annotations
 
-import json
-
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import settings
-from app.models.schemas import RiskEvent
+from app.models.schemas import ActivityPage, RiskEvent
 from app.services import gfw_ingest
+from app.store.activity import activity_store
 from app.store.repository import repo
 
 router = APIRouter()
 
 
-def _load_ports() -> list[dict]:
-    path = settings.data_dir / "ports.json"
-    if not path.exists():
-        return []
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    return payload if isinstance(payload, list) else []
-
-
 @router.get("/ingest/status")
 def ingest_status() -> dict[str, object]:
     return {
-        "live_source": "Global Fishing Watch SAR",
+        "live_source": "Global Fishing Watch 4Wings SAR presence report",
         "gfw_token_configured": gfw_ingest.ingestion_enabled(),
         "region_bbox": settings.gfw_region_bbox,
         "lookback_days": settings.gfw_lookback_days,
-        "events_loaded": len(repo.all()),
+        "activity": activity_store.status(),
+        "risk_events_mode": repo.mode,
     }
+
+
+@router.get("/activity/gfw", response_model=ActivityPage)
+def get_gfw_activity(
+    offset: int = Query(default=0, ge=0),
+    limit: int = Query(default=600, ge=1, le=1000),
+    bbox: str | None = Query(default=None, description="west,south,east,north"),
+) -> ActivityPage:
+    bounds = None
+    if bbox:
+        try:
+            values = tuple(float(part) for part in bbox.split(","))
+            if len(values) != 4 or values[0] >= values[2] or values[1] >= values[3]:
+                raise ValueError
+            bounds = values
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail="bbox must be west,south,east,north") from exc
+    return activity_store.page(offset=offset, limit=limit, bbox=bounds)
 
 
 @router.post("/ingest/gfw")
@@ -40,17 +50,19 @@ def ingest_gfw() -> dict[str, object]:
             detail="GFW_API_TOKEN is not configured. Add it to backend/.env to enable live ingestion.",
         )
     try:
-        events = gfw_ingest.fetch_live_events(ports=_load_ports())
+        activity = gfw_ingest.fetch_activity()
     except Exception as exc:  # network / auth / parse failures
-        raise HTTPException(status_code=502, detail=f"GFW ingestion failed: {exc}") from exc
+        activity_store.failure(exc)
+        raise HTTPException(
+            status_code=502,
+            detail=f"GFW report failed: {activity_store.status()['error_category']}",
+        ) from exc
 
-    count = repo.replace_all(events)
-    dark = sum(1 for e in events if not e.ais_matched)
+    count = activity_store.replace(activity)
     return {
-        "ingested": count,
-        "dark_vessels": dark,
-        "ais_matched": count - dark,
-        "source": "Global Fishing Watch SAR",
+        "aggregate_cells": count,
+        "source": "Global Fishing Watch 4Wings SAR presence report",
+        "record_type": "activity_aggregate",
     }
 
 

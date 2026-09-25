@@ -1,18 +1,10 @@
-"""Real-time AIS ingestion from AISStream.io.
-
-Cloud Run scales to zero and uses a request/response model, so we do NOT hold a
-persistent WebSocket. Instead we sample: connect, listen for a short window over
-the monitored bounding box, and return the latest position per vessel (MMSI).
-
-This live AIS snapshot is the evidence layer for dark-vessel confirmation: a SAR
-detection with no AIS vessel nearby is a stronger "dark" signal than one that
-sits on top of a broadcasting vessel.
-"""
+"""Short AISStream samples for current-position context, not historical coverage."""
 from __future__ import annotations
 
 import asyncio
 import json
 import math
+from datetime import datetime, timezone
 from typing import Any
 
 from app.core.config import settings
@@ -89,15 +81,42 @@ async def collect_ais(seconds: int = 20) -> list[dict[str, Any]]:
     return list(vessels.values())
 
 
-def confirms_dark(lat: float, lon: float, live_vessels: list[dict[str, Any]], radius_km: float = 2.0) -> bool:
-    """True when NO live AIS vessel is within `radius_km` of the detection.
+def sample_association(
+    lat: float,
+    lon: float,
+    observed_at: str | None,
+    live_vessels: list[dict[str, Any]],
+    *,
+    radius_km: float = 2.0,
+    max_age_seconds: int = 300,
+) -> tuple[str, list[str]]:
+    """Find recent nearby AIS candidates; a short sample cannot prove absence."""
+    if not observed_at or not live_vessels:
+        return "unavailable", []
+    try:
+        observed = datetime.fromisoformat(observed_at.replace("Z", "+00:00"))
+        if observed.tzinfo is None:
+            return "unavailable", []
+        age = abs((datetime.now(timezone.utc) - observed).total_seconds())
+        if age > max_age_seconds:
+            return "unavailable", []
+    except ValueError:
+        return "unavailable", []
 
-    A detection with no nearby AIS broadcast is a confirmed dark vessel; one that
-    coincides with a broadcasting vessel is likely a benign, identified ship.
-    """
-    for v in live_vessels:
-        if v.get("lat") is None or v.get("lon") is None:
+    candidates: list[str] = []
+    for vessel in live_vessels:
+        if vessel.get("lat") is None or vessel.get("lon") is None:
             continue
-        if _haversine_km(lat, lon, float(v["lat"]), float(v["lon"])) <= radius_km:
-            return False
-    return True
+        try:
+            message_time = datetime.fromisoformat(str(vessel["timestamp"]).replace("Z", "+00:00"))
+            if message_time.tzinfo is None or abs((message_time - observed).total_seconds()) > max_age_seconds:
+                continue
+            if _haversine_km(lat, lon, float(vessel["lat"]), float(vessel["lon"])) <= radius_km:
+                candidates.append(str(vessel["mmsi"]))
+        except (KeyError, TypeError, ValueError):
+            continue
+    if len(candidates) > 1:
+        return "ambiguous", candidates
+    if candidates:
+        return "matched", candidates
+    return "unavailable", []

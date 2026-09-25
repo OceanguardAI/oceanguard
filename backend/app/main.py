@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import asyncio
-import json
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
@@ -11,6 +10,7 @@ from app.api.routes import agents as agents_router
 from app.api.routes import ais, events, geo, ingest, metrics, sar, verify
 from app.core.config import settings
 from app.services import gfw_ingest, mpa_index
+from app.store.activity import activity_store
 from app.store.repository import repo
 
 
@@ -24,26 +24,19 @@ def _run_ingest() -> None:
     idx = mpa_index.get_index()  # lazy-loads the WDPA set here, in the thread
     print(f"MPA index: {idx.count} protected areas loaded from {idx.source}.")
     try:
-        ports_path = settings.data_dir / "ports.json"
-        ports = (
-            json.loads(ports_path.read_text(encoding="utf-8"))
-            if ports_path.exists()
-            else []
-        )
-        events_live = gfw_ingest.fetch_live_events(ports=ports if isinstance(ports, list) else [])
-        # In-memory only: keep the seed risk_events.json as an offline fallback.
-        repo.replace_all(events_live, persist=False)
-        print(f"Live ingestion: loaded {len(events_live)} GFW SAR events.")
+        aggregates = gfw_ingest.fetch_activity()
+        activity_store.replace(aggregates)
+        print(f"GFW activity: loaded {len(aggregates)} aggregate cells.")
     except Exception as exc:
-        print(f"Live ingestion skipped (using seed data): {exc}")
+        activity_store.failure(exc)
+        print(f"GFW activity ingestion failed ({activity_store.status()['error_category']}).")
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    repo.load()  # seed data is available immediately as a fallback
+    repo.load()  # sample events remain separate from GFW activity
     # Kick live ingestion off in the background so startup returns at once and
-    # the server can answer the health check; live events replace the seed set
-    # when the fetch finishes (a few seconds later).
+    # the server can answer the health check while the report loads.
     if settings.gfw_ingest_on_startup and gfw_ingest.ingestion_enabled():
         asyncio.create_task(asyncio.to_thread(_run_ingest))
     yield
@@ -76,4 +69,4 @@ app.include_router(verify.router)
 
 @app.get("/health")
 def health() -> dict[str, object]:
-    return {"status": "ok", "events_loaded": len(repo.all())}
+    return {"status": "ok", "events_loaded": len(repo.all()), "events_mode": repo.mode}

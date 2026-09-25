@@ -48,7 +48,7 @@ export default function DataSources() {
     <div className="max-w-4xl mx-auto space-y-8 pb-16">
       <div>
         <h2 className="text-2xl font-extrabold text-white mb-1">Data Sources &amp; Provenance</h2>
-        <p className="text-slate-400 text-sm">OceanGuard fuses satellite and geospatial data to detect dark vessels near protected zones.</p>
+        <p className="text-slate-400 text-sm">OceanGuard displays GFW SAR activity cells, protected areas, and sample review cases. Activity counts do not identify individual vessels.</p>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-5">

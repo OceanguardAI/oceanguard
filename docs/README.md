@@ -21,6 +21,8 @@ If you want to learn the project after having developed it with agents, start he
 13. `responsible-ai.md`
 14. `GCP_API_SETUP_CLI.md`
 15. `system-health-and-recovery-plan.md`
+16. `coastal-vessel-tracking-roadmap.md`
+17. `end-to-end-development-plan.md`
 
 ## What each document is for
 
@@ -78,7 +80,20 @@ If you want to learn the project after having developed it with agents, start he
 - `system-health-and-recovery-plan.md`
   - Current full-system health status, degraded integrations, and the recovery order for API keys, Gemini, GFW ingest, CORS, and Secret Manager.
 
+- `coastal-vessel-tracking-roadmap.md`
+  - Plain-language plan for upgrading OceanGuard from point detections into reliable coastal vessel tracking.
+  - Explains the separate roles of cameras, AIS, satellites, drones, tracking, behavior analysis, uncertainty, datasets, evaluation, and the six-month implementation sequence.
+
+- `end-to-end-development-plan.md`
+  - Main implementation plan for the full OceanGuard upgrade.
+  - Explains the target architecture, user area-selection flow, SAR versus coastal tracking, persistent records, Azure training, Cloud Run runtime, and acceptance gates.
+
 ## Best way to learn this repo
+
+For the proposed upgrade architecture and implementation sequence, read
+[`end-to-end-development-plan.md`](end-to-end-development-plan.md). It covers
+source ingestion, persistent records, SAR and camera workflows, Azure training,
+tracking, AIS association, APIs, dashboard changes, GCP deployment, and acceptance gates.
 
 Use this sequence:
 

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Literal
 
 from pydantic import BaseModel
@@ -30,6 +31,26 @@ class RiskEvent(BaseModel):
     confidence_threshold: float
     recommended_action: str
     thumbnail: str | None
+
+
+class ActivityAggregate(BaseModel):
+    id: str
+    dataset: str
+    lat: float
+    lon: float
+    detection_count: int
+    report_start: str
+    report_end: str
+    provider_time: str | None
+    ingested_at: datetime
+
+
+class ActivityPage(BaseModel):
+    items: list[ActivityAggregate]
+    total: int
+    offset: int
+    limit: int
+    data_state: Literal["not_loaded", "available", "empty", "stale"]
 
 
 class ReviewUpdate(BaseModel):

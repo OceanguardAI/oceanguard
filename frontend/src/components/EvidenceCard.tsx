@@ -112,7 +112,6 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
         lat: event.lat, lon: event.lon, date: event.timestamp, eventId: event.id,
       });
       setYoloResult(res);
-      // If our model confirmed it, the backend bumped the score — reflect it.
       if (res.updated_event) onUpdate(res.updated_event);
     } catch (e) {
       setYoloError(e instanceof Error ? e.message : "YOLO check failed. Try again.");
@@ -135,7 +134,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
     event.ais_matched
       ? { text: "Matched", className: "text-risk-low" }
       : event.ais_data_available
-      ? { text: "Dark (No AIS Match)", className: "text-risk-critical" }
+      ? { text: "No AIS identity reported", className: "text-risk-high" }
       : { text: "No Coverage", className: "text-slate-400" };
 
   // Source tags
@@ -195,15 +194,13 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
         </div>
       )}
 
-      {/* Independent AI verification — our own YOLO model on live Sentinel-1.
-          The button runs best.pt on this exact point; a vessel that switched
-          AIS off is invisible to the AIS feed but still reflects radar. */}
+      {/* A model scan of a nearby SAR chip; scene correspondence is unverified. */}
       {yoloOk && (
         <div className="border-b border-ocean-700/30 p-4 bg-gradient-to-br from-cyan-500/10 via-ocean-900/30 to-ocean-900/20">
           <div className="flex items-center gap-2 mb-1.5">
             <Radar className="w-3.5 h-3.5 text-cyan-400" />
             <span className="text-[10px] font-semibold uppercase tracking-widest text-cyan-300">
-              Independent AI Verification
+              SAR Model Scan
             </span>
             <span className="ml-auto rounded-full border border-cyan-400/20 bg-cyan-400/10 px-2 py-0.5 text-[9px] font-semibold uppercase tracking-wider text-cyan-300">
               Our model
@@ -211,14 +208,14 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
           </div>
 
           <p className="mb-3 text-[11px] text-slate-400 leading-relaxed">
-            Run our own ship-detection model on the live Sentinel-1 radar for this exact point —
-            it catches dark vessels that have switched their AIS off.
+            Scan an available Sentinel-1 radar chip near this point. A model hit
+            needs scene and time confirmation before it can verify this event.
           </p>
 
           <Tooltip
             title="Run YOLO Check"
-            body="Runs our own ship-detection AI on the live radar image for this exact spot — a second, independent opinion, separate from the global feed that first raised this alert."
-            highlight={{ label: "Why run it", text: "The original alert came from a global database. This re-checks the raw satellite radar to confirm a real vessel is there — and can catch a “dark” ship that turned its ID transponder off." }}
+            body="Runs the ship-detection model on an available Sentinel-1 chip near this point. The chip may be from a different pass."
+            highlight={{ label: "How to use it", text: "Inspect model candidates as leads. This scan does not establish vessel identity, AIS status, or a change in risk." }}
             icon={ScanSearch}
             align="center"
           >
@@ -229,7 +226,7 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
             >
               {yoloLoading ? (
                 <>
-                  <Loader2 className="w-4 h-4 animate-spin" /> Scanning live radar…
+                  <Loader2 className="w-4 h-4 animate-spin" /> Scanning radar…
                 </>
               ) : (
                 <>

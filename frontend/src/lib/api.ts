@@ -5,6 +5,39 @@ import {
 
 const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, "") ?? "/api";
 
+export interface ActivityAggregate {
+  id: string;
+  dataset: string;
+  lat: number;
+  lon: number;
+  detection_count: number;
+  report_start: string;
+  report_end: string;
+  provider_time: string | null;
+  ingested_at: string;
+}
+
+export interface ActivityPage {
+  items: ActivityAggregate[];
+  total: number;
+  offset: number;
+  limit: number;
+  data_state: "not_loaded" | "available" | "empty" | "stale";
+}
+
+export async function fetchIngestStatus(): Promise<{ risk_events_mode: string }> {
+  const res = await fetch(`${API_BASE}/ingest/status`);
+  if (!res.ok) throw new Error("Failed to fetch source status");
+  return res.json();
+}
+
+export async function fetchGfwActivity(bbox: [number, number, number, number]): Promise<ActivityPage> {
+  const params = new URLSearchParams({ bbox: bbox.join(","), limit: "600" });
+  const res = await fetch(`${API_BASE}/activity/gfw?${params}`);
+  if (!res.ok) throw new Error("Failed to fetch GFW activity");
+  return res.json();
+}
+
 export async function fetchRiskEvents(source?: string, level?: string): Promise<RiskEvent[]> {
   const params = new URLSearchParams();
   if (source) params.append("source", source);
@@ -51,6 +84,8 @@ export interface YoloDetection {
 export interface YoloVerifyResult {
   event_id: string;
   agreement: boolean;
+  spatial_match: boolean;
+  verification_status: "acquisition_unverified" | "no_spatial_match";
   yolo: {
     found: boolean;
     count: number;
@@ -95,9 +130,8 @@ async function readError(res: Response, fallback: string): Promise<string> {
 
 // Verification runs on the point itself (lat/lon/date), so it works for any
 // location an officer picks — an existing detection, an MPA, or open water —
-// not just events in the store. `eventId` is optional and only lets the backend
-// apply an agreement boost when that detection still exists; `date` defaults to
-// now (latest available Sentinel-1 pass).
+// not just events in the store. `eventId` is optional comparison context;
+// `date` defaults to now for searching an available Sentinel-1 pass.
 export async function verifyYolo(point: {
   lat: number; lon: number; date?: string; eventId?: string;
 }): Promise<YoloVerifyResult> {

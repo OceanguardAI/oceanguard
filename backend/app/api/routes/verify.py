@@ -1,14 +1,4 @@
-"""On-demand YOLO verification of a detection.
-
-An officer reviewing a GFW detection can ask our own fine-tuned model to look at
-the live Sentinel-1 radar for that exact point. This proxies to the separate
-oceanguard-yolo service (kept apart so torch never bloats this API) and, when
-the model confirms a vessel, records that two independent systems agree.
-
-This is the answer to the dark-vessel blind spot: a vessel that switches AIS off
-is invisible to AIS matching, but its hull still reflects radar — so YOLO can
-confirm a contact the AIS-based feed cannot identify.
-"""
+"""On-demand YOLO point scans; model hits do not prove event identity or risk."""
 from __future__ import annotations
 
 import math
@@ -26,18 +16,13 @@ router = APIRouter()
 # take a while on the first call; allow generous headroom.
 _TIMEOUT = httpx.Timeout(120.0)
 
-# How much to raise an event's risk when our own model independently confirms it.
-_AGREEMENT_BOOST = 0.10
-
 # --- Area sweep tuning ---
 # A YOLO inference chip is ~0.04° wide (see yolo-service chip_half_deg=0.02), so
 # tile a swept area at roughly that spacing. Cap the tile count so one sweep
 # stays bounded in time/cost (each tile = a Sentinel-1 fetch + inference).
 _SWEEP_TILE_DEG = 0.04
 _SWEEP_MAX_TILES = 12
-# A swept radar contact is "confirmed" (agrees with the AIS-based feed) when a
-# known detection sits within this radius; otherwise it is a NEW contact our
-# model surfaced that the feed missed — the actionable dark-vessel candidate.
+# Spatial proximity threshold for comparing a model contact with a stored observation.
 _SWEEP_MATCH_KM = 2.0
 # Fan-out width; matches the YOLO service's request concurrency.
 _SWEEP_WORKERS = 4
@@ -68,18 +53,14 @@ def verify_yolo(
     date: str = Query(..., description="ISO timestamp used to pick the Sentinel-1 scene"),
     event_id: str | None = Query(
         default=None,
-        description="Optional detection id; when it still exists in the live store, "
-        "an agreement boost is applied to it.",
+        description="Optional event id for comparison; scanning does not change its risk.",
     ),
 ) -> dict[str, object]:
     """Run the YOLO model on the live Sentinel-1 chip for a given point.
 
-    Verification is a pure point lookup (lat/lon/date -> Sentinel-1 -> model), so
-    it never depends on the event being present in the in-memory store. The store
-    is refreshed by live ingestion, so an event the operator selected a moment ago
-    may already be gone; passing coordinates directly makes the check robust to
-    that. ``event_id`` is optional and only used to apply the agreement boost when
-    the detection is still loaded.
+    The inference service currently returns no scene acquisition identifier or
+    capture timestamp. Its detections can be shown as nearby model candidates,
+    but cannot establish agreement with a specific event.
     """
     if not _configured():
         raise HTTPException(
@@ -102,30 +83,23 @@ def verify_yolo(
 
     result = resp.json()
 
-    # When our own model confirms a vessel at the GFW point, the two independent
-    # systems agree — raise the risk and annotate, so the map reflects it. This
-    # only applies when the detection is still in the live store.
-    agreement = bool(result.get("found"))
-    updated_event = None
-    if agreement and event_id:
-        event = repo.get(event_id)
-        if event is not None:
-            new_score = min(0.99, round(event.risk_score + _AGREEMENT_BOOST, 3))
-            method = event.matching_method
-            if "YOLO-confirmed" not in method:
-                method = f"{method} · YOLO-confirmed (Sentinel-1)".lstrip(" ·")
-            updated = event.model_copy(
-                update={"risk_score": new_score, "matching_method": method}
-            )
-            # In-memory only (persist=False): keep the seed file as offline fallback.
-            repo.upsert_many([updated], persist=False)
-            updated_event = updated.model_dump()
+    nearby = any(
+        _haversine_km(lat, lon, float(d["lat"]), float(d["lon"])) <= _SWEEP_MATCH_KM
+        for d in (result.get("detections") or [])
+        if d.get("lat") is not None and d.get("lon") is not None
+    )
+    event = repo.get(event_id) if event_id else None
+    spatial_match = bool(
+        nearby and event and _haversine_km(lat, lon, event.lat, event.lon) <= _SWEEP_MATCH_KM
+    )
 
     return {
         "event_id": event_id,
-        "agreement": agreement,
+        "agreement": False,
+        "spatial_match": spatial_match,
+        "verification_status": "acquisition_unverified" if spatial_match else "no_spatial_match",
         "yolo": result,
-        "updated_event": updated_event,
+        "updated_event": None,
     }
 
 
@@ -171,12 +145,9 @@ def sweep_area(
 ) -> dict[str, object]:
     """Proactively sweep an area (e.g. an MPA) with our own SAR ship detector.
 
-    This is the model's real job: not re-confirming a vessel the AIS-based feed
-    already flagged, but scanning a protected area on the *latest* Sentinel-1 pass
-    to surface radar contacts the feed missed. The area is tiled into chips, YOLO
-    runs over each, and every contact is cross-referenced against the live store —
-    contacts with no known detection nearby are flagged as NEW dark-vessel
-    candidates worth a patrol.
+    The area is tiled into chips. Each model contact is compared with stored
+    observation-level model results, not GFW aggregate cells or demo cases.
+    Neither a missing nearby record nor a model hit establishes AIS status.
     """
     if not _configured():
         raise HTTPException(
@@ -198,7 +169,7 @@ def sweep_area(
             resp.raise_for_status()
             return resp.json()
 
-    known = repo.all()
+    known = repo.all(source="YOLO_SAR")
     contacts: list[dict[str, object]] = []
     tiles_with_contacts = 0
     errors = 0
@@ -216,7 +187,7 @@ def sweep_area(
                 tiles_with_contacts += 1
             for d in dets:
                 lat, lon = float(d["lat"]), float(d["lon"])
-                # Nearest known detection — confirms agreement vs. a new contact.
+                # Compare only against observation-level records.
                 nearest_id, nearest_km = None, None
                 for ev in known:
                     km = _haversine_km(lat, lon, ev.lat, ev.lon)

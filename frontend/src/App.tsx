@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "framer-motion";
 import {
-  fetchRiskEvents, verifyYolo, yoloVerifyConfigured, YoloVerifyResult,
+  fetchRiskEvents, fetchGfwActivity, fetchIngestStatus, ActivityPage, verifyYolo, yoloVerifyConfigured, YoloVerifyResult,
   sweepArea, SweepResult,
 } from "./lib/api";
 import { RiskEvent } from "./types";
@@ -50,11 +50,7 @@ function useMediaQuery(query: string) {
   return matches;
 }
 
-/** Pick the most compelling detection for a scripted demo. Live data is
- *  gfw-sar-NNNN (no fixed ids), so we choose by signal, not id: a dark vessel
- *  inside an MPA is the strongest story, then any inside-MPA, then the
- *  highest-risk CRITICAL/HIGH, finally the top score. Always returns something
- *  if any event exists, so the demo button never lands on an empty console. */
+/** Pick a sample case for the scripted demo. */
 function pickHeroEvent(events: RiskEvent[]): RiskEvent | null {
   if (events.length === 0) return null;
   const byScore = (a: RiskEvent, b: RiskEvent) => b.risk_score - a.risk_score;
@@ -132,8 +128,8 @@ function ScanPanel({
 
       <div className="p-4">
         <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-          Running our ship-detection model on the latest Sentinel-1 radar pass for this point —
-          independent of AIS, so it catches dark vessels anywhere you look.
+          Running the ship-detection model on an available Sentinel-1 chip near this point.
+          The result is a lead; acquisition time and AIS status still need checking.
         </p>
 
         {loading && (
@@ -157,10 +153,7 @@ function ScanPanel({
   );
 }
 
-/** Right-side panel for an area sweep: our model runs across a whole area (an
- *  MPA the officer panned to) and surfaces dark-vessel candidates the AIS-based
- *  feed missed. This is YOLO's real job — proactive surveillance, not confirming
- *  an already-found vessel. */
+/** Model contacts from a bounded area scan, shown as investigation leads. */
 function SweepPanel({
   loading, error, result,
 }: {
@@ -179,9 +172,8 @@ function SweepPanel({
 
       <div className="p-4">
         <p className="text-[11px] text-slate-500 leading-relaxed mb-3">
-          Running our ship-detection model across the whole visible area on the latest Sentinel-1
-          radar pass. Contacts with no matching AIS-based detection are flagged as dark-vessel
-          candidates — vessels the global feed missed.
+          Running our ship-detection model over sampled radar chips in the visible area.
+          Contacts are model leads; AIS status and scene correspondence remain unknown.
         </p>
 
         {loading && (
@@ -203,13 +195,13 @@ function SweepPanel({
             <div className="grid grid-cols-2 gap-2">
               <div className="rounded-lg border border-red-500/25 bg-red-500/8 p-3">
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-red-300">
-                  <ShieldAlert className="w-3 h-3" /> Dark candidates
+                  <ShieldAlert className="w-3 h-3" /> Model leads
                 </div>
                 <div className="text-2xl font-bold text-red-400 tabular-nums mt-1">{result.new_contacts}</div>
               </div>
               <div className="rounded-lg border border-teal-500/25 bg-teal-500/8 p-3">
                 <div className="flex items-center gap-1.5 text-[10px] uppercase tracking-wider text-teal-300">
-                  <CheckCircle2 className="w-3 h-3" /> Confirmed
+                  <CheckCircle2 className="w-3 h-3" /> Near stored observation
                 </div>
                 <div className="text-2xl font-bold text-teal-400 tabular-nums mt-1">{result.confirmed_contacts}</div>
               </div>
@@ -225,14 +217,14 @@ function SweepPanel({
 
             {result.new_contacts === 0 && result.confirmed_contacts === 0 && (
               <div className="text-[11px] text-slate-400 bg-ocean-900/50 border border-ocean-700/40 rounded-lg p-3">
-                No vessels detected in this area on the latest radar pass.
+                No model contacts in the chips scanned. This does not establish an empty area.
               </div>
             )}
 
-            {/* Dark-vessel candidate list */}
+            {/* Model leads without nearby stored observations */}
             {result.contacts.filter((c) => c.status === "new").length > 0 && (
               <div className="space-y-1.5">
-                <div className="text-[10px] uppercase tracking-wider text-slate-500">Candidates for patrol</div>
+                <div className="text-[10px] uppercase tracking-wider text-slate-500">Model leads for review</div>
                 {result.contacts.filter((c) => c.status === "new").map((c, i) => (
                   <div key={i} className="flex items-center justify-between rounded-lg border border-red-500/20 bg-red-500/5 px-3 py-2">
                     <div className="text-[11px] text-slate-300 tabular-nums">
@@ -260,6 +252,9 @@ export default function App() {
   const [activeTab, setActiveTab]         = useState<Tab>("dashboard");
   const [eventsLoading, setEventsLoading] = useState(false);
   const [eventsError, setEventsError]     = useState<string | null>(null);
+  const [activityPage, setActivityPage]   = useState<ActivityPage | null>(null);
+  const [activityError, setActivityError] = useState(false);
+  const [eventsMode, setEventsMode]       = useState("sample");
 
   // Map-console panel state.
   const [leftPanel, setLeftPanel]       = useState<LeftPanel>("detections");
@@ -269,8 +264,7 @@ export default function App() {
   // selects the hero detection as soon as data arrives.
   const [pendingDemo, setPendingDemo] = useState(false);
 
-  // Area-scan: click any point on the map to run YOLO on its Sentinel-1 radar,
-  // independent of the GFW detections.
+  // Area scan requests an available SAR chip near the selected point.
   const [yoloOk, setYoloOk]           = useState(false);
   const [scanMode, setScanMode]       = useState(false);
   const [scanPoint, setScanPoint]     = useState<{ lat: number; lon: number } | null>(null);
@@ -278,8 +272,7 @@ export default function App() {
   const [scanLoading, setScanLoading] = useState(false);
   const [scanError, setScanError]     = useState<string | null>(null);
 
-  // Area sweep: run the model across the whole visible area to surface dark
-  // vessels the AIS-based feed missed — YOLO's real, proactive use case.
+  // Area sweep runs the model across a bounded set of chips in the visible area.
   const [mapBounds, setMapBounds]       = useState<[number, number, number, number] | null>(null);
   const [sweepBbox, setSweepBbox]       = useState<[number, number, number, number] | null>(null);
   const [sweepResult, setSweepResult]   = useState<SweepResult | null>(null);
@@ -370,6 +363,9 @@ export default function App() {
     // manual reload. The user's current selection is preserved across polls.
     const load = (initial: boolean) => {
       if (initial) { setEventsLoading(true); setEventsError(null); }
+      fetchIngestStatus().then((status) => {
+        if (!cancelled) setEventsMode(status.risk_events_mode);
+      }).catch(() => {});
       fetchRiskEvents()
         .then((data) => {
           if (cancelled) return;
@@ -393,6 +389,17 @@ export default function App() {
     const timer = setInterval(() => load(false), 30000);
     return () => { cancelled = true; clearInterval(timer); };
   }, []);
+
+  useEffect(() => {
+    if (!mapBounds) return;
+    let cancelled = false;
+    const load = () => fetchGfwActivity(mapBounds)
+      .then((page) => { if (!cancelled) { setActivityPage(page); setActivityError(false); } })
+      .catch(() => { if (!cancelled) { setActivityPage(null); setActivityError(true); } });
+    load();
+    const timer = setInterval(load, 30000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, [mapBounds]);
 
   // Selecting a detection (from the map, queue, or patrol board) brings its
   // evidence to the front and steps the assistant aside so it doesn't cover it.
@@ -445,12 +452,12 @@ export default function App() {
 
   const kpis = [
     {
-      icon: Layers, label: "Total Detections", color: "text-teal-400", bg: "bg-teal-400/8",
+      icon: Layers, label: eventsMode === "sample" ? "Sample Cases" : "Case Records", color: "text-teal-400", bg: "bg-teal-400/8",
       value: events.length,
       tip: {
-        title: "Total Detections",
-        body: "Every vessel our system spotted on satellite radar in the current view. A radar satellite (Sentinel-1) photographs the ocean day and night, through clouds, and each ship shows up as a bright dot we turn into a trackable event.",
-        highlight: { label: "Why it matters", text: "This is the size of the haystack. The bigger this number, the more traffic there is to sort through to find the few vessels actually doing something wrong." },
+        title: "Sample Cases",
+        body: "These are example risk events shipped with the app. Cyan circles on the map show separate GFW SAR activity counts for the visible area.",
+        highlight: { label: "Data boundary", text: "A GFW report cell is an activity total, not a uniquely identified vessel or a current observation." },
       },
     },
     {
@@ -458,7 +465,7 @@ export default function App() {
       value: events.filter((e) => e.risk_level === "HIGH" || e.risk_level === "CRITICAL").length,
       tip: {
         title: "High / Critical Risk",
-        body: "Vessels our model scored as suspicious. The score climbs when a ship is “dark” (its public ID transponder is switched off) and when it sits close to or inside a protected zone.",
+        body: "Sample cases ranked by the existing demo risk score. A missing AIS identity does not establish why a broadcast was absent.",
         highlight: { label: "Why it matters", text: "These are the needles in the haystack — the vessels an officer should look at first. Start a shift here, not with the full list." },
       },
     },
@@ -666,8 +673,8 @@ export default function App() {
                 <>
                   <Tooltip
                     title="Sweep Area"
-                    body="Scans the whole patch of ocean you're looking at with our own ship-detection AI, using the freshest radar satellite pass. It checks every contact against the global ship database."
-                    highlight={{ label: "Why scan an area", text: "The global feed only sees ships that broadcast their ID. This finds the ones hiding — vessels with their transponder off that no other system logged. This is the heart of catching illegal activity." }}
+                    body="Scans a bounded set of radar chips in the visible area and shows model contacts. Large areas are sampled."
+                    highlight={{ label: "How to use it", text: "Treat contacts as leads. This scan does not establish AIS status, exact acquisition time, or unauthorized activity." }}
                     icon={Radar}
                     align="right"
                   >
@@ -686,7 +693,7 @@ export default function App() {
                   </Tooltip>
                   <Tooltip
                     title="Point Scan"
-                    body="Pick one exact spot on the map and our AI checks just that location on the latest radar image — a focused look rather than a wide sweep."
+                    body="Pick a point and scan an available radar chip nearby. The exact acquisition time is not returned yet."
                     highlight={{ label: "Why scan a point", text: "Use it when you have a tip-off or a hunch about a specific coordinate, or to double-check a single contact, without waiting for a full area sweep to finish." }}
                     icon={ScanSearch}
                     align="right"
@@ -801,8 +808,8 @@ export default function App() {
                 <>
                   <Tooltip
                     title="Sweep Area"
-                    body="Scans the whole patch of ocean you're looking at with our own ship-detection AI, using the freshest radar satellite pass. It checks every contact against the global ship database."
-                    highlight={{ label: "Why scan an area", text: "The global feed only sees ships that broadcast their ID. This finds the ones hiding — vessels with their transponder off that no other system logged. This is the heart of catching illegal activity." }}
+                    body="Scans a bounded set of radar chips in the visible area and shows model contacts. Large areas are sampled."
+                    highlight={{ label: "How to use it", text: "Treat contacts as leads. This scan does not establish AIS status, exact acquisition time, or unauthorized activity." }}
                     icon={Radar}
                     align="center"
                   >
@@ -821,7 +828,7 @@ export default function App() {
                   </Tooltip>
                   <Tooltip
                     title="Point Scan"
-                    body="Pick one exact spot on the map and our AI checks just that location on the latest radar image — a focused look rather than a wide sweep."
+                    body="Pick a point and scan an available radar chip nearby. The exact acquisition time is not returned yet."
                     highlight={{ label: "Why scan a point", text: "Use it when you have a tip-off or a hunch about a specific coordinate, or to double-check a single contact, without waiting for a full area sweep to finish." }}
                     icon={ScanSearch}
                     align="center"
@@ -908,6 +915,7 @@ export default function App() {
               <div className="absolute inset-0">
                 <MapView
                   events={events}
+                  activity={activityPage?.items ?? []}
                   selected={selectedEvent}
                   onSelect={handleSelect}
                   scanMode={scanMode}
@@ -917,6 +925,12 @@ export default function App() {
                   sweepBbox={sweepBbox}
                   sweepContacts={sweepResult?.contacts ?? []}
                 />
+              </div>
+
+              <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[900] rounded-lg border border-cyan-400/20 bg-ocean-900/90 px-3 py-1.5 text-[11px] text-slate-200 pointer-events-none text-center max-w-[min(90vw,560px)]">
+                Colored markers: {eventsMode === "sample" ? "sample cases" : "case records"} · Cyan circles: GFW activity cells
+                {activityPage && ` (${activityPage.items.length} of ${activityPage.total} in view${activityPage.data_state === "stale" ? ", stale" : ""})`}
+                {activityError && " (activity API unavailable)"}
               </div>
 
               {/* Overlay panels. The layer ignores pointer events; each panel
@@ -989,7 +1003,7 @@ export default function App() {
                 </AnimatePresence>
 
                 {/* Cold start: the first fetch can take ~30s while Cloud Run
-                    wakes the container and live GFW ingestion runs. Show a
+                    wakes the container and GFW aggregate ingestion runs. Show a
                     "connecting" state instead of a blank map so a demo never
                     opens on emptiness. */}
                 {coldStart && (

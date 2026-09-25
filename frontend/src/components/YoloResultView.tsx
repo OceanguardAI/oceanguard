@@ -1,5 +1,5 @@
 import React from "react";
-import { Radar, ShieldCheck, SearchX } from "lucide-react";
+import { Radar, SearchX } from "lucide-react";
 import { YoloVerifyResult } from "../lib/api";
 
 /** Renders a YOLO verification result: the found/not-found verdict plus the
@@ -18,18 +18,20 @@ export default function YoloResultView({
     <div className="space-y-3">
       {y.found ? (
         <div className="flex items-center gap-2 flex-wrap text-xs font-semibold text-risk-low">
-          <ShieldCheck className="w-4 h-4 shrink-0" />
-          Vessel confirmed · {(y.best_confidence * 100).toFixed(0)}% ·{" "}
+          <Radar className="w-4 h-4 shrink-0" />
+          Model candidate · {(y.best_confidence * 100).toFixed(0)}% ·{" "}
           {y.count} contact{y.count > 1 ? "s" : ""}
-          {result.agreement && (
-            <span className="text-cyan-300">· confirmed by 2 independent systems</span>
-          )}
         </div>
       ) : (
         <div className="flex items-center gap-2 text-xs font-semibold text-slate-400">
           <SearchX className="w-4 h-4 shrink-0" />
-          No vessel found in this radar pass.
+          No model candidate in this radar chip.
         </div>
+      )}
+      {result.event_id && y.found && !result.agreement && (
+        <p className="text-xs text-slate-400">
+          Acquisition time is unavailable, so this scan cannot confirm the selected event.
+        </p>
       )}
 
       <div className="relative rounded-lg overflow-hidden border border-ocean-700/40">

@@ -1,8 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, useMap, useMapEvents } from "react-leaflet";
+import { MapContainer, TileLayer, Marker, Popup, Polygon, Rectangle, CircleMarker, useMap, useMapEvents } from "react-leaflet";
 import L from "leaflet";
 import { RiskEvent } from "../types";
-import { fetchMPA, SweepContact } from "../lib/api";
+import { ActivityAggregate, fetchMPA, SweepContact } from "../lib/api";
 import { getRiskColor } from "../lib/riskColor";
 
 const MapController = ({ selected }: { selected: RiskEvent | null }) => {
@@ -41,8 +41,7 @@ const BoundsReporter = ({
   return null;
 };
 
-// A swept radar contact: red diamond = NEW (no AIS-based detection nearby — the
-// dark-vessel candidate), teal = confirmed (agrees with a known detection).
+// A swept radar contact is a model lead; color indicates stored-observation proximity.
 const createContactIcon = (status: SweepContact["status"]) => {
   const color = status === "new" ? "#ef4444" : "#2dd4bf";
   return L.divIcon({
@@ -185,10 +184,11 @@ function MpaLayer({ onError }: { onError: (msg: string | null) => void }) {
 }
 
 export default function MapView({
-  events, selected, onSelect, scanMode = false, scanPoint = null, onScanPick,
+  events, activity, selected, onSelect, scanMode = false, scanPoint = null, onScanPick,
   onBoundsChange, sweepBbox = null, sweepContacts = [],
 }: {
   events: RiskEvent[];
+  activity: ActivityAggregate[];
   selected: RiskEvent | null;
   onSelect: (e: RiskEvent) => void;
   scanMode?: boolean;
@@ -224,6 +224,24 @@ export default function MapView({
           noWrap={true}
         />
         <MpaLayer onError={setError} />
+
+        {activity.map((cell) => (
+          <CircleMarker
+            key={cell.id}
+            center={[cell.lat, cell.lon]}
+            radius={Math.min(10, 3 + Math.log2(cell.detection_count + 1))}
+            pathOptions={{ color: "#22d3ee", fillColor: "#22d3ee", fillOpacity: 0.35, weight: 1 }}
+          >
+            <Popup>
+              <div className="text-xs text-slate-200">
+                <strong>GFW SAR activity cell</strong><br />
+                Reported detections: {cell.detection_count}<br />
+                Report period: {cell.report_start} to {cell.report_end}<br />
+                This count does not identify individual vessels.
+              </div>
+            </Popup>
+          </CircleMarker>
+        ))}
 
         {events.map((ev) => (
           <Marker
@@ -263,13 +281,13 @@ export default function MapView({
             <Popup>
               <div className="text-xs">
                 <div className={`font-bold ${c.status === "new" ? "text-red-400" : "text-teal-400"}`}>
-                  {c.status === "new" ? "DARK CONTACT" : "Confirmed contact"}
+                  {c.status === "new" ? "MODEL LEAD" : "Near stored observation"}
                 </div>
                 <div className="text-slate-400 mt-1">
                   {c.confidence !== null ? `${(c.confidence * 100).toFixed(0)}% confidence` : ""}
                 </div>
                 {c.status === "new" ? (
-                  <div className="text-slate-500 mt-0.5">No AIS-based detection nearby</div>
+                  <div className="text-slate-500 mt-0.5">No nearby stored model observation; AIS status unknown</div>
                 ) : (
                   <div className="text-slate-500 mt-0.5">Matches {c.matched_event_id}</div>
                 )}

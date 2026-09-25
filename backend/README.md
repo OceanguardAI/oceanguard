@@ -69,6 +69,20 @@ curl http://localhost:8000/agents/status
 - `POST /risk-events/{event_id}/review`
 - `GET /risk-summary`
 
+`/risk-events` starts with sample cases from `backend/data/risk_events.json`.
+External observation-level events can be pushed through `/ingest/push`; GFW 4Wings
+report cells are not inserted as vessel events.
+
+### GFW Activity and Source Status
+
+- `GET /activity/gfw?bbox=west,south,east,north&offset=0&limit=600`: paginated SAR activity cells in the selected area. `detection_count` is a report total, not an individual vessel identity or model confidence.
+- `GET /ingest/status`: process-local last attempt, last success, sanitized error category, aggregate count, and risk-event mode.
+- `POST /ingest/gfw`: refresh the process-local activity snapshot. A failed refresh keeps the last successful snapshot and marks it stale.
+
+GFW report intervals and ingestion time are preserved separately. This slice does
+not provide per-vessel acquisition time from the 4Wings report, durable activity
+storage, or a scheduled refresh. A configured token alone does not prove access.
+
 `GET /risk-events` supports:
 
 - `source`

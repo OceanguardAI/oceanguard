@@ -36,11 +36,7 @@ async def ais_live(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str, o
 
 @router.post("/ais/verify-dark")
 async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str, object]:
-    """Cross-check current dark detections against a live AIS snapshot.
-
-    For each loaded event with no AIS match, confirm whether any live AIS vessel
-    is broadcasting nearby. No nearby broadcast => dark vessel confirmed.
-    """
+    """Look for recent AIS candidates without treating a short sample as full coverage."""
     if not ais_stream.ais_enabled():
         raise HTTPException(status_code=400, detail="AISSTREAM_API_KEY is not configured.")
     try:
@@ -52,18 +48,25 @@ async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str
     for event in repo.all():
         if event.ais_matched:
             continue
-        confirmed = ais_stream.confirms_dark(event.lat, event.lon, vessels)
+        # GFW 4Wings rows are aggregate cells, not individual vessels.
+        status, candidates = (
+            ("unavailable", [])
+            if event.source == "GFW"
+            else ais_stream.sample_association(event.lat, event.lon, event.timestamp, vessels)
+        )
         results.append({
             "id": event.id,
             "lat": event.lat,
             "lon": event.lon,
             "risk_level": event.risk_level,
-            "dark_confirmed": confirmed,
+            "association_status": status,
+            "candidate_mmsi": candidates,
+            "dark_confirmed": False,
         })
-    confirmed_count = sum(1 for r in results if r["dark_confirmed"])
     return {
         "live_ais_vessels": len(vessels),
         "dark_candidates_checked": len(results),
-        "dark_confirmed": confirmed_count,
+        "dark_confirmed": 0,
+        "sample_complete_for_absence": False,
         "results": results,
     }

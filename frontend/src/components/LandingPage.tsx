@@ -52,7 +52,7 @@ const STAKES = [
 const STAGES = [
   { no: "01", tag: "ACQUIRE", icon: Satellite,    title: "Global radar passes", copy: "Sentinel-1 SAR images the ocean day and night, straight through cloud cover.",      accent: "text-cyan-300",  ring: "border-cyan-300/25" },
   { no: "02", tag: "DETECT",  icon: ScanSearch,   title: "AI finds every contact", copy: "YOLO11n scans the raw radar and flags every vessel — broadcasting or dark.",        accent: "text-cyan-300",  ring: "border-cyan-300/25" },
-  { no: "03", tag: "SCORE",   icon: AlertTriangle,title: "Risk gets ranked",      copy: "A dark vessel inside a protected zone scores highest. The queue sorts itself.",      accent: "text-amber-300", ring: "border-amber-300/25" },
+  { no: "03", tag: "REVIEW",  icon: AlertTriangle,title: "Leads get reviewed",    copy: "Sample cases show how an analyst can inspect risk and uncertainty before acting.", accent: "text-amber-300", ring: "border-amber-300/25" },
   { no: "04", tag: "REVIEW",  icon: FileText,     title: "An officer decides",    copy: "Each contact becomes an evidence card. A human confirms before any action is taken.", accent: "text-teal-300",  ring: "border-teal-300/25" },
 ];
 
