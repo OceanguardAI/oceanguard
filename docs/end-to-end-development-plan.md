@@ -311,4 +311,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - YOLO point scans no longer add to risk. The model service does not yet return a scene acquisition identifier or time, so a nearby model hit remains an unverified lead.
 - The risk-event seed remains for demo cases. Persistent observation records, historical AIS, durable jobs, authentication, provider probes, and exact SAR scene provenance are still pending.
 
+### Persistence checkpoint (September 25, 2026)
+
+- A versioned PostGIS migration now defines spatial case and activity tables, append-only review history, and source snapshot state. `python -m app.store.migrate` applies it before database mode is enabled.
+- When `DATABASE_URL` is supplied, the API selects PostgreSQL repositories for case records and GFW activity. Repeated identical GFW reports reuse a content-derived snapshot; changed reports retain separate snapshots. Review updates lock the case row and append a history record in one transaction.
+- Local mode remains available for development. No Cloud SQL database, credentials, or live migration was supplied, so the database path still requires integration and restart tests against a dedicated instance. Persistent observations, tracks, evidence objects, durable jobs, and authenticated mutations remain for subsequent slices.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).

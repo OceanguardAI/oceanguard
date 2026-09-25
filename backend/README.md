@@ -67,6 +67,7 @@ curl http://localhost:8000/agents/status
 - `GET /risk-events`
 - `GET /risk-events/{event_id}`
 - `POST /risk-events/{event_id}/review`
+- `GET /risk-events/{event_id}/reviews`
 - `GET /risk-summary`
 
 `/risk-events` starts with sample cases from `backend/data/risk_events.json`.
@@ -76,12 +77,12 @@ report cells are not inserted as vessel events.
 ### GFW Activity and Source Status
 
 - `GET /activity/gfw?bbox=west,south,east,north&offset=0&limit=600`: paginated SAR activity cells in the selected area. `detection_count` is a report total, not an individual vessel identity or model confidence.
-- `GET /ingest/status`: process-local last attempt, last success, sanitized error category, aggregate count, and risk-event mode.
-- `POST /ingest/gfw`: refresh the process-local activity snapshot. A failed refresh keeps the last successful snapshot and marks it stale.
+- `GET /ingest/status`: last attempt, last success, sanitized error category, aggregate count, storage scope, and risk-event mode.
+- `POST /ingest/gfw`: refresh the activity snapshot. A failed refresh keeps the last successful snapshot and marks it stale.
 
 GFW report intervals and ingestion time are preserved separately. This slice does
-not provide per-vessel acquisition time from the 4Wings report, durable activity
-storage, or a scheduled refresh. A configured token alone does not prove access.
+not provide per-vessel acquisition time from the 4Wings report or a scheduled
+refresh. A configured token alone does not prove access.
 
 `GET /risk-events` supports:
 
@@ -121,14 +122,50 @@ The repo-backed briefing and patrol routes also accept:
 
 ### Review persistence
 
-Review updates are written back to `backend/data/risk_events.json`, so:
+Without `DATABASE_URL`, sample cases and reviews use the local JSON/process store.
+The case status is written to `backend/data/risk_events.json`; review history is
+process-local. This is not durable across Cloud Run instances or deployments.
+
+With `DATABASE_URL`, cases, complete GFW activity snapshots, and append-only
+review history use PostgreSQL/PostGIS. The application does not import sample
+cases into a new database. External observation-level cases enter through
+`POST /ingest/push?mode=merge`. `mode=replace` is rejected in database mode to
+protect review history. IDs are insert-only in database mode: reusing an ID
+cannot overwrite a previous observation or its review. Review records have no
+analyst identity until authentication is implemented.
+
+Valid review states are:
 
 - `Pending`
 - `Confirmed Risk`
 - `False Positive`
 - `Resolved`
 
-survive process restarts.
+The PostgreSQL path requires a database with PostGIS available and migrations
+applied before the API starts:
+
+```powershell
+cd backend
+$env:DATABASE_URL = '<connection string from your secret store>'
+.\.venv\Scripts\python.exe -m app.store.migrate
+```
+
+On Cloud Run, provide `DATABASE_URL` through Secret Manager and grant the runtime
+identity access to that secret and the Cloud SQL instance. Do not put the
+connection string in GitHub variables or source files. Migrations need a role
+permitted to install the PostGIS extension; the runtime identity can use a
+more restricted database role. Database mode is not validated against a live
+Cloud SQL instance yet, and should be tested before enabling it in production.
+The dedicated database integration test is opt-in and writes test records:
+
+```powershell
+$env:OCEANGUARD_TEST_DATABASE_URL = '<dedicated disposable PostGIS database>'
+.\.venv\Scripts\python.exe -m pytest -q tests/test_postgres_integration.py
+```
+
+Do not point that test at production. Database-backed review and ingest routes
+still need authenticated access before production use. Snapshot retention and
+backup/restore drills are also pending.
 
 ### Risk summary
 

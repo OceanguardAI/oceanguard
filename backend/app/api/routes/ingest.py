@@ -1,6 +1,8 @@
 """GFW activity reporting and external event ingestion endpoints."""
 from __future__ import annotations
 
+import math
+
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import settings
@@ -34,7 +36,11 @@ def get_gfw_activity(
     if bbox:
         try:
             values = tuple(float(part) for part in bbox.split(","))
-            if len(values) != 4 or values[0] >= values[2] or values[1] >= values[3]:
+            if (
+                len(values) != 4 or not all(math.isfinite(v) for v in values)
+                or not (-180 <= values[0] < values[2] <= 180)
+                or not (-90 <= values[1] < values[3] <= 90)
+            ):
                 raise ValueError
             bounds = values
         except ValueError as exc:
@@ -58,7 +64,10 @@ def ingest_gfw() -> dict[str, object]:
             detail=f"GFW report failed: {activity_store.status()['error_category']}",
         ) from exc
 
-    count = activity_store.replace(activity)
+    try:
+        count = activity_store.replace(activity)
+    except Exception as exc:
+        raise HTTPException(status_code=503, detail="Activity storage unavailable") from exc
     return {
         "aggregate_cells": count,
         "source": "Global Fishing Watch 4Wings SAR presence report",
@@ -74,6 +83,8 @@ def ingest_push(events: list[RiskEvent], mode: str = "merge") -> dict[str, objec
     """
     if mode not in {"merge", "replace"}:
         raise HTTPException(status_code=400, detail="mode must be 'merge' or 'replace'.")
+    if mode == "replace" and settings.database_url:
+        raise HTTPException(status_code=409, detail="Durable case history cannot be replaced.")
     if mode == "replace":
         total = repo.replace_all(events)
     else:

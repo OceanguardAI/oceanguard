@@ -3,14 +3,14 @@ from __future__ import annotations
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class RiskEvent(BaseModel):
     id: str
     source: str
-    lat: float
-    lon: float
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
     risk_score: float
     risk_level: str
     sar_confidence: float
@@ -36,9 +36,9 @@ class RiskEvent(BaseModel):
 class ActivityAggregate(BaseModel):
     id: str
     dataset: str
-    lat: float
-    lon: float
-    detection_count: int
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    detection_count: int = Field(ge=0)
     report_start: str
     report_end: str
     provider_time: str | None
@@ -55,6 +55,16 @@ class ActivityPage(BaseModel):
 
 class ReviewUpdate(BaseModel):
     review_status: Literal["Pending", "Confirmed Risk", "False Positive", "Resolved"]
+
+
+class ReviewRecord(BaseModel):
+    id: str
+    event_id: str
+    previous_status: str
+    review_status: str
+    reviewed_at: datetime
+    actor_ref: str | None = None
+    storage_scope: Literal["process_local", "database"]
 
 
 class ModelHistoryPoint(BaseModel):

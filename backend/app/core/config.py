@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     agent_patrol_max_tokens: int = 600
     agent_ask_max_tokens: int = 700
     data_dir: Path = Path(__file__).resolve().parents[2] / "data"
+    database_url: str = ""
     # NoDecode: let our validator parse a plain/comma-separated string from env.
     # Without it pydantic-settings tries to JSON-decode the value first, which
     # crashes when the env var is a single URL (e.g. the Cloud Run frontend URL).

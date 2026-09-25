@@ -25,11 +25,19 @@ def _run_ingest() -> None:
     print(f"MPA index: {idx.count} protected areas loaded from {idx.source}.")
     try:
         aggregates = gfw_ingest.fetch_activity()
+    except Exception as exc:
+        try:
+            activity_store.failure(exc)
+            category = activity_store.status()["error_category"]
+        except Exception:
+            category = "source_status_storage_unavailable"
+        print(f"GFW activity fetch failed ({category}).")
+        return
+    try:
         activity_store.replace(aggregates)
         print(f"GFW activity: loaded {len(aggregates)} aggregate cells.")
-    except Exception as exc:
-        activity_store.failure(exc)
-        print(f"GFW activity ingestion failed ({activity_store.status()['error_category']}).")
+    except Exception:
+        print("GFW activity could not be stored.")
 
 
 @asynccontextmanager

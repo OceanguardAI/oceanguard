@@ -79,7 +79,8 @@ def fetch_activity() -> list[ActivityAggregate]:
     rows, start, end = _fetch_sar_report()
     ingested_at = datetime.now(timezone.utc)
     activity: list[ActivityAggregate] = []
-    for index, row in enumerate(rows):
+    occurrences: dict[str, int] = {}
+    for row in rows:
         try:
             lat, lon = float(row["lat"]), float(row["lon"])
             count = int(row["detections"])
@@ -89,7 +90,10 @@ def fetch_activity() -> list[ActivityAggregate]:
             continue
         provider_time = row.get("entryTimestamp")
         source_id = str(row.get("id") or row.get("sourceId") or "")
-        key = f"{SAR_DATASET}|{start}|{end}|{lat}|{lon}|{provider_time}|{source_id}|{index}"
+        base = f"{SAR_DATASET}|{start}|{end}|{lat}|{lon}|{count}|{provider_time}|{source_id}"
+        ordinal = occurrences.get(base, 0)
+        occurrences[base] = ordinal + 1
+        key = f"{base}|{ordinal}"
         row_id = sha256(key.encode("utf-8")).hexdigest()[:24]
         activity.append(ActivityAggregate(
             id=row_id,

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from fastapi import APIRouter, HTTPException, Query
 
-from app.models.schemas import ReviewUpdate, RiskEvent, RiskSummary
+from app.models.schemas import ReviewRecord, ReviewUpdate, RiskEvent, RiskSummary
 from app.store.repository import repo
 
 router = APIRouter()
@@ -44,3 +44,10 @@ def update_review(event_id: str, body: ReviewUpdate) -> RiskEvent:
     if updated is None:
         raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found")
     return updated
+
+
+@router.get("/risk-events/{event_id}/reviews", response_model=list[ReviewRecord])
+def get_review_history(event_id: str) -> list[ReviewRecord]:
+    if repo.get(event_id) is None:
+        raise HTTPException(status_code=404, detail=f"Event '{event_id}' not found")
+    return repo.review_history(event_id)

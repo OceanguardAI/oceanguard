@@ -1,14 +1,16 @@
-"""In-memory store for risk events."""
+"""Local sample store and the shared risk-event repository interface."""
 from __future__ import annotations
 
 import json
 import os
 import tempfile
+from datetime import datetime, timezone
 from pathlib import Path
 from threading import RLock
+from uuid import uuid4
 
 from app.core.config import settings
-from app.models.schemas import RiskEvent, RiskSummary
+from app.models.schemas import ReviewRecord, RiskEvent, RiskSummary
 
 
 class RiskEventRepository:
@@ -17,6 +19,7 @@ class RiskEventRepository:
         self._path: Path | None = None
         self._lock = RLock()
         self._mode = "not_loaded"
+        self._reviews: dict[str, list[ReviewRecord]] = {}
 
     @property
     def mode(self) -> str:
@@ -34,6 +37,7 @@ class RiskEventRepository:
         self._path = path
         self._events = {item["id"]: RiskEvent(**item) for item in raw}
         self._mode = "sample"
+        self._reviews = {}
 
     def save(self) -> None:
         with self._lock:
@@ -103,8 +107,24 @@ class RiskEventRepository:
 
             updated = event.model_copy(update={"review_status": status})
             self._events[event_id] = updated
-            self.save()
+            try:
+                self.save()
+            except Exception:
+                self._events[event_id] = event
+                raise
+            self._reviews.setdefault(event_id, []).append(ReviewRecord(
+                id=str(uuid4()),
+                event_id=event_id,
+                previous_status=event.review_status,
+                review_status=status,
+                reviewed_at=datetime.now(timezone.utc),
+                storage_scope="process_local",
+            ))
             return updated
+
+    def review_history(self, event_id: str) -> list[ReviewRecord]:
+        with self._lock:
+            return list(self._reviews.get(event_id, []))
 
     def summary(self) -> RiskSummary:
         events = list(self._events.values())
@@ -132,4 +152,9 @@ class RiskEventRepository:
         )
 
 
-repo = RiskEventRepository()
+if settings.database_url:
+    from app.store.postgres import PostgresRiskEventRepository
+
+    repo = PostgresRiskEventRepository(settings.database_url)
+else:
+    repo = RiskEventRepository()
