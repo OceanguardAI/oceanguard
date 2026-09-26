@@ -340,4 +340,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - A PostGIS operational repository and versioned read APIs now expose observations, track points, and alerts when DATABASE_URL is configured. Local demo mode returns an explicit database-not-configured response and does not convert sample risk events into fake tracks.
 - Worker write adapters, authenticated mutation routes, GCS object storage, and live Cloud SQL validation remain pending. No tracking result or alert quality claim is implied by the schema alone.
 
+### Association-policy checkpoint (September 26, 2026)
+
+- A deterministic time-distance association service now produces auditable matched, unmatched, ambiguous, and unavailable decisions with method versions and rejection reasons.
+- Alert generation is conservative and deduplicated: unavailable AIS creates no alert, while unmatched or ambiguous results create review candidates that explicitly avoid claiming illegal activity or deliberate AIS disabling.
+- This is a rules baseline, not a trained tracker or behavior model. It must be evaluated against labeled sequences after observation and AIS ingestion workers are implemented.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
