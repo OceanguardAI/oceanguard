@@ -75,6 +75,33 @@ def test_repeated_yolo_scan_never_inflates_risk(client: TestClient) -> None:
     assert client.get("/risk-events/bar-reef-003").json()["risk_score"] == 0.61
 
 
+def test_yolo_result_exposes_unverified_scene_provenance(client: TestClient) -> None:
+    response = Mock()
+    response.json.return_value = {
+        "found": False, "detections": [], "count": 0,
+        "best_confidence": 0, "chip_px": 384,
+        "chip_bbox": [79.6, 8.5, 79.7, 8.6], "chip_png_b64": "", "conf_threshold": 0.35,
+    }
+    response.raise_for_status.return_value = None
+    with patch("app.api.routes.verify.settings.yolo_service_url", "https://example.invalid"), patch(
+        "app.api.routes.verify.httpx.post", return_value=response
+    ):
+        result = client.post("/verify/yolo", params={
+            "lat": 8.5, "lon": 79.6, "date": "2026-06-09T14:32:00Z",
+        })
+    assert result.status_code == 200
+    assert result.json()["provenance"]["coverage_status"] == "scene_time_unverified"
+    assert result.json()["provenance"]["acquisition_id"] is None
+
+
+def test_yolo_rejects_invalid_acquisition_time(client: TestClient) -> None:
+    with patch("app.api.routes.verify.settings.yolo_service_url", "https://example.invalid"):
+        result = client.post("/verify/yolo", params={
+            "lat": 8.5, "lon": 79.6, "date": "not-a-date",
+        })
+    assert result.status_code == 422
+
+
 def test_gfw_report_rows_remain_distinct_aggregates() -> None:
     rows = [
         {"lat": 8.5, "lon": 79.6, "detections": 2},

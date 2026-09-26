@@ -8,6 +8,7 @@ import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import settings
+from app.services.acquisition import parse_request_time, provenance
 from app.store.repository import repo
 
 router = APIRouter()
@@ -48,8 +49,8 @@ def verify_status() -> dict[str, object]:
 
 @router.post("/verify/yolo")
 def verify_yolo(
-    lat: float = Query(..., description="Latitude of the point to verify"),
-    lon: float = Query(..., description="Longitude of the point to verify"),
+    lat: float = Query(..., ge=-90, le=90, description="Latitude of the point to verify"),
+    lon: float = Query(..., ge=-180, le=180, description="Longitude of the point to verify"),
     date: str = Query(..., description="ISO timestamp used to pick the Sentinel-1 scene"),
     event_id: str | None = Query(
         default=None,
@@ -67,6 +68,10 @@ def verify_yolo(
             status_code=503,
             detail="YOLO service is not configured. Set YOLO_SERVICE_URL.",
         )
+    try:
+        requested_at = parse_request_time(date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
 
     url = f"{settings.yolo_service_url.rstrip('/')}/detect-point"
     try:
@@ -98,6 +103,7 @@ def verify_yolo(
         "agreement": False,
         "spatial_match": spatial_match,
         "verification_status": "acquisition_unverified" if spatial_match else "no_spatial_match",
+        "provenance": provenance(lat=lat, lon=lon, requested_at=requested_at, result=result),
         "yolo": result,
         "updated_event": None,
     }
@@ -137,10 +143,10 @@ def _tile_centers(
 
 @router.post("/verify/yolo/sweep")
 def sweep_area(
-    min_lon: float = Query(..., description="West edge of the area to sweep"),
-    min_lat: float = Query(..., description="South edge"),
-    max_lon: float = Query(..., description="East edge"),
-    max_lat: float = Query(..., description="North edge"),
+    min_lon: float = Query(..., ge=-180, le=180, description="West edge of the area to sweep"),
+    min_lat: float = Query(..., ge=-90, le=90, description="South edge"),
+    max_lon: float = Query(..., ge=-180, le=180, description="East edge"),
+    max_lat: float = Query(..., ge=-90, le=90, description="North edge"),
     date: str = Query(..., description="ISO timestamp used to pick the Sentinel-1 scene"),
 ) -> dict[str, object]:
     """Proactively sweep an area (e.g. an MPA) with our own SAR ship detector.
@@ -154,6 +160,10 @@ def sweep_area(
             status_code=503,
             detail="YOLO service is not configured. Set YOLO_SERVICE_URL.",
         )
+    try:
+        requested_at = parse_request_time(date)
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if max_lon <= min_lon or max_lat <= min_lat:
         raise HTTPException(status_code=422, detail="Invalid bounding box: max must exceed min.")
 
@@ -172,6 +182,7 @@ def sweep_area(
     known = repo.all(source="YOLO_SAR")
     contacts: list[dict[str, object]] = []
     tiles_with_contacts = 0
+    tiles_with_scene_metadata = 0
     errors = 0
 
     with ThreadPoolExecutor(max_workers=min(_SWEEP_WORKERS, len(centers))) as pool:
@@ -183,6 +194,12 @@ def sweep_area(
                 errors += 1
                 continue
             dets = result.get("detections") or []
+            tile_provenance = provenance(
+                lat=futures[fut][0], lon=futures[fut][1],
+                requested_at=requested_at, result=result,
+            )
+            if tile_provenance["coverage_status"] == "scene_metadata_available":
+                tiles_with_scene_metadata += 1
             if dets:
                 tiles_with_contacts += 1
             for d in dets:
@@ -215,6 +232,12 @@ def sweep_area(
         "tiles_with_contacts": tiles_with_contacts,
         "effective_tile_deg": effective_deg,
         "fully_covered": effective_deg <= _SWEEP_TILE_DEG + 1e-9,
+        "requested_at": requested_at.isoformat().replace("+00:00", "Z"),
+        "coverage_status": (
+            "scene_metadata_available"
+            if tiles_with_scene_metadata == len(centers) else "scene_time_unverified"
+        ),
+        "tiles_with_scene_metadata": tiles_with_scene_metadata,
         "total_contacts": len(contacts),
         "new_contacts": len(new_contacts),
         "confirmed_contacts": len(contacts) - len(new_contacts),

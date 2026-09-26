@@ -323,4 +323,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - The finite worker command fetches one report and publishes the snapshot in the same transaction as job completion. Source failure retains the previous snapshot and records a sanitized failure category. Provider fetch and database storage failures remain distinct.
 - This is queue infrastructure, not a deployed schedule. A dedicated PostGIS integration test is opt-in; Cloud SQL, Cloud Run Jobs/Scheduler, live credentials, and production operation still require setup and validation. The API startup/manual refresh path remains in place for compatibility until cutover.
 
+### SAR provenance checkpoint (September 26, 2026)
+
+- Point and area YOLO verification now validate coordinates and ISO request times before calling the inference service. Responses carry the requested center/time, provider, optional acquisition identifiers, and an explicit `coverage_status`.
+- When the inference service does not return a scene ID and observed acquisition time, the API reports `scene_time_unverified`. This is intentional: a successful image response or model detection is not presented as proof of the exact satellite pass.
+- The frontend displays this evidence state beside the model result. The result remains an observation candidate and does not establish vessel identity, AIS absence, or unauthorized activity. A future acquisition adapter must supply scene metadata before changing this state.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).

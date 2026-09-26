@@ -86,6 +86,15 @@ export interface YoloVerifyResult {
   agreement: boolean;
   spatial_match: boolean;
   verification_status: "acquisition_unverified" | "no_spatial_match";
+  provenance: {
+    provider: string;
+    requested_center: { lat: number; lon: number };
+    requested_at: string;
+    acquisition_id: string | null;
+    observed_at: string | null;
+    coverage_status: "scene_metadata_available" | "scene_time_unverified";
+    identity_claim: "observation_candidate_only";
+  };
   yolo: {
     found: boolean;
     count: number;
@@ -167,6 +176,9 @@ export interface SweepResult {
   tiles_with_contacts: number;
   effective_tile_deg: number;
   fully_covered: boolean;
+  requested_at: string;
+  coverage_status: "scene_metadata_available" | "scene_time_unverified";
+  tiles_with_scene_metadata: number;
   total_contacts: number;
   new_contacts: number;
   confirmed_contacts: number;

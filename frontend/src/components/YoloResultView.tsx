@@ -33,6 +33,12 @@ export default function YoloResultView({
           Acquisition time is unavailable, so this scan cannot confirm the selected event.
         </p>
       )}
+      <p className="text-[11px] text-amber-300/80">
+        Evidence state: {result.provenance.coverage_status === "scene_time_unverified"
+          ? "scene acquisition time is unverified"
+          : "scene metadata supplied by the inference service"}.
+        {" "}This remains an observation candidate, not proof of identity.
+      </p>
 
       <div className="relative rounded-lg overflow-hidden border border-ocean-700/40">
         <img
