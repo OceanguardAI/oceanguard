@@ -334,4 +334,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - GET /sources/status now presents one read-only readiness view for GFW activity, AISStream, Sentinel Hub, and the YOLO service. It reports configuration, recent activity state where available, sanitized error categories, and source limitations.
 - Configured means credentials or a service URL are present; it does not mean the provider is reachable, authorized, current, or returning useful coverage. AIS remains sample_only, and Sentinel/YOLO remain on_demand until durable observation and acquisition records are implemented.
 
+### Operational-record checkpoint (September 26, 2026)
+
+- Migration 003 defines durable acquisitions, observations, evidence references, AIS messages, tracks, track points, associations, and deduplicated alerts with spatial and temporal indexes.
+- A PostGIS operational repository and versioned read APIs now expose observations, track points, and alerts when DATABASE_URL is configured. Local demo mode returns an explicit database-not-configured response and does not convert sample risk events into fake tracks.
+- Worker write adapters, authenticated mutation routes, GCS object storage, and live Cloud SQL validation remain pending. No tracking result or alert quality claim is implied by the schema alone.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).

@@ -200,6 +200,20 @@ required key or URL is present; it does not prove that the provider is
 reachable or that the requested area has coverage. GFW activity, AIS samples,
 Sentinel-1 imagery, and YOLO inference retain their distinct limitations.
 
+### Operational records
+
+The versioned read APIs are available under `/v1` after migrations and a
+PostGIS database are configured:
+
+- `/v1/observations`
+- `/v1/tracks` and `/v1/tracks/{id}/points`
+- `/v1/alerts`
+
+Local demo mode returns `503 Operational database is not configured` for these
+endpoints rather than pretending that sample risk events are durable tracks.
+The write path is reserved for workers and authenticated ingestion adapters;
+these APIs do not yet make the public demo mutation-capable.
+
 ### Risk summary
 
 `GET /risk-summary` returns:

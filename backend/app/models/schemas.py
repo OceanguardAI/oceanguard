@@ -136,3 +136,98 @@ class RiskSummary(BaseModel):
     near_mpa_count: int
     highest_risk_event_id: str | None
     highest_risk_score: float | None
+
+
+class AcquisitionRecord(BaseModel):
+    id: str
+    source_id: str
+    sensor: str
+    external_id: str | None = None
+    started_at: datetime
+    ended_at: datetime | None = None
+    footprint_geojson: dict | None = None
+    resolution_m: float | None = Field(default=None, gt=0)
+    evidence_uri: str | None = None
+
+
+class ObservationRecord(BaseModel):
+    id: str
+    source_id: str
+    acquisition_id: str | None = None
+    observed_at: datetime
+    ingested_at: datetime
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    uncertainty_m: float | None = Field(default=None, ge=0)
+    model_version: str | None = None
+    status: Literal["candidate", "accepted", "rejected"] = "candidate"
+    evidence_id: str | None = None
+
+
+class TrackRecord(BaseModel):
+    id: str
+    source_id: str
+    state: Literal["tentative", "confirmed", "predicted", "lost", "ended"]
+    first_observed_at: datetime
+    last_observed_at: datetime
+    identity_hypothesis: str | None = None
+    identity_confidence: float | None = Field(default=None, ge=0, le=1)
+
+
+class TrackPointRecord(BaseModel):
+    track_id: str
+    observed_at: datetime
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    is_predicted: bool = False
+    uncertainty_m: float | None = Field(default=None, ge=0)
+    observation_id: str | None = None
+
+
+class AISMessageRecord(BaseModel):
+    id: str
+    mmsi: str
+    message_at: datetime
+    received_at: datetime
+    lat: float = Field(ge=-90, le=90)
+    lon: float = Field(ge=-180, le=180)
+    sog_knots: float | None = Field(default=None, ge=0)
+    cog_degrees: float | None = Field(default=None, ge=0, le=360)
+    heading_degrees: float | None = Field(default=None, ge=0, le=360)
+    navigation_status: str | None = None
+    quality: str | None = None
+
+
+class AssociationRecord(BaseModel):
+    id: str
+    observation_id: str
+    track_id: str | None = None
+    ais_message_id: str | None = None
+    score: float = Field(ge=0, le=1)
+    decision: Literal["matched", "unmatched", "ambiguous", "unavailable"]
+    method_version: str
+    rejection_reasons: list[str] = Field(default_factory=list)
+
+
+class EvidenceRecord(BaseModel):
+    id: str
+    kind: Literal["sar_image", "video_frame", "model_output", "ais_export", "report"]
+    object_uri: str
+    sha256: str
+    acquisition_id: str | None = None
+    model_version: str | None = None
+    captured_at: datetime | None = None
+
+
+class AlertRecord(BaseModel):
+    id: str
+    rule_version: str
+    severity: Literal["low", "medium", "high", "critical"]
+    status: Literal["open", "acknowledged", "resolved", "dismissed"] = "open"
+    starts_at: datetime
+    ends_at: datetime | None = None
+    uncertainty: str
+    dedupe_key: str
+    observation_ids: list[str] = Field(default_factory=list)
+    association_ids: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)

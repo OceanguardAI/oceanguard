@@ -106,6 +106,13 @@ def test_source_status_is_safe_and_explicit(client: TestClient) -> None:
     assert all("configured" in source and "limitation" in source for source in body["sources"])
 
 
+def test_operational_api_does_not_fabricate_local_records(client: TestClient) -> None:
+    for path in ("/v1/observations", "/v1/tracks", "/v1/alerts"):
+        response = client.get(path)
+        assert response.status_code == 503
+        assert "database" in response.json()["detail"].lower()
+
+
 def test_list_risk_events(client: TestClient) -> None:
     response = client.get("/risk-events")
     assert response.status_code == 200

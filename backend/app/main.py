@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.routes import agents as agents_router
-from app.api.routes import ais, events, geo, ingest, metrics, sar, sources, verify
+from app.api.routes import ais, events, geo, ingest, metrics, operations, sar, sources, verify
 from app.core.config import settings
 from app.services import gfw_ingest, mpa_index
 from app.store.activity import activity_store
@@ -73,6 +73,7 @@ app.include_router(ingest.router)
 app.include_router(ais.router)
 app.include_router(sar.router)
 app.include_router(sources.router)
+app.include_router(operations.router)
 app.include_router(verify.router)
 
 
