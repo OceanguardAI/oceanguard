@@ -25,9 +25,92 @@ export interface ActivityPage {
   data_state: "not_loaded" | "available" | "empty" | "stale";
 }
 
+export interface SourceHealthItem {
+  id: string;
+  kind: string;
+  configured: boolean;
+  state: "configured" | "not_configured";
+  last_attempt_at: string | null;
+  last_success_at: string | null;
+  error_category: string | null;
+  data_state: string;
+  limitation: string;
+}
+
+export interface SourceHealthResponse {
+  generated_at: string;
+  region_bbox: [number, number, number, number];
+  sources: SourceHealthItem[];
+}
+
+export interface OperationalObservation {
+  id: string;
+  source_id: string;
+  acquisition_id: string | null;
+  observed_at: string;
+  ingested_at: string;
+  lat: number;
+  lon: number;
+  uncertainty_m: number | null;
+  model_version: string | null;
+  status: "candidate" | "accepted" | "rejected";
+  evidence_id: string | null;
+}
+
+export interface OperationalTrack {
+  id: string;
+  source_id: string;
+  state: "tentative" | "confirmed" | "predicted" | "lost" | "ended";
+  first_observed_at: string;
+  last_observed_at: string;
+  identity_hypothesis: string | null;
+  identity_confidence: number | null;
+}
+
+export interface OperationalAlert {
+  id: string;
+  rule_version: string;
+  severity: "low" | "medium" | "high" | "critical";
+  status: "open" | "acknowledged" | "resolved" | "dismissed";
+  starts_at: string;
+  ends_at: string | null;
+  uncertainty: string;
+  dedupe_key: string;
+  observation_ids: string[];
+  association_ids: string[];
+  evidence_ids: string[];
+}
+
 export async function fetchIngestStatus(): Promise<{ risk_events_mode: string }> {
   const res = await fetch(`${API_BASE}/ingest/status`);
   if (!res.ok) throw new Error("Failed to fetch source status");
+  return res.json();
+}
+
+export async function fetchSourceHealth(): Promise<SourceHealthResponse> {
+  const res = await fetch(`${API_BASE}/sources/status`);
+  if (!res.ok) throw new Error("Failed to fetch source health");
+  return res.json();
+}
+
+export async function fetchOperationalObservations(
+  bbox?: [number, number, number, number],
+): Promise<OperationalObservation[]> {
+  const query = bbox ? `?bbox=${bbox.join(",")}` : "";
+  const res = await fetch(`${API_BASE}/v1/observations${query}`);
+  if (!res.ok) throw new Error("Failed to fetch operational observations");
+  return res.json();
+}
+
+export async function fetchOperationalTracks(): Promise<OperationalTrack[]> {
+  const res = await fetch(`${API_BASE}/v1/tracks`);
+  if (!res.ok) throw new Error("Failed to fetch operational tracks");
+  return res.json();
+}
+
+export async function fetchOperationalAlerts(status = "open"): Promise<OperationalAlert[]> {
+  const res = await fetch(`${API_BASE}/v1/alerts?status=${encodeURIComponent(status)}`);
+  if (!res.ok) throw new Error("Failed to fetch operational alerts");
   return res.json();
 }
 
