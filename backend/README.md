@@ -192,6 +192,14 @@ queue has been validated against a live database and worker deployment. A
 provider or storage failure exits nonzero; the job remains queued for a later
 run unless its attempt limit was reached.
 
+### Source status
+
+GET /sources/status is the single read-only source readiness view. It never
+returns provider credentials. A source being configured only means the
+required key or URL is present; it does not prove that the provider is
+reachable or that the requested area has coverage. GFW activity, AIS samples,
+Sentinel-1 imagery, and YOLO inference retain their distinct limitations.
+
 ### Risk summary
 
 `GET /risk-summary` returns:

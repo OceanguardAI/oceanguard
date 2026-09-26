@@ -95,6 +95,17 @@ def test_health(client: TestClient) -> None:
     assert response.json()["events_loaded"] == 1
 
 
+def test_source_status_is_safe_and_explicit(client: TestClient) -> None:
+    response = client.get("/sources/status")
+    assert response.status_code == 200
+    body = response.json()
+    assert len(body["sources"]) == 4
+    assert {source["id"] for source in body["sources"]} == {
+        "gfw_4wings", "aisstream", "sentinel_hub", "yolo_service",
+    }
+    assert all("configured" in source and "limitation" in source for source in body["sources"])
+
+
 def test_list_risk_events(client: TestClient) -> None:
     response = client.get("/risk-events")
     assert response.status_code == 200

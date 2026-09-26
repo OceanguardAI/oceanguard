@@ -329,4 +329,9 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - When the inference service does not return a scene ID and observed acquisition time, the API reports `scene_time_unverified`. This is intentional: a successful image response or model detection is not presented as proof of the exact satellite pass.
 - The frontend displays this evidence state beside the model result. The result remains an observation candidate and does not establish vessel identity, AIS absence, or unauthorized activity. A future acquisition adapter must supply scene metadata before changing this state.
 
+### Source-health checkpoint (September 26, 2026)
+
+- GET /sources/status now presents one read-only readiness view for GFW activity, AISStream, Sentinel Hub, and the YOLO service. It reports configuration, recent activity state where available, sanitized error categories, and source limitations.
+- Configured means credentials or a service URL are present; it does not mean the provider is reachable, authorized, current, or returning useful coverage. AIS remains sample_only, and Sentinel/YOLO remain on_demand until durable observation and acquisition records are implemented.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
