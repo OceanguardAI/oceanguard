@@ -59,6 +59,21 @@ This helper does not bypass account requirements or automatically claim that a
 dataset is licensed for redistribution. Raw data stays outside the repository;
 fine-tuning starts only after the manifest and split registry are reviewed.
 
+Create a leakage-safe split manifest from JSON or JSONL records. Use a complete
+sequence, scene, or capture session as the group key so neighboring frames and
+tiles cannot land in different splits:
+
+    python -m datasets.splits --input records.jsonl --output splits.json --dataset shipsmot --group-key sequence_id
+
+The split helper uses a stable SHA-256 assignment and records the seed, ratios,
+groups, and record ids. It does not download data or infer missing labels.
+
+The first tracking reference implementation is `pipeline/tracking.py`. It is a
+transparent nearest-neighbor, constant-velocity baseline for coastal video. It
+can bridge a short observation gap with a predicted point, but it does not claim
+identity or replace a learned tracker. Use it to establish IDF1, HOTA,
+identity-switch, and reacquisition baselines before fine-tuning.
+
 ## Standard ML Workflow
 
 Run the full non-training pipeline:

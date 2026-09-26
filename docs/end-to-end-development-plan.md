@@ -346,4 +346,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - Alert generation is conservative and deduplicated: unavailable AIS creates no alert, while unmatched or ambiguous results create review candidates that explicitly avoid claiming illegal activity or deliberate AIS disabling.
 - This is a rules baseline, not a trained tracker or behavior model. It must be evaluated against labeled sequences after observation and AIS ingestion workers are implemented.
 
+### Dataset and tracking baseline checkpoint (September 26, 2026)
+
+- `ml/datasets/splits.py` now creates deterministic, group-safe split manifests from JSON or JSONL records. A sequence, scene, or capture session remains entirely in one split, and the manifest records the seed, ratios, groups, and record ids. This prevents leakage before fine-tuning begins.
+- `ml/pipeline/tracking.py` now provides a dependency-light nearest-neighbor constant-velocity baseline. It emits stable track ids, confirmed/tentative states, and short-gap predicted points so later HOTA, IDF1, identity-switch, and recovery experiments have a reproducible reference.
+- The dataset archives are not yet fully collected, normalized, or licensed for redistribution. No detector has been fine-tuned with the new datasets, and the tracker has not been evaluated on labeled coastal sequences yet.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
