@@ -358,4 +358,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - The evaluator makes the center-distance matching threshold explicit and documents that official benchmark implementations must be used for final HOTA or publication results.
 - No labeled coastal evaluation has been run yet. The remaining gate is to normalize a collected dataset into the split-manifest contract, then compare the baseline tracker against held-out sequences.
 
+### Operational-ingest checkpoint (September 26, 2026)
+
+- `backend/app/services/operational_ingest.py` now provides the worker-facing boundary for persisting an observation, its AIS messages, one association decision, and an optional review alert in deterministic order.
+- Retry delivery is safe at the application layer because association and alert ids are derived from stable inputs and the PostGIS repository uses conflict-safe inserts. Database transactionality still depends on the future worker transaction wrapper and live integration test.
+- The orchestration preserves `unavailable`, `unmatched`, and `ambiguous` as different states. It does not infer deliberate AIS disabling or create an alert when coverage is unavailable.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
