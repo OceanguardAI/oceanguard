@@ -352,4 +352,10 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - `ml/pipeline/tracking.py` now provides a dependency-light nearest-neighbor constant-velocity baseline. It emits stable track ids, confirmed/tentative states, and short-gap predicted points so later HOTA, IDF1, identity-switch, and recovery experiments have a reproducible reference.
 - The dataset archives are not yet fully collected, normalized, or licensed for redistribution. No detector has been fine-tuned with the new datasets, and the tracker has not been evaluated on labeled coastal sequences yet.
 
+### Tracking evaluation checkpoint (September 26, 2026)
+
+- `ml/evaluation/tracking_metrics.py` now provides a deterministic frame-level baseline for detection precision/recall, IDF1, identity switches, fragmentation, and match counts.
+- The evaluator makes the center-distance matching threshold explicit and documents that official benchmark implementations must be used for final HOTA or publication results.
+- No labeled coastal evaluation has been run yet. The remaining gate is to normalize a collected dataset into the split-manifest contract, then compare the baseline tracker against held-out sequences.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).

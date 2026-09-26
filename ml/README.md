@@ -74,6 +74,12 @@ can bridge a short observation gap with a predicted point, but it does not claim
 identity or replace a learned tracker. Use it to establish IDF1, HOTA,
 identity-switch, and reacquisition baselines before fine-tuning.
 
+`evaluation/tracking_metrics.py` evaluates detection precision/recall, IDF1,
+identity switches, fragmentation, and match counts from frame-level records.
+Its matching threshold is explicit and its assignment is deterministic. Treat
+it as a regression and experiment helper; final publication numbers should be
+checked with the official benchmark implementations.
+
 ## Standard ML Workflow
 
 Run the full non-training pipeline:
