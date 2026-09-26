@@ -364,4 +364,9 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - Retry delivery is safe at the application layer because association and alert ids are derived from stable inputs and the PostGIS repository uses conflict-safe inserts. Database transactionality still depends on the future worker transaction wrapper and live integration test.
 - The orchestration preserves `unavailable`, `unmatched`, and `ambiguous` as different states. It does not infer deliberate AIS disabling or create an alert when coverage is unavailable.
 
+### Replay checkpoint (September 26, 2026)
+
+- `ml/pipeline/replay.py` now replays timezone-aware recorded frames through the baseline tracker and writes JSON-ready track points.
+- Replay rejects unordered or timezone-free frames and preserves the distinction between measured and predicted points. This is the input path for later held-out sequence evaluation; it does not create a live camera feed.
+
 Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).

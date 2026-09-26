@@ -80,6 +80,15 @@ Its matching threshold is explicit and its assignment is deterministic. Treat
 it as a regression and experiment helper; final publication numbers should be
 checked with the official benchmark implementations.
 
+Replay a normalized sequence through the baseline tracker with:
+
+    python -m pipeline.replay --input sequence.json --output track-points.json
+
+Each input frame must include `frame_id`, a timezone-aware `observed_at`, and a
+`detections` list containing pixel centers. The output marks short-gap points as
+predicted, which prevents downstream code from presenting extrapolated positions
+as measured observations.
+
 ## Standard ML Workflow
 
 Run the full non-training pipeline:
