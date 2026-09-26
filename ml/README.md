@@ -7,6 +7,7 @@ This folder contains the full offline ML workflow for OceanGuard AI:
 - build `risk_events.json`
 - sync ML outputs into `backend/data`
 - audit the final handoff state
+- register and verify external training/evaluation datasets
 
 ## Layout
 
@@ -37,6 +38,26 @@ python -m venv .venv
 .\.venv\Scripts\activate
 pip install -r requirements.txt
 ```
+
+## Dataset collection
+
+The curated dataset registry is in datasets/registry.json. List the planned
+collection without downloading raw data:
+
+    python collect_datasets.py --list
+
+Check a dataset's current local state and licensing gate:
+
+    python collect_datasets.py --dataset hrsid --check-only
+
+After downloading a dataset from its official source and confirming its terms,
+write a SHA-256 manifest outside Git:
+
+    python collect_datasets.py --dataset hrsid --root D:/datasets/oceanguard
+
+This helper does not bypass account requirements or automatically claim that a
+dataset is licensed for redistribution. Raw data stays outside the repository;
+fine-tuning starts only after the manifest and split registry are reviewed.
 
 ## Standard ML Workflow
 

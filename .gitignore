@@ -17,6 +17,7 @@ build/
 # ML artifacts (large files — user supplies these)
 ml/models/best.pt
 ml/data/
+ml/data/external/
 
 # Full-world WDPA dump (large; the committed regional backend/data/mpas.geojson is the seed)
 backend/data/mpas.world.geojson
