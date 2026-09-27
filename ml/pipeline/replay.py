@@ -33,7 +33,7 @@ def replay_sequence(
     previous_timestamp: datetime | None = None
     for frame in frames:
         timestamp = _timestamp(str(frame["observed_at"]))
-        if previous_timestamp and timestamp < previous_timestamp:
+        if previous_timestamp and timestamp <= previous_timestamp:
             raise ValueError("frames must be ordered by observed_at")
         previous_timestamp = timestamp
         frame_id = str(frame["frame_id"])

@@ -57,47 +57,48 @@ def _match_frame(
 def _maximum_assignment(pair_counts: Counter[tuple[str, str]]) -> int:
     """Return a maximum one-to-one identity assignment score.
 
-    A small dynamic-programming assignment is enough for evaluation fixtures and
-    avoids making SciPy a required runtime dependency. For very large identity
-    sets, a caller should use an official benchmark implementation instead.
+    Use an exact polynomial-time Hungarian assignment for every identity count.
     """
     truth_ids = sorted({truth_id for truth_id, _ in pair_counts})
     prediction_ids = sorted({prediction_id for _, prediction_id in pair_counts})
-    if len(prediction_ids) > 20:
-        # A deterministic greedy fallback keeps the helper usable on large runs.
-        used: set[str] = set()
-        return sum(
-            count
-            for truth_id in truth_ids
-            for prediction_id, count in sorted(
-                ((candidate, pair_counts[(truth_id, candidate)]) for candidate in prediction_ids if candidate not in used),
-                key=lambda item: (-item[1], item[0]),
-            )[:1]
-            if not used.add(prediction_id)
-        )
-
-    scores: dict[tuple[int, int], int] = {}
-
-    def solve(truth_index: int, used_mask: int) -> int:
-        key = (truth_index, used_mask)
-        if key in scores:
-            return scores[key]
-        if truth_index == len(truth_ids):
-            return 0
-        best = solve(truth_index + 1, used_mask)
-        truth_id = truth_ids[truth_index]
-        for prediction_index, prediction_id in enumerate(prediction_ids):
-            if used_mask & (1 << prediction_index):
-                continue
-            best = max(
-                best,
-                pair_counts[(truth_id, prediction_id)]
-                + solve(truth_index + 1, used_mask | (1 << prediction_index)),
-            )
-        scores[key] = best
-        return best
-
-    return solve(0, 0)
+    size = max(len(truth_ids), len(prediction_ids))
+    if not size:
+        return 0
+    weights = [[pair_counts[(truth_ids[i], prediction_ids[j])]
+                if i < len(truth_ids) and j < len(prediction_ids) else 0
+                for j in range(size)] for i in range(size)]
+    u, v, assignment = [0] * (size + 1), [0] * (size + 1), [0] * (size + 1)
+    for row in range(1, size + 1):
+        assignment[0] = row
+        column = 0
+        minimum = [float("inf")] * (size + 1)
+        used = [False] * (size + 1)
+        previous = [0] * (size + 1)
+        while True:
+            used[column] = True
+            active_row = assignment[column]
+            delta, next_column = float("inf"), 0
+            for candidate in range(1, size + 1):
+                if used[candidate]:
+                    continue
+                cost = -weights[active_row - 1][candidate - 1] - u[active_row] - v[candidate]
+                if cost < minimum[candidate]:
+                    minimum[candidate], previous[candidate] = cost, column
+                if minimum[candidate] < delta:
+                    delta, next_column = minimum[candidate], candidate
+            for candidate in range(size + 1):
+                if used[candidate]:
+                    u[assignment[candidate]] += delta
+                    v[candidate] -= delta
+                else:
+                    minimum[candidate] -= delta
+            column = next_column
+            if assignment[column] == 0:
+                break
+        while column:
+            assignment[column] = assignment[previous[column]]
+            column = previous[column]
+    return sum(weights[assignment[column] - 1][column - 1] for column in range(1, size + 1))
 
 
 def evaluate_tracking(

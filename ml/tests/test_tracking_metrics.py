@@ -1,4 +1,16 @@
 from evaluation.tracking_metrics import evaluate_tracking
+from evaluation.tracking_metrics import _maximum_assignment
+from collections import Counter
+
+
+def test_assignment_is_exact_above_twenty_identities():
+    counts = Counter({("a", "x"): 10, ("a", "y"): 9, ("b", "x"): 9})
+    counts.update({(f"v{i}", f"t{i}"): 1 for i in range(21)})
+    assert _maximum_assignment(counts) == 39
+
+
+def test_empty_assignment_has_zero_matches():
+    assert _maximum_assignment(Counter()) == 0
 
 
 def test_tracking_metrics_reward_consistent_identity():

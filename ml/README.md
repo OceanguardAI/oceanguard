@@ -80,6 +80,13 @@ Its matching threshold is explicit and its assignment is deterministic. Treat
 it as a regression and experiment helper; final publication numbers should be
 checked with the official benchmark implementations.
 
+Tracker updates require strictly increasing timestamps with a timezone and
+finite pixel coordinates. The configured `min_hits` applies to all measured
+points. Invalid frames are rejected before state changes. IDF1 identity
+assignment uses an exact Hungarian algorithm at every identity count; the
+helper still uses center-distance frame matching and requires comparison with
+official evaluation tools for published results.
+
 Replay a normalized sequence through the baseline tracker with:
 
     python -m pipeline.replay --input sequence.json --output track-points.json

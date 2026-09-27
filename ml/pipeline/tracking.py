@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 from datetime import datetime
-from math import hypot
+from math import hypot, isfinite
 from typing import Any, Mapping
 
 
@@ -50,13 +50,15 @@ class BaselineTracker:
         max_gap_seconds: float = 5.0,
         min_hits: int = 2,
     ) -> None:
-        if max_match_distance_px <= 0 or max_gap_seconds <= 0 or min_hits <= 0:
+        if (not isfinite(max_match_distance_px) or not isfinite(max_gap_seconds)
+                or max_match_distance_px <= 0 or max_gap_seconds <= 0 or min_hits <= 0):
             raise ValueError("tracker limits must be positive")
         self.max_match_distance_px = max_match_distance_px
         self.max_gap_seconds = max_gap_seconds
         self.min_hits = min_hits
         self._next_id = 1
         self._tracks: dict[str, _Track] = {}
+        self._last_timestamp: datetime | None = None
 
     def _predict(self, track: _Track, timestamp: datetime) -> tuple[float, float, float]:
         seconds = max(0.0, (timestamp - track.observed_at).total_seconds())
@@ -69,6 +71,14 @@ class BaselineTracker:
         detections: list[Mapping[str, Any]],
     ) -> list[TrackPoint]:
         """Consume one frame and return matched plus short-gap predicted points."""
+        if observed_at.tzinfo is None or observed_at.utcoffset() is None:
+            raise ValueError("frame timestamps must include a timezone")
+        if self._last_timestamp is not None and observed_at <= self._last_timestamp:
+            raise ValueError("frame timestamps must be strictly increasing")
+        for detection in detections:
+            if not all(isfinite(float(detection[key])) for key in ("x_center_px", "y_center_px")):
+                raise ValueError("detection coordinates must be finite")
+        self._last_timestamp = observed_at
         predictions = {
             track_id: self._predict(track, observed_at)
             for track_id, track in self._tracks.items()
@@ -155,8 +165,7 @@ class BaselineTracker:
             del self._tracks[track_id]
         return sorted(points, key=lambda point: point.track_id)
 
-    @staticmethod
-    def _point(track: _Track, timestamp: datetime, predicted: bool) -> TrackPoint:
+    def _point(self, track: _Track, timestamp: datetime, predicted: bool) -> TrackPoint:
         return TrackPoint(
             track_id=track.track_id,
             frame_id=track.frame_id,
@@ -164,7 +173,7 @@ class BaselineTracker:
             x_center_px=track.x,
             y_center_px=track.y,
             is_predicted=predicted,
-            state="confirmed" if track.hits >= 2 else "tentative",
+            state="confirmed" if track.hits >= self.min_hits else "tentative",
             confidence=track.confidence,
             class_id=track.class_id,
         )

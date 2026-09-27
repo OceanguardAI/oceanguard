@@ -1,6 +1,31 @@
 from datetime import datetime, timedelta, timezone
 
 from pipeline.tracking import BaselineTracker
+import pytest
+
+
+def test_confirmation_uses_configured_hit_count():
+    tracker = BaselineTracker(min_hits=3)
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    for index in range(3):
+        points = tracker.update(str(index), start + timedelta(seconds=index),
+                                [{"x_center_px": index, "y_center_px": 0}])
+        assert points[0].state == ("confirmed" if index == 2 else "tentative")
+
+
+def test_invalid_frame_does_not_mutate_tracker():
+    tracker = BaselineTracker()
+    start = datetime(2026, 1, 1, tzinfo=timezone.utc)
+    tracker.update("1", start, [{"x_center_px": 0, "y_center_px": 0}])
+    with pytest.raises(ValueError, match="strictly increasing"):
+        tracker.update("old", start - timedelta(seconds=1), [])
+    with pytest.raises(ValueError, match="finite"):
+        tracker.update("bad", start + timedelta(seconds=1),
+                       [{"x_center_px": float("nan"), "y_center_px": 0}])
+    points = tracker.update("2", start + timedelta(seconds=1),
+                            [{"x_center_px": 1, "y_center_px": 0}])
+    assert points[0].track_id == "track-000001"
+    assert points[0].state == "confirmed"
 
 
 def test_tracker_matches_motion_and_confirms_after_two_hits():
