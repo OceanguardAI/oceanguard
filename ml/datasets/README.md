@@ -1,5 +1,9 @@
 # OceanGuard Dataset Collection
 
+See the expanded [dataset acquisition and training-data guide](../../docs/dataset-collection-and-training-data.md)
+for official sources, synchronized AIS/video requirements, storage needs,
+download commands, access blockers and per-model preparation.
+
 This directory is the controlled entry point for external training and
 evaluation data. Raw datasets are intentionally not committed to Git. They
 belong in ml/data/external/, which is ignored by the repository.
@@ -33,8 +37,10 @@ the HRSID baseline, then evaluate SSDD and xView3 without training on test data.
 - prepared: an adapter produced a derived training format from a verified source.
 - blocked: access, license, or integrity validation needs user action.
 
-The current repository state is catalogued only. No fine-tuning result should
-be reported from these datasets until files, splits, and manifests are present.
+Most datasets remain catalogued or partially collected. The expanded guide
+records verified DTU assets separately from documentation checkouts and ongoing
+archive downloads. No fine-tuning result should be reported until the intended
+files, frozen splits, and manifests are present.
 
 ## Local collection performed on September 26, 2026
 

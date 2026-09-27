@@ -23,6 +23,7 @@ If you want to learn the project after having developed it with agents, start he
 15. `system-health-and-recovery-plan.md`
 16. `coastal-vessel-tracking-roadmap.md`
 17. `end-to-end-development-plan.md`
+18. [Dataset collection and training data](dataset-collection-and-training-data.md)
 
 ## What each document is for
 

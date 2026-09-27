@@ -1,5 +1,5 @@
 {
-  "registry_version": "2026-09-26",
+  "registry_version": "2026-09-27",
   "datasets": [
     {
       "id": "hrsid",
@@ -24,7 +24,7 @@
       "priority": "P0",
       "samples": "1160 images",
       "source_url": "https://github.com/TianwenZhang0825/Official-SSDD",
-      "download_url": "https://github.com/TianwenZhang0825/Official-SSDD",
+      "download_url": "https://drive.google.com/file/d/1glNJUGotrbEyk43twwB9556AdngJsynZ/view",
       "license_status": "verify_upstream_terms_before_redistribution",
       "access": "public_repository",
       "local_path": "ml/data/external/ssdd",
@@ -98,12 +98,12 @@
       "modality": "optical_satellite",
       "priority": "P1",
       "samples": "3500 images, 35598 instances, 10 categories",
-      "source_url": "https://github.com/DIUx-xView/UOW-Vessel",
-      "download_url": "https://github.com/DIUx-xView/UOW-Vessel",
+      "source_url": "https://documents.uow.edu.au/~phung/UOW-Vessel.html",
+      "download_url": "https://documents.uow.edu.au/~phung/UOW-Vessel.html",
       "license_status": "verify_upstream_terms_before_redistribution",
-      "access": "public_repository",
+      "access": "release_agreement_required",
       "local_path": "ml/data/external/uow_vessel",
-      "status": "catalogued",
+      "status": "blocked",
       "purpose": "Optical transfer evaluation; do not mix with SAR training splits."
     },
     {
@@ -116,10 +116,82 @@
       "source_url": "https://lojzezust.github.io/lars-dataset",
       "download_url": "https://lojzezust.github.io/lars-dataset",
       "license_status": "verify_dataset_terms_before_redistribution",
-      "access": "public_download",
+      "access": "registration_and_terms_required",
       "local_path": "ml/data/external/lars",
       "status": "catalogued",
       "purpose": "Water, sky, obstacle, and degraded-scene context modeling."
+    },
+    {
+      "id": "fvessel", "name": "FVessel",
+      "tasks": ["multi_object_tracking", "ais_video_association"],
+      "modality": "synchronized_video_ais", "priority": "P0",
+      "samples": "V1: 26 video/AIS sequences and 7625 detection images",
+      "source_url": "https://github.com/gy65896/FVessel",
+      "download_url": "https://huggingface.co/datasets/gy65896/FVessel",
+      "license_status": "verify_dataset_terms_separately_from_code_license",
+      "access": "public_download_storage_required",
+      "local_path": "ml/data/external/fvessel", "status": "catalogued",
+      "purpose": "Primary synchronized AIS-camera association and outage-recovery benchmark."
+    },
+    {
+      "id": "dtu_ais", "name": "DTU Danish AIS anomalies",
+      "tasks": ["trajectory_anomaly_detection", "trajectory_forecasting"],
+      "modality": "historical_ais", "priority": "P0",
+      "samples": "Labelled evaluation: 521 trajectories, 25 abnormal",
+      "source_url": "https://data.dtu.dk/collections/AIS_Trajectories_from_Danish_Waters_for_Abnormal_Behavior_Detection/6287841",
+      "download_url": "https://api.figshare.com/v2/articles/21511815",
+      "license_status": "labelled_article_CC_BY_4_0",
+      "access": "public_download",
+      "local_path": "ml/data/external/dtu_ais", "status": "catalogued",
+      "purpose": "Labelled behavior evaluation; training collection is a separate download."
+    },
+    {
+      "id": "seadronessee", "name": "SeaDronesSee",
+      "tasks": ["drone_detection", "multi_object_tracking"],
+      "modality": "drone_rgb", "priority": "P1",
+      "samples": "Version-specific detection and tracking splits",
+      "source_url": "https://seadronessee.cs.uni-tuebingen.de/dataset",
+      "download_url": "https://seadronessee.cs.uni-tuebingen.de/dataset",
+      "license_status": "verify_selected_track_terms",
+      "access": "provider_download_portal",
+      "local_path": "ml/data/external/seadronessee", "status": "catalogued",
+      "purpose": "Optional drone branch and held-out small-target viewpoint tests."
+    },
+    {
+      "id": "smd", "name": "Singapore Maritime Dataset",
+      "tasks": ["coastal_detection", "multi_object_tracking"],
+      "modality": "shore_onboard_video", "priority": "P1",
+      "samples": "Use official sequence inventory and modality splits",
+      "source_url": "https://sites.google.com/site/dilipprasad/home/singapore-maritime-dataset",
+      "download_url": "https://sites.google.com/site/dilipprasad/home/singapore-maritime-dataset",
+      "license_status": "verify_official_dataset_terms",
+      "access": "provider_download_portal",
+      "local_path": "ml/data/external/smd", "status": "catalogued",
+      "purpose": "External coastal generalization and infrared branch evaluation."
+    },
+    {
+      "id": "hoss_reid", "name": "HOSS ReID",
+      "tasks": ["cross_modal_re_identification"],
+      "modality": "optical_sar_pairs", "priority": "P2",
+      "samples": "Use official Zenodo record and identity split",
+      "source_url": "https://github.com/Alioth2000/Hoss-ReID",
+      "download_url": "https://github.com/Alioth2000/Hoss-ReID",
+      "license_status": "verify_zenodo_data_license_separately_from_code",
+      "access": "public_download",
+      "local_path": "ml/data/external/hoss_reid", "status": "catalogued",
+      "purpose": "Optional optical/SAR identity research after tracking baselines."
+    },
+    {
+      "id": "noaa_ais", "name": "NOAA MarineCadastre AIS",
+      "tasks": ["trajectory_forecasting", "behavior_baselines"],
+      "modality": "historical_ais", "priority": "P1",
+      "samples": "Select a documented region and date range",
+      "source_url": "https://github.com/ocm-marinecadastre/ais-vessel-traffic",
+      "download_url": "https://marinecadastre.gov/ais/",
+      "license_status": "verify_source_metadata_and_attribution",
+      "access": "regional_subset_required",
+      "local_path": "ml/data/external/noaa_ais", "status": "catalogued",
+      "purpose": "Broader normal-traffic histories; no camera synchronization or anomaly labels implied."
     }
   ]
 }
