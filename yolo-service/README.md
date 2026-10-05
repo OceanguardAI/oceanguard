@@ -1,7 +1,7 @@
 # OceanGuard YOLO SAR Service
 
 On-demand vessel verification with our own fine-tuned model. Kept as a **separate
-Cloud Run service** so the heavy `torch` / `ultralytics` stack (and its cold
+Azure Container App** so the heavy `torch` / `ultralytics` stack (and its cold
 start) never burdens the main API. Scales to zero between requests — it costs
 nothing until an officer runs a check.
 
@@ -47,9 +47,8 @@ systems").
 
 Pushed to `main` under `yolo-service/**`, GitHub Actions
 (`.github/workflows/deploy-yolo.yml`) builds the image and deploys the
-`oceanguard-yolo` Cloud Run service (2Gi / 2CPU, `min-instances=0`). After the
-first deploy, copy the service URL into the repo variable `YOLO_SERVICE_URL` and
-redeploy the backend so it can reach this service.
+`og-yolo` Container App (4Gi / 2 CPU, `min-replicas=0`). `scripts/azure_deploy.ps1`
+creates it the first time and sets `YOLO_SERVICE_URL` on the backend.
 
 ## Local run
 

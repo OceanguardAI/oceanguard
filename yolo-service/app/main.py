@@ -2,7 +2,7 @@
 
 A small FastAPI app that, on demand, pulls a Sentinel-1 chip for a point and
 runs the fine-tuned ship detector over it. Deployed as its own scale-to-zero
-Cloud Run service so the heavy torch stack never burdens the main API.
+container app so the heavy torch stack never burdens the main API.
 
 Endpoints:
   GET  /health        -> liveness + whether the model and Sentinel Hub are ready
@@ -33,7 +33,7 @@ app = FastAPI(title="OceanGuard YOLO SAR Service", version="1.0.0", lifespan=lif
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[o.strip() for o in settings.cors_origins.split(",")] if settings.cors_origins else ["*"],
+    allow_origins=[o.strip() for o in settings.cors_origins.split(",") if o.strip()],
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -1,27 +1,47 @@
+# Local / self-hosted run of OceanGuard (no cloud account required).
+#
+#   cp backend/.env.example backend/.env      # then fill in keys (see comments inside)
+#   docker compose up --build                 # backend + frontend
+#   docker compose --profile yolo up --build  # also the on-demand YOLO SAR service
+#
+#   frontend  http://localhost:5173
+#   backend   http://localhost:8000   (API docs at /docs)
+#   yolo      http://localhost:8081   (profile "yolo" only)
+#
+# The backend reads backend/.env exactly as it does when started with uvicorn,
+# so every setting (GROQ_API_KEY, GFW_API_TOKEN, GFW_SAR_DATASET, agent token
+# limits, ...) has ONE source of truth and its default lives in
+# backend/app/core/config.py. To use the YOLO profile, set
+# YOLO_SERVICE_URL=http://yolo:8080 in backend/.env.
+
 services:
   backend:
     build: ./backend
     ports:
-      - "8000:8000"
-    environment:
-      GEMINI_API_KEY: ${GEMINI_API_KEY:-}
-      GEMINI_USE_GCP: ${GEMINI_USE_GCP:-false}
-      GOOGLE_CLOUD_PROJECT: ${GOOGLE_CLOUD_PROJECT:-}
-      GOOGLE_CLOUD_LOCATION: ${GOOGLE_CLOUD_LOCATION:-global}
-      GOOGLE_APPLICATION_CREDENTIALS: ${GOOGLE_APPLICATION_CREDENTIALS:-}
-      GEMINI_MODEL: ${GEMINI_MODEL:-gemini-3.5-flash}
-      AGENT_MAX_TOOL_ROUNDS: ${AGENT_MAX_TOOL_ROUNDS:-5}
-      AGENT_NARRATOR_MAX_TOKENS: ${AGENT_NARRATOR_MAX_TOKENS:-500}
-      AGENT_BRIEFING_MAX_TOKENS: ${AGENT_BRIEFING_MAX_TOKENS:-400}
-      AGENT_PATROL_MAX_TOKENS: ${AGENT_PATROL_MAX_TOKENS:-600}
-      AGENT_ASK_MAX_TOKENS: ${AGENT_ASK_MAX_TOKENS:-700}
-      CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost:5173,http://localhost:3000}
+      - "8000:8080"   # the image listens on $PORT (8080)
+    env_file:
+      - path: ./backend/.env
+        required: false
     volumes:
       - ./backend/data:/app/data
 
   frontend:
-    build: ./frontend
+    build:
+      context: ./frontend
+      args:
+        # Baked into the static bundle at build time and called by the browser,
+        # so it must be the backend address as seen from the host, not "backend".
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-http://localhost:8000}
     ports:
-      - "80:80"
+      - "5173:8080"   # nginx listens on 8080; 5173 is in the backend CORS defaults
     depends_on:
       - backend
+
+  yolo:
+    profiles: ["yolo"]
+    build: ./yolo-service
+    ports:
+      - "8081:8080"
+    env_file:
+      - path: ./backend/.env   # shares SENTINELHUB_CLIENT_ID / SENTINELHUB_CLIENT_SECRET
+        required: false

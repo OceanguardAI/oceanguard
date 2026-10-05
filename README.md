@@ -7,7 +7,7 @@ It fuses Synthetic Aperture Radar (SAR) object detection, Automatic Identificati
 ## Project Structure
 
 - `ml/` - Offline data pipeline (SAR Tiling, YOLO Inference, Spatial Enrichment). Generates `risk_events.json`.
-- `backend/` - FastAPI service providing the data API and Gemini-powered Agents (Narrator, Briefing, Patrol, Ask).
+- `backend/` - FastAPI service providing the data API and Groq-powered Agents (Narrator, Briefing, Patrol, Ask).
 - `frontend/` - React/Vite/Tailwind dashboard for monitoring detections and interacting with AI agents.
 
 ## Quickstart
@@ -26,21 +26,12 @@ See `ml/README.md` for the full ML workflow, temporary artifact handling, raw `.
 ```bash
 cd backend
 pip install -r requirements.txt
-# Optional: Set GEMINI_API_KEY in .env for full agentic features
+# Optional: set GROQ_API_KEY in .env for full agentic features
 uvicorn app.main:app --reload --port 8000
 ```
 
 See `backend/README.md` for the full backend route map, review persistence behavior, agent endpoints, and verification steps.
-See `API_SETUP.md` for the Gemini Developer API key setup flow, or `GCP_GEMINI_SETUP.md` for the Google Cloud / Vertex-style Gemini path.
-
-### Vertex AI Quick Test
-```bash
-gcloud config set project oceaneyelabs
-gcloud auth application-default login
-gcloud auth application-default set-quota-project oceaneyelabs
-pip install -r requirements.txt
-python test_vertex.py
-```
+See `API_SETUP.md` for the Groq API key setup flow.
 
 ### 3. Run Frontend
 ```bash
@@ -58,15 +49,15 @@ The Docker setup uses `backend/data` as the shared writable runtime data directo
 
 ## Live System
 
-The production system runs on Google Cloud Run (`asia-south1`, project `oceaneyelabs`):
+The production system runs on Azure Container Apps (`centralindia`) with images built in Azure Container Registry:
 
-| Service | URL |
+| Service | Container App |
 |---|---|
-| Backend API | `https://oceanguard-api-ezas7zp4yq-el.a.run.app` |
-| YOLO inference | `https://oceanguard-yolo-ezas7zp4yq-el.a.run.app` |
-| Frontend | Auto-deployed on push to `main` |
+| Backend API | `og-backend` |
+| YOLO inference (scales to zero) | `og-yolo` |
+| Frontend | `og-web` |
 
-Push to `main` triggers auto-deploy. Use **Actions → Run workflow** for manual redeploys.
+`scripts/azure_deploy.ps1` creates everything once. After that, a push to `main` redeploys the changed service through `.github/workflows/deploy-*.yml` (repo secret `AZURE_CREDENTIALS`; repo variables `ACR_NAME`, `AZURE_RESOURCE_GROUP`, `VITE_API_BASE_URL`). Use **Actions → Run workflow** for manual redeploys.
 
 **Data sources in use:**
 - [Global Fishing Watch](https://globalfishingwatch.org/our-apis/tokens) — global SAR dark-vessel detections (AIS-based, 7-day lookback, 600 events)

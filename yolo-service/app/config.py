@@ -1,7 +1,7 @@
 """Configuration for the YOLO SAR inference service.
 
-Credentials come from the environment (Cloud Run injects them from GitHub
-Secrets). The Sentinel Hub client id/secret are the same pair the backend uses
+Credentials come from the environment (the container app injects them from its
+secrets). The Sentinel Hub client id/secret are the same pair the backend uses
 for the evidence-card chips.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ class Settings(BaseSettings):
     chip_px: int = 640
 
     # CORS for the backend proxy / direct frontend calls.
-    cors_origins: str = "*"
+    cors_origins: str = "http://localhost:5173,http://localhost:3000"
 
 
 settings = Settings()
