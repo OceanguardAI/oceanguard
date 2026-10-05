@@ -450,9 +450,12 @@ export default function App() {
     setLeftPanel(next);
   };
 
+  // "mixed" still contains the bundled sample cases, so only a store holding
+  // nothing but pushed or database records may drop the "sample" wording.
+  const sampleBacked = eventsMode === "sample" || eventsMode === "mixed" || eventsMode === "not_loaded";
   const kpis = [
     {
-      icon: Layers, label: eventsMode === "sample" ? "Sample Cases" : "Case Records", color: "text-teal-400", bg: "bg-teal-400/8",
+      icon: Layers, label: sampleBacked ? "Sample Cases" : "Case Records", color: "text-teal-400", bg: "bg-teal-400/8",
       value: events.length,
       tip: {
         title: "Sample Cases",
@@ -928,7 +931,7 @@ export default function App() {
               </div>
 
               <div className="absolute top-3 left-1/2 -translate-x-1/2 z-[900] rounded-lg border border-cyan-400/20 bg-ocean-900/90 px-3 py-1.5 text-[11px] text-slate-200 pointer-events-none text-center max-w-[min(90vw,560px)]">
-                Colored markers: {eventsMode === "sample" ? "sample cases" : "case records"} · Cyan circles: GFW activity cells
+                Colored markers: {sampleBacked ? "sample cases" : "case records"} · Cyan circles: GFW activity cells
                 {activityPage && ` (${activityPage.items.length} of ${activityPage.total} in view${activityPage.data_state === "stale" ? ", stale" : ""})`}
                 {activityError && " (activity API unavailable)"}
               </div>
@@ -1002,7 +1005,7 @@ export default function App() {
                   )}
                 </AnimatePresence>
 
-                {/* Cold start: the first fetch can take ~30s while Cloud Run
+                {/* Cold start: the first fetch can take ~30s while the container app
                     wakes the container and GFW aggregate ingestion runs. Show a
                     "connecting" state instead of a blank map so a demo never
                     opens on emptiness. */}
@@ -1019,7 +1022,7 @@ export default function App() {
                           <Radar className="w-5 h-5 text-teal-400 animate-pulse" />
                         </div>
                       </div>
-                      <p className="font-semibold text-white">Connecting to live detection feed</p>
+                      <p className="font-semibold text-white">Loading sample cases and GFW activity</p>
                       <p className="text-slate-400 text-sm">
                         Waking the satellite-radar service and pulling the latest Global Fishing Watch
                         detections. This can take up to a minute on first load.

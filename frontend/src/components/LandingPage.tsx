@@ -28,30 +28,26 @@ const navItems = [
 // Each item: text + color accent
 // "live" = blinking red dot | "stat" = big amber number | "data" = cyan label | "default" = white/slate
 const TICKER: { text: string; type: "live" | "stat" | "data" | "default" }[] = [
-  { text: "SYSTEM ACTIVE",           type: "live"    },
-  { text: "$23 BILLION",             type: "stat"    },
-  { text: "lost to illegal fishing every year",  type: "default" },
+  { text: "RESEARCH PROTOTYPE",      type: "live"    },
+  { text: "$10-23.5 BILLION",        type: "stat"    },
+  { text: "estimated yearly loss to illegal fishing (xView3 / GFW)",  type: "default" },
   { text: "1 in 5 fish",             type: "stat"    },
-  { text: "caught outside the rules",type: "default" },
-  { text: "300 000+",                type: "stat"    },
-  { text: "vessels tracked by satellite radar",  type: "data"    },
-  { text: "10 000+",                 type: "stat"    },
-  { text: "marine protected areas monitored",    type: "data"    },
-  { text: "DARK VESSEL DETECTED",    type: "live"    },
-  { text: "AI evidence card generated in",       type: "default" },
-  { text: "< 3 MINUTES",            type: "stat"    },
+  { text: "likely illegal or unreported (xView3 / GFW)",type: "default" },
+  { text: "Bar Reef, Sri Lanka",     type: "stat"    },
+  { text: "demo area: sample cases + Global Fishing Watch activity",  type: "data"    },
+  { text: "Detections are unverified leads",     type: "data"    },
   { text: "Human review required before action", type: "data"    },
 ];
 
 const STAKES = [
-  { value: "$23B",    label: "lost to illegal fishing / yr" },
-  { value: "1 in 5",  label: "fish caught outside the rules" },
-  { value: "Hours",   label: "to act — not days" },
+  { value: "$10-23.5B", label: "est. lost to illegal fishing / yr" },
+  { value: "1 in 5",    label: "wild-caught fish likely illegal or unreported" },
+  { value: "10 m",      label: "Sentinel-1 pixel: small boats are hard to see" },
 ];
 
 const STAGES = [
   { no: "01", tag: "ACQUIRE", icon: Satellite,    title: "Global radar passes", copy: "Sentinel-1 SAR images the ocean day and night, straight through cloud cover.",      accent: "text-cyan-300",  ring: "border-cyan-300/25" },
-  { no: "02", tag: "DETECT",  icon: ScanSearch,   title: "AI finds every contact", copy: "YOLO11n scans the raw radar and flags every vessel — broadcasting or dark.",        accent: "text-cyan-300",  ring: "border-cyan-300/25" },
+  { no: "02", tag: "DETECT",  icon: ScanSearch,   title: "AI flags candidate contacts", copy: "YOLO11n scans the radar and flags candidate vessels. Recall is measured, not assumed; small boats are often missed.",        accent: "text-cyan-300",  ring: "border-cyan-300/25" },
   { no: "03", tag: "REVIEW",  icon: AlertTriangle,title: "Leads get reviewed",    copy: "Sample cases show how an analyst can inspect risk and uncertainty before acting.", accent: "text-amber-300", ring: "border-amber-300/25" },
   { no: "04", tag: "REVIEW",  icon: FileText,     title: "An officer decides",    copy: "Each contact becomes an evidence card. A human confirms before any action is taken.", accent: "text-teal-300",  ring: "border-teal-300/25" },
 ];
@@ -304,7 +300,8 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               </p>
               <p className="mt-6 max-w-md text-base leading-8 text-slate-400">
                 Switching off a transponder takes one button. Satellite radar doesn't care —
-                it photographs every hull on the water, broadcasting or not.
+                it images the sea surface whether or not a vessel broadcasts, though small
+                boats can still be missed.
               </p>
               <div className="mt-7 font-mono text-[11px] uppercase leading-relaxed tracking-[0.2em] text-slate-500">
                 Source · Sentinel-1 SAR<br />
@@ -437,14 +434,14 @@ export default function LandingPage({ onLaunch, onDemo }: Props) {
               See the vessels that<br className="hidden md:block" /> don't want to be seen.
             </h2>
             <p className="mx-auto mt-5 max-w-lg text-base leading-8 text-slate-400">
-              Open the live console — real satellite detections, AI evidence cards, human review built in.
+              Open the console: Global Fishing Watch activity, clearly labelled sample cases, and human review built in.
             </p>
             <div className="mt-8 flex flex-wrap items-center justify-center gap-4">
               <GradientButton variant="primary" size="lg" onClick={onLaunch}>
                 Open Dashboard <ArrowRight className="h-4 w-4" />
               </GradientButton>
               <GradientButton variant="secondary" size="lg" onClick={onDemo}>
-                View Live Demo
+                Open Demo
               </GradientButton>
             </div>
           </div>
