@@ -14,6 +14,7 @@ permissions:
 env:
   ACR_NAME: ${{ vars.ACR_NAME }}
   RESOURCE_GROUP: ${{ vars.AZURE_RESOURCE_GROUP }}
+  IMAGE: ${{ vars.ACR_NAME }}.azurecr.io/og-backend:${{ github.sha }}
 
 jobs:
   deploy:
@@ -26,10 +27,22 @@ jobs:
         with:
           creds: ${{ secrets.AZURE_CREDENTIALS }}
 
-      # Image is built inside Azure Container Registry; the Container App keeps
-      # its secrets and environment, only the image changes.
-      - name: Build image in ACR
-        run: az acr build -r "$ACR_NAME" -t "og-backend:${{ github.sha }}" -f backend/Dockerfile backend
+      # Azure for Students blocks ACR Tasks (az acr build), so the image is built
+      # on the runner and pushed with the registry's admin credential.
+      - name: Log in to the registry
+        run: |
+          password=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+          echo "::add-mask::$password"
+          echo "$password" | docker login "$ACR_NAME.azurecr.io" -u "$ACR_NAME" --password-stdin
 
+      - name: Build and push image
+        run: |
+          docker build -f backend/Dockerfile -t "$IMAGE" backend
+          docker push "$IMAGE"
+
+      # The apps are first created with a placeholder image on port 80; this is
+      # idempotent once the real image is running on 8080.
       - name: Roll out new revision
-        run: az containerapp update -n og-backend -g "$RESOURCE_GROUP" --image "$ACR_NAME.azurecr.io/og-backend:${{ github.sha }}"
+        run: |
+          az containerapp ingress update -n og-backend -g "$RESOURCE_GROUP" --target-port 8080
+          az containerapp update -n og-backend -g "$RESOURCE_GROUP" --image "$IMAGE"
