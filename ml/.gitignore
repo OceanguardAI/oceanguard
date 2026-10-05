@@ -1,0 +1,5 @@
+# Azure ML job outputs
+outputs/
+
+# Trained weights are shipped through yolo-service/models, not committed here
+models/*.pt

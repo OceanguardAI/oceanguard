@@ -1,0 +1,8 @@
+--extra-index-url https://download.pytorch.org/whl/cpu
+torch
+torchvision
+ultralytics>=8.3
+rasterio>=1.3
+numpy>=1.26
+pillow>=10.0
+requests>=2.31
