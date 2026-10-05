@@ -2,11 +2,11 @@ from __future__ import annotations
 
 import asyncio
 from pathlib import Path
-from types import SimpleNamespace
 
 from app.agents import ask, briefing, helpers, narrator, patrol
 from app.models.schemas import RiskEvent
 from app.store.repository import repo
+from tests.groq_fakes import FakeGroq, reply
 
 
 def _event(**overrides) -> RiskEvent:
@@ -40,18 +40,9 @@ def _event(**overrides) -> RiskEvent:
     return RiskEvent(**payload)
 
 
-class _FakeClient:
-    """Mimics genai.Client's `.models.generate_content(...)` surface."""
-
-    def __init__(self, response):
-        self.models = SimpleNamespace(generate_content=lambda **_: response)
-
-
 def test_narrator_parses_valid_json_response(monkeypatch) -> None:
-    response = SimpleNamespace(
-        text='{"why_flagged":"Possible dark vessel.","uncertainty":"Needs review."}'
-    )
-    monkeypatch.setattr(narrator, "get_client", lambda: _FakeClient(response))
+    fake = FakeGroq(reply('{"why_flagged":"Possible dark vessel.","uncertainty":"Needs review."}'))
+    monkeypatch.setattr(narrator, "get_client", lambda: fake)
 
     result = asyncio.run(narrator.narrate(_event()))
 
@@ -60,8 +51,8 @@ def test_narrator_parses_valid_json_response(monkeypatch) -> None:
 
 
 def test_narrator_falls_back_on_incomplete_json(monkeypatch) -> None:
-    response = SimpleNamespace(text='{"why_flagged":"Only one field"}')
-    monkeypatch.setattr(narrator, "get_client", lambda: _FakeClient(response))
+    fake = FakeGroq(reply('{"why_flagged":"Only one field"}'))
+    monkeypatch.setattr(narrator, "get_client", lambda: fake)
 
     result = asyncio.run(narrator.narrate(_event()))
 
@@ -69,8 +60,8 @@ def test_narrator_falls_back_on_incomplete_json(monkeypatch) -> None:
 
 
 def test_briefing_falls_back_on_blank_model_text(monkeypatch) -> None:
-    response = SimpleNamespace(text="   ")
-    monkeypatch.setattr(briefing, "get_client", lambda: _FakeClient(response))
+    fake = FakeGroq(reply("   "))
+    monkeypatch.setattr(briefing, "get_client", lambda: fake)
 
     result = asyncio.run(briefing.briefing([_event()]))
 
@@ -78,8 +69,8 @@ def test_briefing_falls_back_on_blank_model_text(monkeypatch) -> None:
 
 
 def test_patrol_falls_back_on_invalid_json(monkeypatch) -> None:
-    response = SimpleNamespace(text="not-json")
-    monkeypatch.setattr(patrol, "get_client", lambda: _FakeClient(response))
+    fake = FakeGroq(reply("not-json"))
+    monkeypatch.setattr(patrol, "get_client", lambda: fake)
 
     result = asyncio.run(
         patrol.patrol(
@@ -138,93 +129,52 @@ def test_ask_fallback_review_counts(monkeypatch, tmp_path: Path) -> None:
     assert "Resolved=1" in result.answer
 
 
-def test_ask_uses_configured_model_and_tool_round_limit(monkeypatch) -> None:
-    calls: list[dict] = []
+def test_ask_uses_configured_model_and_max_tokens(monkeypatch) -> None:
+    fake = FakeGroq(reply("Configured."))
+    monkeypatch.setattr(ask, "get_client", lambda: fake)
+    monkeypatch.setattr(ask.settings, "groq_model", "test-model")
+    monkeypatch.setattr(ask.settings, "agent_ask_max_tokens", 321)
 
-    def fake_generate_content(**kwargs):
-        calls.append(kwargs)
-        return SimpleNamespace(candidates=[], text="Configured.")
-
-    original_model = ask.settings.gemini_model
-    original_rounds = ask.settings.agent_max_tool_rounds
-    try:
-        ask.settings.gemini_model = "gemini-test-model"
-        ask.settings.agent_max_tool_rounds = 1
-        monkeypatch.setattr(
-            ask,
-            "get_client",
-            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
-        )
-
-        result = asyncio.run(ask.ask("hello"))
-    finally:
-        ask.settings.gemini_model = original_model
-        ask.settings.agent_max_tool_rounds = original_rounds
+    result = asyncio.run(ask.ask("hello"))
 
     assert result.answer == "Configured."
-    assert len(calls) == 1
-    assert calls[0]["model"] == "gemini-test-model"
+    assert len(fake.requests) == 1
+    assert fake.requests[0]["model"] == "test-model"
+    assert fake.requests[0]["max_tokens"] == 321
 
 
-def test_ask_uses_configured_max_tokens(monkeypatch) -> None:
-    calls: list[dict] = []
+def test_ask_stops_at_the_tool_round_limit(monkeypatch) -> None:
+    fake = FakeGroq(reply(None, tool_calls=[("call_1", "get_risk_summary", {})]))
+    monkeypatch.setattr(ask, "get_client", lambda: fake)
+    monkeypatch.setattr(ask.settings, "agent_max_tool_rounds", 2)
 
-    def fake_generate_content(**kwargs):
-        calls.append(kwargs)
-        return SimpleNamespace(candidates=[], text="Tokens.")
+    result = asyncio.run(ask.ask("how many?"))
 
-    original_tokens = ask.settings.agent_ask_max_tokens
-    try:
-        ask.settings.agent_ask_max_tokens = 321
-        monkeypatch.setattr(
-            ask,
-            "get_client",
-            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
-        )
-
-        result = asyncio.run(ask.ask("hello"))
-    finally:
-        ask.settings.agent_ask_max_tokens = original_tokens
-
-    assert result.answer == "Tokens."
-    assert calls[0]["config"].max_output_tokens == 321
+    assert len(fake.requests) == 2
+    assert result == ask._fallback("how many?")
 
 
 def test_ask_tool_loop_executes_tool_and_returns_final_answer(monkeypatch) -> None:
     original_events = repo._events.copy()
-    calls: list[dict] = []
-    function_call = SimpleNamespace(name="get_event", args={"id": "bar-reef-003"}, id="call_1")
-    responses = [
-        SimpleNamespace(
-            candidates=[
-                SimpleNamespace(content=SimpleNamespace(parts=[SimpleNamespace(function_call=function_call)]))
-            ],
-        ),
-        SimpleNamespace(candidates=[], text="bar-reef-003 remains the highest-risk reviewed lead."),
-    ]
-
-    def fake_generate_content(**kwargs):
-        calls.append(kwargs)
-        return responses[len(calls) - 1]
-
+    fake = FakeGroq(
+        reply(None, tool_calls=[("call_1", "get_event", {"id": "bar-reef-003"})]),
+        reply("bar-reef-003 remains the highest-risk reviewed lead."),
+    )
     try:
         event = _event(review_status="Resolved")
         repo._events = {event.id: event}
-        monkeypatch.setattr(
-            ask,
-            "get_client",
-            lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
-        )
+        monkeypatch.setattr(ask, "get_client", lambda: fake)
 
         result = asyncio.run(ask.ask("Give me the latest details for bar-reef-003"))
     finally:
         repo._events = original_events
 
     assert result.answer == "bar-reef-003 remains the highest-risk reviewed lead."
-    assert len(calls) == 2
-    last_content = calls[1]["contents"][-1]
-    function_response = last_content.parts[0].function_response
-    assert '"review_status": "Resolved"' in function_response.response["result"]
+    assert len(fake.requests) == 2
+    tool_message = fake.requests[1]["messages"][-1]
+    assert tool_message["role"] == "tool"
+    assert tool_message["tool_call_id"] == "call_1"
+    assert '"review_status": "Resolved"' in tool_message["content"]
 
 
 def test_ask_fallback_specific_event_uses_repo_data() -> None:
@@ -296,20 +246,13 @@ def test_briefing_prompt_includes_alertness_and_context() -> None:
 
 
 def test_patrol_prompt_context_lists_detections(monkeypatch) -> None:
-    captured: dict[str, str] = {}
-
-    def fake_generate_content(**kwargs):
-        captured["content"] = kwargs["contents"]
-        return SimpleNamespace(text="[]")
-
-    monkeypatch.setattr(
-        patrol,
-        "get_client",
-        lambda: SimpleNamespace(models=SimpleNamespace(generate_content=fake_generate_content)),
-    )
+    fake = FakeGroq(reply("[]"))
+    monkeypatch.setattr(patrol, "get_client", lambda: fake)
 
     result = asyncio.run(patrol.patrol([_event()]))
 
+    prompt = fake.requests[0]["messages"][-1]["content"]
     assert result[0].id == "bar-reef-003"
-    assert "Prioritise higher risk_score first" in captured["content"]
-    assert "review_status=Pending" in captured["content"]
+    assert "Prioritise higher risk_score first" in prompt
+    assert "review_status=Pending" in prompt
+    assert "response_format" not in fake.requests[0]

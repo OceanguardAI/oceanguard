@@ -1,11 +1,10 @@
 """Narrator agent: explain why one vessel was flagged."""
 from __future__ import annotations
 
-from app.agents.client import get_client
+from app.agents.client import complete, get_client
 from app.agents.helpers import (
     event_summary_line,
     extract_json_object,
-    extract_text,
     strip_markdown,
 )
 from app.core.config import settings
@@ -76,19 +75,14 @@ async def narrate(event: RiskEvent) -> NarrateResponse:
         return _fallback(event)
 
     try:
-        from google.genai import types
-
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=_build_user_prompt(event),
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=settings.agent_narrator_max_tokens,
-                response_mime_type="application/json",
-            ),
+        result = await complete(
+            client,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": _build_user_prompt(event)}],
+            max_tokens=settings.agent_narrator_max_tokens,
+            json_object=True,
         )
-        text = extract_text(response)
-        payload = extract_json_object(text)
+        payload = extract_json_object(result.text)
         response = NarrateResponse(
             why_flagged=strip_markdown(payload.get("why_flagged", "")),
             uncertainty=strip_markdown(payload.get("uncertainty", "")),

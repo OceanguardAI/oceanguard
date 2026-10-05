@@ -69,11 +69,7 @@ def client(tmp_path: Path):
     )
 
     with patch("app.core.config.settings.data_dir", tmp_path), patch(
-        "app.core.config.settings.gemini_api_key", ""
-    ), patch(
-        "app.core.config.settings.gemini_use_gcp", False
-    ), patch(
-        "app.core.config.settings.google_genai_use_vertexai", False
+        "app.core.config.settings.groq_api_key", ""
     ), patch(
         "app.core.config.settings.gfw_ingest_on_startup", False
     ):
@@ -240,17 +236,16 @@ def test_agent_status_without_api_key(client: TestClient) -> None:
     response = client.get("/agents/status")
     assert response.status_code == 200
     body = response.json()
-    from app.agents.client import genai_importable
+    from app.agents.client import groq_importable
 
-    assert body["provider"] == "gemini"
-    assert body["provider_mode"] == "api_key"
+    assert body["provider"] == "groq"
     assert body["provider_enabled"] is False
-    assert body["provider_importable"] is genai_importable()
+    assert body["provider_importable"] is groq_importable()
     assert body["client_ready"] is False
     assert body["fallback_mode"] is True
     from app.core.config import settings
 
-    assert body["model"] == settings.gemini_model
+    assert body["model"] == settings.groq_model
     assert body["agent_max_tool_rounds"] == 5
     assert body["agent_narrator_max_tokens"] == 500
     assert body["agent_briefing_max_tokens"] == settings.agent_briefing_max_tokens

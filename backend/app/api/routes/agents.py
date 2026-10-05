@@ -4,12 +4,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from app.agents import ask as ask_agent
 from app.agents import briefing as briefing_agent
-from app.agents.client import (
-    gemini_provider_enabled,
-    gemini_provider_mode,
-    genai_importable,
-    get_client,
-)
+from app.agents.client import get_client, groq_importable, groq_provider_enabled
 from app.agents import narrator, patrol as patrol_agent
 from app.core.config import settings
 from app.models.schemas import (
@@ -30,13 +25,12 @@ router = APIRouter(prefix="/agents")
 async def agent_status() -> AgentStatus:
     client = get_client()
     return AgentStatus(
-        provider="gemini",
-        provider_mode=gemini_provider_mode(),
-        provider_enabled=gemini_provider_enabled(),
-        provider_importable=genai_importable(),
+        provider="groq",
+        provider_enabled=groq_provider_enabled(),
+        provider_importable=groq_importable(),
         client_ready=client is not None,
         fallback_mode=client is None,
-        model=settings.gemini_model,
+        model=settings.groq_model,
         agent_max_tool_rounds=settings.agent_max_tool_rounds,
         agent_narrator_max_tokens=settings.agent_narrator_max_tokens,
         agent_briefing_max_tokens=settings.agent_briefing_max_tokens,

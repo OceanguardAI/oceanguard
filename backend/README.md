@@ -5,7 +5,7 @@ This backend serves the ML outputs from `backend/data/` and exposes:
 - risk event APIs
 - GeoJSON and model metrics APIs
 - deterministic review updates
-- Gemini-backed agents with fallback behavior when no API key is configured
+- Groq-backed agents with fallback behavior when no API key is configured
 
 ## Setup
 
@@ -20,14 +20,13 @@ Optional `.env` for local backend runs:
 
 ```text
 copy .env.example .env
-GEMINI_API_KEY=your_api_key_here
+GROQ_API_KEY=your_api_key_here
 ```
 
-Without Gemini credentials, all agent routes still work through deterministic fallbacks.
+Without a Groq key, all agent routes still work through deterministic fallbacks.
 For Docker runs from the repo root, use the repo-root `.env` instead; `docker-compose.yml`
 forwards the same backend agent settings into the container.
-For auth setup details, use `../API_SETUP.md` for the API-key path or `../GCP_GEMINI_SETUP.md`
-for the Google Cloud / Vertex-style path.
+For key setup details, see `../API_SETUP.md`.
 
 ## Data Files
 
@@ -124,7 +123,7 @@ The repo-backed briefing and patrol routes also accept:
 
 Without `DATABASE_URL`, sample cases and reviews use the local JSON/process store.
 The case status is written to `backend/data/risk_events.json`; review history is
-process-local. This is not durable across Cloud Run instances or deployments.
+process-local. This is not durable across container instances or deployments.
 
 With `DATABASE_URL`, cases, complete GFW activity snapshots, and append-only
 review history use PostgreSQL/PostGIS. The application does not import sample
@@ -150,12 +149,13 @@ $env:DATABASE_URL = '<connection string from your secret store>'
 .\.venv\Scripts\python.exe -m app.store.migrate
 ```
 
-On Cloud Run, provide `DATABASE_URL` through Secret Manager and grant the runtime
-identity access to that secret and the Cloud SQL instance. Do not put the
+On Azure Container Apps, provide `DATABASE_URL` as a Container Apps secret
+referenced from the environment (Azure Database for PostgreSQL with PostGIS
+enabled). Do not put the
 connection string in GitHub variables or source files. Migrations need a role
 permitted to install the PostGIS extension; the runtime identity can use a
 more restricted database role. Database mode is not validated against a live
-Cloud SQL instance yet, and should be tested before enabling it in production.
+PostgreSQL instance yet, and should be tested before enabling it in production.
 The dedicated database integration test is opt-in and writes test records:
 
 ```powershell
@@ -185,7 +185,7 @@ python -m app.jobs.cli run-once
 
 `run-once` handles at most one ready job, then exits. A scheduler must invoke
 the enqueue command daily and the worker command repeatedly to process retries;
-neither schedule nor a Cloud Run Job is configured by this code slice. Keep
+neither schedule nor a Container Apps job is configured by this code slice. Keep
 `GFW_API_TOKEN` in a managed secret, not in source control. The existing
 startup refresh and manual API path still operate independently until the
 queue has been validated against a live database and worker deployment. A
@@ -227,7 +227,7 @@ these APIs do not yet make the public demo mutation-capable.
 
 ### Ask agent fallback topics
 
-Without a Gemini key, `POST /agents/ask` can still answer questions about:
+Without a Groq key, `POST /agents/ask` can still answer questions about:
 
 - highest-risk detection
 - total counts

@@ -3,8 +3,12 @@ from __future__ import annotations
 
 from datetime import datetime, timezone
 
-from app.agents.client import get_client
-from app.agents.helpers import alertness_level, build_event_context, extract_text
+from app.agents.client import complete, get_client
+from app.agents.helpers import (
+    alertness_level,
+    build_event_context,
+    trim_to_last_sentence,
+)
 from app.core.config import settings
 from app.models.schemas import BriefingResponse, RiskEvent
 
@@ -61,17 +65,17 @@ async def briefing(events: list[RiskEvent]) -> BriefingResponse:
         return _fallback(events)
 
     try:
-        from google.genai import types
-
-        response = client.models.generate_content(
-            model=settings.gemini_model,
-            contents=_build_user_prompt(events),
-            config=types.GenerateContentConfig(
-                system_instruction=SYSTEM_PROMPT,
-                max_output_tokens=settings.agent_briefing_max_tokens,
-            ),
+        result = await complete(
+            client,
+            system=SYSTEM_PROMPT,
+            messages=[{"role": "user", "content": _build_user_prompt(events)}],
+            max_tokens=settings.agent_briefing_max_tokens,
         )
-        text = extract_text(response)
+        text = result.text
+        if text and result.truncated:
+            # Cut off by the token budget: keep only complete sentences rather
+            # than showing a briefing that stops mid-thought.
+            text = trim_to_last_sentence(text)
         if not text:
             return _fallback(events)
         return BriefingResponse(briefing=text)

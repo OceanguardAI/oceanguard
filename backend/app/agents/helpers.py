@@ -9,7 +9,7 @@ from app.models.schemas import RiskEvent
 
 
 def strip_markdown(text: str) -> str:
-    """Reduce Gemini Markdown to plain prose.
+    """Reduce model Markdown to plain prose.
 
     The agents are prompted for plain text, but models occasionally emit
     emphasis or bullet markers anyway. Several frontend surfaces (the evidence
@@ -27,18 +27,15 @@ def strip_markdown(text: str) -> str:
     return text.strip()
 
 
-def extract_text(response: Any) -> str:
-    """Safely return the text of a Gemini response, or '' if there is none.
+_SENTENCE_END = re.compile(r"[.!?][\"')\]]*(?=\s|$)")
 
-    Accessing `.text` on a Gemini response can raise if the response has no
-    text parts (e.g. it only contains function calls), so this always
-    degrades to an empty string instead of propagating that exception.
-    """
-    try:
-        text = response.text
-    except Exception:
+
+def trim_to_last_sentence(text: str) -> str:
+    """Drop a trailing partial sentence; return '' if no sentence is complete."""
+    matches = list(_SENTENCE_END.finditer(text))
+    if not matches:
         return ""
-    return text.strip() if isinstance(text, str) else ""
+    return text[: matches[-1].end()].strip()
 
 
 def extract_json_object(text: str) -> dict[str, Any]:

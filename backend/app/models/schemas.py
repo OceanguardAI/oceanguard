@@ -114,7 +114,6 @@ class AskResponse(BaseModel):
 
 class AgentStatus(BaseModel):
     provider: str
-    provider_mode: str
     provider_enabled: bool
     provider_importable: bool
     client_ready: bool

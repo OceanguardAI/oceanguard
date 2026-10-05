@@ -41,38 +41,21 @@ It makes the product safer and easier to trust.
 
 ## 3. Provider wiring
 
-The Gemini client logic lives in `backend/app/agents/client.py`.
+The Groq client logic lives in `backend/app/agents/client.py`.
 
-It supports two provider modes:
+Groq exposes an OpenAI-compatible chat-completions API. `complete()` wraps one
+call and returns a normalised result (text, whether the output was truncated,
+and any tool calls), so no agent touches the SDK response shape.
 
-- `api_key`
-- `gcp`
+Runtime inputs:
 
-Decision rule:
-
-- if `GEMINI_USE_GCP` or `GOOGLE_GENAI_USE_VERTEXAI` is enabled, use GCP mode
-- otherwise use API key mode
-
-Current runtime inputs include:
-
-- `GEMINI_API_KEY`
-- `GEMINI_USE_GCP`
-- `GOOGLE_CLOUD_PROJECT`
-- `GOOGLE_CLOUD_LOCATION`
-- `GEMINI_MODEL`
-
-This is useful because:
-
-- local development can use API keys
-- production can use GCP-native auth
+- `GROQ_API_KEY` (empty means every agent uses its deterministic fallback)
+- `GROQ_MODEL` (default `llama-3.3-70b-versatile`)
+- `GROQ_TIMEOUT_S`
 
 ## 4. Why the client is a singleton
 
-`get_client()` caches the Gemini client instance using a signature built from:
-
-- provider mode
-- project or API key
-- location
+`get_client()` caches the Groq client and rebuilds it only when the API key changes.
 
 Why this is good:
 
@@ -207,7 +190,7 @@ Ask defines tools like:
 - `get_model_metrics`
 - `get_ports`
 
-These are not frontend tools. They are backend-side data access tools for Gemini.
+These are not frontend tools. They are backend-side data access tools for the model.
 
 ### Layer 4. Tool execution loop
 
@@ -217,7 +200,7 @@ The backend then:
 
 1. executes the tool locally
 2. returns result text back into the model conversation
-3. lets Gemini produce the final answer
+3. lets the model produce the final answer
 
 This is an important pattern because:
 
@@ -226,7 +209,7 @@ This is an important pattern because:
 
 ### Layer 5. Deterministic fallback
 
-If Gemini is not available or errors out:
+If the model is not available or errors out:
 
 - the route still responds
 - several common question classes still work
@@ -360,7 +343,7 @@ Start with:
 
 This module makes OceanGuard explainable and operable.
 
-Its best idea is not merely "use Gemini."
+Its best idea is not merely "use an LLM."
 
 Its best idea is:
 

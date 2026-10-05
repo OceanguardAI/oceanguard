@@ -1,67 +1,73 @@
 from __future__ import annotations
 
+import asyncio
 import sys
 from types import ModuleType, SimpleNamespace
 
+import pytest
+
 from app.agents import client
+from tests.groq_fakes import FakeGroq, reply
 
 
-def test_provider_helpers_default_to_api_key_mode() -> None:
-    original_use_gcp = client.settings.gemini_use_gcp
-    original_vertex_flag = client.settings.google_genai_use_vertexai
-    original_api_key = client.settings.gemini_api_key
-    try:
-        client.settings.gemini_use_gcp = False
-        client.settings.google_genai_use_vertexai = False
-        client.settings.gemini_api_key = ""
-
-        assert client.gemini_provider_mode() == "api_key"
-        assert client.gemini_provider_enabled() is False
-
-        client.settings.gemini_api_key = "test-key"
-        assert client.gemini_provider_enabled() is True
-    finally:
-        client.settings.gemini_use_gcp = original_use_gcp
-        client.settings.google_genai_use_vertexai = original_vertex_flag
-        client.settings.gemini_api_key = original_api_key
+@pytest.fixture(autouse=True)
+def _reset_client(monkeypatch):
+    monkeypatch.setattr(client, "_client", None)
+    monkeypatch.setattr(client, "_client_key", None)
 
 
-def test_get_client_builds_vertex_client_when_gcp_mode_enabled(monkeypatch) -> None:
-    original_use_gcp = client.settings.gemini_use_gcp
-    original_vertex_flag = client.settings.google_genai_use_vertexai
-    original_project = client.settings.google_cloud_project
-    original_location = client.settings.google_cloud_location
-    original_client = client._client
-    original_signature = client._client_signature
+def test_provider_is_enabled_only_with_an_api_key(monkeypatch) -> None:
+    monkeypatch.setattr(client.settings, "groq_api_key", "")
+    assert client.groq_provider_enabled() is False
+    assert client.get_client() is None
 
-    fake_google = ModuleType("google")
-    fake_google.genai = SimpleNamespace(
-        Client=lambda **kwargs: SimpleNamespace(kind="client", kwargs=kwargs)
+    monkeypatch.setattr(client.settings, "groq_api_key", "test-key")
+    assert client.groq_provider_enabled() is True
+
+
+def test_get_client_builds_and_caches_an_async_client(monkeypatch) -> None:
+    built: list[dict] = []
+    fake_groq = ModuleType("groq")
+    fake_groq.AsyncGroq = lambda **kwargs: built.append(kwargs) or SimpleNamespace(kind="client")
+    monkeypatch.setitem(sys.modules, "groq", fake_groq)
+    monkeypatch.setattr(client.settings, "groq_api_key", "test-key")
+
+    first = client.get_client()
+    assert first is client.get_client()
+    assert built == [{"api_key": "test-key", "timeout": client.settings.groq_timeout_s, "max_retries": 1}]
+
+    monkeypatch.setattr(client.settings, "groq_api_key", "rotated-key")
+    assert client.get_client() is not first
+
+
+def test_complete_sends_system_prompt_and_options(monkeypatch) -> None:
+    monkeypatch.setattr(client.settings, "groq_model", "test-model")
+    fake = FakeGroq(reply(" Hello. "))
+
+    result = asyncio.run(
+        client.complete(
+            fake,
+            system="be brief",
+            messages=[{"role": "user", "content": "hi"}],
+            max_tokens=50,
+            json_object=True,
+        )
     )
 
-    try:
-        client.settings.gemini_use_gcp = True
-        client.settings.google_genai_use_vertexai = False
-        client.settings.google_cloud_project = "oceanguard-test"
-        client.settings.google_cloud_location = "global"
-        client._client = None
-        client._client_signature = None
+    request = fake.requests[0]
+    assert request["model"] == "test-model"
+    assert request["max_tokens"] == 50
+    assert request["response_format"] == {"type": "json_object"}
+    assert request["messages"][0] == {"role": "system", "content": "be brief"}
+    assert "tools" not in request
+    assert (result.text, result.truncated, result.tool_calls) == ("Hello.", False, [])
 
-        monkeypatch.setattr(client, "genai_importable", lambda: True)
-        monkeypatch.setitem(sys.modules, "google", fake_google)
 
-        built = client.get_client()
+def test_complete_normalises_tool_calls_and_truncation() -> None:
+    fake = FakeGroq(reply(None, finish="length", tool_calls=[("call_1", "get_event", {"id": "e-1"})]))
 
-        assert built.kind == "client"
-        assert built.kwargs["vertexai"] is True
-        assert built.kwargs["project"] == "oceanguard-test"
-        assert built.kwargs["location"] == "global"
-        assert client.gemini_provider_mode() == "gcp"
-        assert client.gemini_provider_enabled() is True
-    finally:
-        client.settings.gemini_use_gcp = original_use_gcp
-        client.settings.google_genai_use_vertexai = original_vertex_flag
-        client.settings.google_cloud_project = original_project
-        client.settings.google_cloud_location = original_location
-        client._client = original_client
-        client._client_signature = original_signature
+    result = asyncio.run(client.complete(fake, system="s", messages=[], max_tokens=5))
+
+    assert result.truncated is True
+    assert [(c.id, c.name, c.args) for c in result.tool_calls] == [("call_1", "get_event", {"id": "e-1"})]
+    assert result.message["tool_calls"][0]["function"] == {"name": "get_event", "arguments": '{"id": "e-1"}'}

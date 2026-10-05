@@ -6,8 +6,11 @@ import re
 from pathlib import Path
 from typing import Any
 
-from app.agents.client import get_client
-from app.agents.helpers import build_event_context, extract_text
+from app.agents.client import complete, get_client
+from app.agents.helpers import (
+    build_event_context,
+    trim_to_last_sentence,
+)
 from app.core.config import settings
 from app.models.schemas import AskResponse, RiskEvent
 from app.store.repository import repo
@@ -19,55 +22,61 @@ from app.store.repository import repo
 SYSTEM_KNOWLEDGE = """## How OceanGuard Works
 
 ### What it does
-OceanGuard finds "dark vessels" — ships whose AIS transponder is off — near Marine
-Protected Areas (MPAs). It combines an AIS-based global feed with our own satellite-radar
-ship-detection model, then scores and explains each detection for a human officer to review.
+OceanGuard helps a human officer look for vessels that satellite radar sees but that may not
+be broadcasting AIS, near Marine Protected Areas (MPAs). It combines a global SAR activity
+feed with our own satellite-radar ship-detection model and explains the evidence. It never
+decides that anyone is breaking a rule.
 
 ### Data sources
-- Global Fishing Watch (GFW) API — global SAR vessel detections. A radar hit GFW could not
-  match to any AIS identity is the core "dark vessel" signal.
+- Global Fishing Watch (GFW) API — global SAR vessel-presence reports. The feed returns
+  AGGREGATE activity cells (a count of SAR vessel detections per grid cell for a time window).
+  A cell is not an individual vessel, has no identity, and carries no risk score.
 - Sentinel-1 radar (Copernicus / CDSE) — C-band VV backscatter imagery; ships show up as
   bright spots on dark water. Works through cloud, day or night.
 - WDPA — World Database on Protected Areas; the marine protected-area boundaries.
 - AISStream — live AIS broadcasts, used to confirm whether a contact is "dark".
 - Ports — reference port/marina locations for context (distance from port).
 
-### How the risk score is calculated
-Each detection gets a transparent, deterministic score (0.00–0.99), built up from:
-- 0.25 baseline — any SAR vessel detection.
-- +0.20 — no matching AIS identity (a possible dark vessel).
-- MPA proximity (the biggest factor):
-    +0.45 if INSIDE a protected area,
-    +0.30 if within 10 km of one,
-    +0.15 if within 50 km.
-- +0.05 — repeated detections at the same location.
-The total is capped at 0.99. There is no black box — every point can be explained.
+### Two kinds of records
+- GFW activity cells (cyan circles on the map): live aggregate counts, unscored, no identity.
+- Case records (coloured markers): in this build they are SAMPLE cases — 122 model detections
+  from one xView3 Sentinel-1 validation scene plus 4 GFW-derived demonstration cases. They are
+  demonstration data, not a live feed, and the Loaded Case Records section below says which
+  mode is active.
 
-Risk levels come from the score:
-- CRITICAL: score >= 0.80
-- HIGH:     score >= 0.60
-- MEDIUM:   score >= 0.45
-- LOW:      below 0.45
-Example: a dark vessel INSIDE an MPA scores 0.25 + 0.20 + 0.45 = 0.90 -> CRITICAL.
+### How a case's risk score is calculated
+Case records carry a deterministic, auditable score (0.00-1.00) from a weighted formula:
+- 0.30 x detection confidence (scaled by image quality)
+- 0.25 x AIS score: 1.0 when AIS coverage exists but nothing matched, 0.0 when matched,
+  0.3 when no AIS data was available (missing data is not treated as evidence)
+- 0.25 x MPA score: 1.0 inside a protected area, 0.6 when within 5 km of one, otherwise 0
+- 0.10 x fishing-behaviour score and 0.10 x repeated-activity score — reserved inputs that
+  are currently always 0, so they add nothing today.
+Risk levels: CRITICAL >= 0.75, HIGH >= 0.55, MEDIUM >= 0.35, LOW below 0.35. The score is
+review priority, not a probability that a rule was broken, and the live GFW activity cells
+are not scored at all.
 
 ### MPA proximity terms
-- "inside MPA" = the detection falls within a protected-area polygon (distance 0 km).
-- "near MPA" = within 10 km of a boundary.
+- "inside MPA" = the point falls within a protected-area polygon (distance 0 km).
+- "near MPA" = within 5 km of a boundary for the sample cases.
 - distance_to_mpa_km = great-circle distance to the nearest protected area.
 
 ### Our detection model
-- YOLO11n, fine-tuned on the HRSID SAR ship dataset (~3.5k images), mAP@50 0.838.
-- Runs on demand on a fresh Sentinel-1 chip, fully independent of AIS — so it can find
-  vessels the AIS-based feed missed. Officers run it as a single-point check or an
-  "area sweep" that tiles a region and flags contacts with no AIS match.
+- YOLO11n, fine-tuned on the HRSID SAR ship dataset (5.6k images at 0.5-3 m resolution),
+  mAP@50 0.838 on that dataset's own validation split.
+- It runs on demand on a Sentinel-1 chip (10 m pixels), independent of AIS. Sentinel-1 is
+  coarser than its training imagery, so small vessels can be missed and results on live scenes
+  are not yet measured. A model hit is an unverified lead until the satellite pass time is
+  confirmed; it does not prove a vessel's identity or that AIS was switched off.
+- Officers run it as a single-point check or an area sweep over sampled chips.
 
 ### What the dashboard shows
-- A world map with each detection as a dot coloured by risk (red CRITICAL, orange HIGH,
-  amber MEDIUM, green LOW); protected areas are dashed teal outlines.
-- Top KPIs: total detections, HIGH/CRITICAL count, count near/inside an MPA, pending review.
-- Panels: Detections (the full queue), Briefing (a daily summary), Patrols (top targets).
-- An Evidence Card per detection: the Sentinel-1 radar chip, AIS status, MPA proximity,
-  recommended action, and an independent YOLO radar check.
+- A world map with case markers coloured by level (red CRITICAL, orange HIGH, amber MEDIUM,
+  green LOW), cyan GFW activity cells, and protected areas as dashed teal outlines.
+- Top KPIs: sample cases, HIGH/CRITICAL count, count near/inside an MPA, pending review.
+- Panels: Detections (the case queue), Briefing (a daily summary), Patrols (top targets).
+- An Evidence Card per case: radar chip, AIS status, MPA proximity, recommended action, and
+  an independent YOLO radar check.
 
 ### Responsible use
 OceanGuard is decision support, not automatic accusation. Every output must be verified by
@@ -98,7 +107,7 @@ def _build_system_prompt() -> str:
         "",
         SYSTEM_KNOWLEDGE,
         "",
-        f"## Live Dataset  ({summary.total_events} events)",
+        f"## Loaded Case Records  ({summary.total_events} events, mode: {repo.mode})",
         (
             f"Risk levels — CRITICAL: {summary.risk_level_counts.get('CRITICAL', 0)}, "
             f"HIGH: {summary.risk_level_counts.get('HIGH', 0)}, "
@@ -114,7 +123,7 @@ def _build_system_prompt() -> str:
     # Full detection list — every event, sorted by risk score descending, so the
     # agent can answer questions about any detection without a tool round-trip.
     all_events = sorted(repo.all(), key=lambda e: e.risk_score, reverse=True)
-    lines.append(f"## All Detections  ({len(all_events)} events)")
+    lines.append(f"## All Case Records  ({len(all_events)} events)")
     lines.append(
         "Columns: id | risk | score | lat,lon | MPA proximity | AIS | source | review"
     )
@@ -138,7 +147,8 @@ def _build_system_prompt() -> str:
         )
     lines.append("")
     lines.append(
-        "The list above is the COMPLETE current dataset — every detection is shown. "
+        "The list above is the COMPLETE set of loaded case records (it does not include the "
+        "GFW activity cells, which are aggregate counts with no per-vessel rows). "
         "Filter it directly to answer questions (e.g. rows marked INSIDE or 'km from' are near/inside MPAs). "
         "Use the tools only for full per-event detail (why_flagged, recommended_action, ports, metrics)."
     )
@@ -147,8 +157,8 @@ def _build_system_prompt() -> str:
 MAX_TOOL_EVENTS = 10
 EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
 
-# Gemini function declarations use standard JSON-Schema under the
-# "parameters" key expected by the Gemini SDK.
+# Tool declarations use standard JSON-Schema under "parameters"; they are
+# wrapped into the chat-completions function format by _CHAT_TOOLS below.
 TOOLS = [
     {
         "name": "query_detections",
@@ -269,16 +279,6 @@ def _highest_risk_answer() -> AskResponse:
     )
 
 
-def _function_calls(response: Any) -> list[Any]:
-    """Return every function_call part in the response's first candidate, if any."""
-    candidates = getattr(response, "candidates", None) or []
-    if not candidates:
-        return []
-    content = getattr(candidates[0], "content", None)
-    parts = getattr(content, "parts", None) or []
-    return [part.function_call for part in parts if getattr(part, "function_call", None) is not None]
-
-
 def _run_tool(name: str, inputs: dict) -> str:
     if name == "query_detections":
         limit = int(inputs.get("limit", MAX_TOOL_EVENTS) or MAX_TOOL_EVENTS)
@@ -332,31 +332,35 @@ def _methodology_answer(lowered: str) -> AskResponse | None:
     if ("risk" in lowered and ("calculat" in lowered or "score" in lowered or "work" in lowered)) or \
        ("score" in lowered and ("how" in lowered or "calculat" in lowered)):
         return AskResponse(answer=(
-            "Each detection gets a transparent score from 0.00 to 0.99: a 0.25 baseline for any "
-            "SAR vessel, +0.20 if it has no matching AIS identity (a possible dark vessel), then "
-            "MPA proximity is the biggest factor — +0.45 if inside a protected area, +0.30 within "
-            "10 km, +0.15 within 50 km — plus +0.05 for repeated detections, capped at 0.99. "
-            "Levels: CRITICAL >= 0.80, HIGH >= 0.60, MEDIUM >= 0.45, LOW below 0.45. "
-            "Example: a dark vessel inside an MPA scores 0.25 + 0.20 + 0.45 = 0.90 (CRITICAL)."
+            "Case records carry a deterministic weighted score: 0.30 x detection confidence, "
+            "0.25 x AIS score (1.0 when AIS coverage exists but nothing matched, 0.0 when matched, "
+            "0.3 when AIS data is unavailable), 0.25 x protected-area score (1.0 inside, 0.6 within "
+            "5 km, otherwise 0), plus two reserved inputs that are currently always 0. "
+            "Levels: CRITICAL >= 0.75, HIGH >= 0.55, MEDIUM >= 0.35, LOW below 0.35. The score is "
+            "review priority, not proof of a violation, and the live GFW activity cells are "
+            "aggregate counts that are not scored."
         ))
     if "dark vessel" in lowered or ("dark" in lowered and ("what" in lowered or "mean" in lowered)):
         return AskResponse(answer=(
-            "A dark vessel is a ship that radar detects but that has no matching AIS broadcast — "
-            "its transponder is off. SAR satellites see the hull regardless, so a radar contact "
-            "with no AIS identity near a protected area is the core signal OceanGuard surfaces."
+            "A dark vessel is a ship that radar detects but that has no matching AIS broadcast. "
+            "SAR satellites see the hull regardless, so a radar contact with no AIS identity near "
+            "a protected area is a lead worth reviewing. It is not proof that a transponder was "
+            "switched off: AIS coverage gaps and timing differences have benign explanations."
         ))
     if ("data" in lowered or "source" in lowered) and ("what" in lowered or "where" in lowered or "use" in lowered):
         return AskResponse(answer=(
-            "OceanGuard uses Global Fishing Watch (global SAR vessel detections), Sentinel-1 radar "
-            "via Copernicus/CDSE (for imagery and our own model), WDPA protected-area boundaries, "
-            "AISStream live AIS broadcasts, and a reference list of ports."
+            "OceanGuard uses Global Fishing Watch SAR vessel-presence reports (aggregate activity "
+            "cells), Sentinel-1 radar via Copernicus/CDSE (for imagery and our own model), WDPA "
+            "protected-area boundaries, short AISStream samples, and a reference list of ports. "
+            "The coloured case markers are sample cases in this build."
         ))
     if ("how" in lowered or "what" in lowered) and ("detect" in lowered or "yolo" in lowered or "model" in lowered or "radar" in lowered or "sar" in lowered):
         return AskResponse(answer=(
             "We run our own YOLO11n ship-detection model (fine-tuned on the HRSID SAR dataset, "
-            "mAP@50 0.838) directly on fresh Sentinel-1 C-band radar chips. Ships appear as bright "
-            "returns on dark water. Because it reads radar — not AIS — it can find vessels the "
-            "AIS-based feed missed, either at a single point or across a swept area."
+            "mAP@50 0.838 on that dataset's validation split) on Sentinel-1 radar chips. Ships "
+            "appear as bright returns on dark water. It reads radar rather than AIS, but "
+            "Sentinel-1's 10 m pixels are coarser than its training imagery, so small vessels can "
+            "be missed and a hit is an unverified lead, not proof of identity."
         ))
     return None
 
@@ -469,48 +473,36 @@ def _fallback(question: str) -> AskResponse:
     )
 
 
+_CHAT_TOOLS = [{"type": "function", "function": tool} for tool in TOOLS]
+
+
 async def ask(question: str) -> AskResponse:
     client = get_client()
     if client is None:
         return _fallback(question)
 
     try:
-        from google.genai import types
-
-        config = types.GenerateContentConfig(
-            system_instruction=_build_system_prompt(),
-            tools=[types.Tool(function_declarations=TOOLS)],
-            max_output_tokens=settings.agent_ask_max_tokens,
-        )
-
-        contents: list[Any] = [question]
+        system = _build_system_prompt()
+        messages: list[dict[str, Any]] = [{"role": "user", "content": question}]
         for _ in range(settings.agent_max_tool_rounds):
-            response = client.models.generate_content(
-                model=settings.gemini_model,
-                contents=contents,
-                config=config,
+            result = await complete(
+                client,
+                system=system,
+                messages=messages,
+                max_tokens=settings.agent_ask_max_tokens,
+                tools=_CHAT_TOOLS,
             )
-
-            function_calls = _function_calls(response)
-            if not function_calls:
-                text = extract_text(response)
+            if not result.tool_calls:
+                text = trim_to_last_sentence(result.text) if result.truncated else result.text
                 if text:
                     return AskResponse(answer=text)
                 break
 
-            contents.append(response.candidates[0].content)
-
-            function_response_parts = []
-            for call in function_calls:
-                inputs = dict(call.args) if call.args else {}
-                result_text = _run_tool(call.name, inputs)
-                function_response_parts.append(
-                    types.Part.from_function_response(
-                        name=call.name,
-                        response={"result": result_text},
-                    )
+            messages.append(result.message)
+            for call in result.tool_calls:
+                messages.append(
+                    {"role": "tool", "tool_call_id": call.id, "content": _run_tool(call.name, call.args)}
                 )
-            contents.append(types.Content(role="user", parts=function_response_parts))
     except Exception as exc:
         print(f"Ask agent error: {exc}")
         return _fallback(question)
