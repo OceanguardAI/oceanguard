@@ -13,7 +13,7 @@ from app.store.repository import repo
 
 router = APIRouter()
 
-# YOLO cold start (Cloud Run) + torch load + Sentinel-1 fetch + inference can
+# YOLO cold start (scale-to-zero container) + torch load + Sentinel-1 fetch + inference can
 # take a while on the first call; allow generous headroom.
 _TIMEOUT = httpx.Timeout(120.0)
 
@@ -231,7 +231,10 @@ def sweep_area(
         "tiles_failed": errors,
         "tiles_with_contacts": tiles_with_contacts,
         "effective_tile_deg": effective_deg,
-        "fully_covered": effective_deg <= _SWEEP_TILE_DEG + 1e-9,
+        # A sweep is only "fully covered" when every tile was fetched without
+        # error AND the effective tile resolution fits within one sweep tile.
+        # Counting errors==0 prevents silently under-reporting a partial result.
+        "fully_covered": errors == 0 and effective_deg <= _SWEEP_TILE_DEG + 1e-9,
         "requested_at": requested_at.isoformat().replace("+00:00", "Z"),
         "coverage_status": (
             "scene_metadata_available"

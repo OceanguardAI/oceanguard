@@ -1,6 +1,7 @@
 """PostGIS repository for observations, tracks, associations, evidence, and alerts."""
 from __future__ import annotations
 
+import json
 from datetime import datetime
 from typing import Any
 
@@ -28,6 +29,7 @@ class PostgresOperationalStore:
         return psycopg.connect(self._dsn, row_factory=dict_row, connect_timeout=10)
 
     def insert_acquisition(self, record: AcquisitionRecord) -> AcquisitionRecord:
+        footprint = json.dumps(record.footprint_geojson) if record.footprint_geojson else None
         with self._connect() as conn:
             conn.execute(
                 """INSERT INTO og_acquisitions
@@ -41,8 +43,7 @@ class PostgresOperationalStore:
                 (
                     record.id, record.source_id, record.sensor, record.external_id,
                     record.started_at, record.ended_at,
-                    Jsonb(record.footprint_geojson) if record.footprint_geojson else None,
-                    record.footprint_geojson, record.resolution_m, record.evidence_uri,
+                    footprint, footprint, record.resolution_m, record.evidence_uri,
                 ),
             )
         return record

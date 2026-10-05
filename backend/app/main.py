@@ -19,7 +19,7 @@ def _run_ingest() -> None:
 
     Building the global MPA index and pulling a worldwide SAR report each take
     several seconds, so this must NOT run in the startup path — otherwise the
-    container misses the Cloud Run health check and crashes.
+    container misses the container health check and crashes.
     """
     idx = mpa_index.get_index()  # lazy-loads the WDPA set here, in the thread
     print(f"MPA index: {idx.count} protected areas loaded from {idx.source}.")

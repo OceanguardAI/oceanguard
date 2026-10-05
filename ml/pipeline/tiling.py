@@ -12,6 +12,7 @@ def tile_sar(
     db_max: float = 0.0,
     nodata: float = -32768,
     min_valid_frac: float = 0.50,
+    max_floor_frac: float = 0.95,
 ) -> list[tuple[int, int, str]]:
     """Return `(row_off, col_off, tile_path)` entries for written tiles."""
     try:
@@ -44,6 +45,16 @@ def tile_sar(
                 valid_mask = data != nodata
                 valid_frac = valid_mask.sum() / data.size
                 if valid_frac < min_valid_frac:
+                    skipped += 1
+                    continue
+
+                # A uniform tile at db_min means the Sentinel Hub evalscript
+                # returned its out-of-swath fill value for every pixel. Running
+                # the model on it produces a blank (all-zero) PNG that yields
+                # zero detections, which looks like a clean scene. Skip it.
+                valid_pixels = data[valid_mask]
+                floor_frac = (valid_pixels <= db_min + 1e-3).sum() / len(valid_pixels) if len(valid_pixels) > 0 else 1.0
+                if floor_frac >= max_floor_frac:
                     skipped += 1
                     continue
 

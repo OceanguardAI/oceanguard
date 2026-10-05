@@ -154,9 +154,11 @@ def run(
     if backend_url:
         import requests
 
+        headers = {"X-API-Key": os.environ["ADMIN_API_KEY"]} if os.environ.get("ADMIN_API_KEY") else {}
         resp = requests.post(
             f"{backend_url.rstrip('/')}/ingest/push?mode=merge",
             json=events,
+            headers=headers,
             timeout=60,
         )
         resp.raise_for_status()

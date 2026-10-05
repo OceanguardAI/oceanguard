@@ -44,7 +44,7 @@ RISK_EVENT_FIELDS = [
 ]
 
 MPA_NAME = "Bar Reef Marine Sanctuary"
-MATCHING_METHOD = "Spatial 2km + 3hr time window"
+MATCHING_METHOD = "Sample record - no AIS cross-match was run"
 CONFIDENCE_THRESHOLD = 0.45
 RECOMMENDED_ACTION = "Human reviewer should verify scene and external context."
 DEFAULT_GFW_ENTRIES = [

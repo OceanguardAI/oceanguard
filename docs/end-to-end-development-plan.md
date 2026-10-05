@@ -1,6 +1,6 @@
 # OceanGuard End-to-End Development and Architecture Plan
 
-Status: proposed implementation plan, not a statement that these capabilities are deployed.
+Status: proposed implementation plan, not a statement that these capabilities are deployed. Reviewed and corrected on October 2, 2026; see section 1a.
 
 This is the main planning document for upgrading OceanGuard from a demo-style vessel detection dashboard into a research-grade and industry-ready maritime intelligence system. It is intentionally written as an implementation guide: another engineer or agent should be able to follow it without choosing a new architecture.
 
@@ -16,6 +16,47 @@ There are two connected operating modes:
 Satellite acquisitions are intermittent. They are useful for wide-area and historical evidence, but they cannot supply a continuous video track. Coastal cameras and recorded video are the path for continuous tracking. A drone is an optional additional camera for local inspection after the core software is reliable; physical drone control, autonomous flight, and aviation compliance are outside the initial software scope.
 
 The first delivery is an integrated, testable prototype. Coding can be accelerated, but dataset access, GPU availability, training duration, and independent evaluation still determine when research claims are justified. Execute the stages below by acceptance criteria rather than by calendar week. The implementation order starts with source truth and persistence before model fine-tuning, because retraining cannot fix incorrect timestamps, misleading provider semantics, discarded observations, or unstable review state.
+
+## 1a. Plan review (October 2, 2026)
+
+The plan was checked against the repository and primary sources. These corrections
+have been applied in the sections noted; the first two change what the plan
+depends on.
+
+| # | Finding | Effect | Where fixed |
+|---|---|---|---|
+| 1 | The plan assumed Google Cloud hosting (Cloud Run, Cloud SQL, GCS, Cloud Run Jobs). The project is not deploying to Google Cloud | Hosting, storage, scheduling and CI sections were provider-specific | Sections 3, 13, 14 now name capabilities (container host, PostGIS, object storage, scheduler) rather than a vendor; section 1b adds a self-hosted path |
+| 2 | Step 7 trained on HRSID/SSDD and tested on xView3. HRSID is 0.5-3 m imagery and live Sentinel-1 is 10 m pixels with 20x22 m resolution, so the plan repeated the mismatch it was meant to fix | Training would be validated on the wrong domain | Section 8: Sentinel-1-native training first, HRSID as pretraining and regression check; details in [small-vessel-detection-plan.md](small-vessel-detection-plan.md) |
+| 3 | Step 6 said to "standardise SAR inputs" but did not name that three different intensity mappings already exist (`ml/pipeline/tiling.py` dB `[-50,0]`; `yolo-service` linear `2.5*VV`; undocumented HRSID conversions) | The most likely cause of poor transfer was untracked | Section 8 step 6 now names them and requires one shared, versioned function |
+| 4 | No stage for provider-version changes. GFW announced pipeline v5 becomes the `latest` alias on 21 October 2026 and the code hard-coded `latest` | Live data could change under the system without trace | New Stage A2; configurable `GFW_SAR_DATASET`, resolved version stored per record; [gfw-v5-migration.md](gfw-v5-migration.md) |
+| 5 | "Small-vessel recall" was a required metric (section 15) but undefined | The metric could not be computed or compared | Defined as recall per physical length bin with intervals; implemented in `ml/evaluation/detection_by_size.py` |
+| 6 | Agents appeared only as "evidence-grounded explanations"; no tools for the live data model, no evaluation, no injection threat model, and the Ask agent's hand-written knowledge was out of date | Agents could contradict the system they describe | New section 12a and [agent-architecture-plan.md](agent-architecture-plan.md); knowledge corrected with drift tests |
+| 7 | The local run path (`docker compose up`) did not produce a working app: wrong container ports, no `/api` proxy for the frontend, no live-feed variables, a briefing token default that reintroduced truncation | With no cloud host, this is the demo path | `docker-compose.yml` rewritten (syntax validated; images not built in the review environment) |
+| 8 | No research positioning or literature basis in the plan | Weak case for the research claims | [literature-review.md](literature-review.md) with research questions RQ1-RQ5, mapped to stages in section 14 |
+| 9 | The plan has no finalist-scope guidance, only acceptance-gated stages | A near-term demo needs a defined, honest subset | New section 17 |
+
+Verified and left unchanged: the persistence, job-queue, association and
+replay checkpoints in section 16 match the code and tests in the repository.
+
+## 1b. Hosting without Google Cloud
+
+The architecture needs five capabilities, none tied to one vendor:
+
+| Capability | Requirement | Options |
+|---|---|---|
+| Container host | Runs the backend, frontend and YOLO service images | Local `docker compose`; any container platform or VM. Azure Container Apps fits if Azure is already used for training |
+| Database | PostgreSQL with PostGIS | Local container, or a managed PostGIS-capable Postgres on any provider |
+| Object storage | Immutable evidence and model artifacts, checksummed | Local volume for the demo; S3-compatible or Azure Blob storage when hosted |
+| Scheduler/worker | Finite jobs for GFW refresh and processing | The existing database-backed job worker run by any scheduler (cron, a container job, a platform scheduler) |
+| LLM | Gemini by API key, or Vertex if a project exists | `GEMINI_API_KEY` (already supported); no cloud project needed |
+
+The GitHub Actions workflows under `.github/workflows/` deploy to Google Cloud Run.
+They are legacy for this project: leaving them as push triggers will show failing
+runs on every backend, frontend or YOLO change. Before a public review, either
+restrict them to manual `workflow_dispatch` or replace them with a workflow for the
+chosen host. For a time-boxed demo the most reliable option is local
+`docker compose` plus the recorded-sequence replay, which removes cold starts and
+provider outages from the critical path.
 
 ## 2. Current repository and intended modifications
 
@@ -82,7 +123,7 @@ flowchart TB
 
 Start with a modular backend and a few worker processes. Separate responsibilities through explicit contracts without creating a microservice for every module.
 
-GCP continues to host the application. Azure supplies training compute and experiment storage. Export only approved, checksummed model artifacts to the deployment registry. Serving must not require Azure training jobs to stay running.
+The project is not deploying to Google Cloud (see section 1b). A container host, PostGIS-capable Postgres, object storage, and a scheduler are required; see section 1b for vendor-neutral options. Azure supplies training compute. Export only approved, checksummed model artifacts to the deployment registry. Serving must not require Azure training jobs to stay running.
 
 ## 4. Plain-language system flow
 
@@ -184,8 +225,8 @@ Yes, fine-tuning is planned. First reproduce a baseline and fix the input pipeli
 3. Split by acquisition, location, capture session, or complete sequence. Prevent adjacent frames and overlapping scene tiles from leaking across splits.
 4. Freeze the test set. Select parameters and thresholds only using training/validation data.
 5. Reproduce the existing detector on its recoverable evaluation set; save raw predictions and failure examples.
-6. Standardize SAR inputs: channel handling, units, normalization, no-data handling, georeferencing, tile size, overlap, and edge merging. Match training and serving transformations.
-7. Fine-tune a SAR model using suitable HRSID/SSDD data and evaluate full-scene transfer with xView3, subject to dataset permissions and compatibility.
+6. Standardize SAR inputs: one shared, versioned preprocessing function used by training, the YOLO service, and the backend. Three distinct mappings already exist (`ml/pipeline/tiling.py` dB `[-50, 0]`; the yolo-service chip path linear `2.5*VV`; and undocumented HRSID conversion). All three must be unified before any fine-tuned weights can be compared meaningfully. See [small-vessel-detection-plan.md](small-vessel-detection-plan.md).
+7. Measure the current model on held-out xView3 Sentinel-1 scenes first (run A0 in the small-vessel plan). This baseline determines whether retraining is needed. If the gap is large: fine-tune on xView3 as the primary training set with HRSID/SSDD as a pretraining and regression check. If the gap is small: the preprocessing fix alone may be sufficient. Do not retrain on HRSID alone and test on xView3 — that reproduces the resolution mismatch.
 8. Train a separate optical camera/video detector using appropriate maritime datasets. Do not assume SAR weights directly solve RGB or thermal detection.
 9. Compare the existing YOLO family baseline with a reproducible RT-DETR-family baseline under equal data and compute budgets.
 10. Begin with small smoke runs; use a configurable maximum of 100 epochs and validation-based early stopping for full runs. Evaluate selected configurations across three seeds when budget permits.
@@ -253,9 +294,23 @@ Maintain compatibility for existing risk-event clients through a documented adap
 
 Dashboard work includes layer toggles for aggregates, observations, tracks, and MPAs; capture-time and stale-data badges; source-health details; map/video timeline replay; association explanations; job progress; analyst review; and mobile-friendly evidence panels. Use viewport queries and display clustering. Show empty, unavailable, loading, and failed states separately.
 
+## 12a. Evidence-grounded agent architecture
+
+The existing agents (Narrator, Briefing, Patrol, Ask) produce answers from hand-written knowledge and sample case fields alone. They have no tools for GFW activity cells, source health, associations, alerts, or tracks, and the Ask agent's system prompt drifted from the codebase twice. The full agent plan is in [agent-architecture-plan.md](agent-architecture-plan.md); key points for this plan:
+
+1. **Agents describe; the system decides.** No agent changes a risk score, association state, review status, or threshold. Every agent has a deterministic fallback that works with no model key.
+2. **Every factual statement cites a tool-result evidence id.** A mechanical verifier strips or flags unsupported numbers and ids after generation; if too little remains, the agent abstains. This prevents answers contradicting the displayed data.
+3. **Ask v2** adds tools for activity cells, source health, associations, alerts, and tracks; replaces the hand-written knowledge with text generated from code constants and data files so it cannot drift. Drift is caught by `backend/tests/test_agent_knowledge.py`.
+4. **Provenance sentinel (A2)** shows the requested and resolved GFW dataset version, data age, and sample-vs-live status in a banner. This is the minimal UI change needed before the final demo.
+5. **Patrol planning**: OR-Tools for static, RL only as a simulation study reported as such.
+6. **Evaluation**: ~100 labelled questions in four groups (answerable, unanswerable, ambiguous, adversarial); unsupported-claim rate, abstention precision/recall, and injection success rate. This is research question RQ5.
+7. **Threat model**: vessel-name, destination, and provider description fields are attacker-influenceable; delimit them as data in prompts, cap lengths, and test with planted instructions.
+
+Acceptance gates match the delivery order in [agent-architecture-plan.md](agent-architecture-plan.md) section 9.
+
 ## 13. Runtime, deployment, and operations
 
-Keep Vite/nginx and FastAPI on their existing Cloud Run deployment path. Use Cloud SQL with PostGIS for durable state and GCS for immutable evidence. Begin with a durable task queue and scheduled finite ingestion jobs. Continuous AIS sockets and long-running video sessions need a supervised persistent worker or edge host; do not assume an ordinary request-driven API instance will maintain them reliably.
+Run Vite/nginx and FastAPI in containers on any container host (local `docker compose` is the most reliable demo path; see section 1b for hosted options). Use PostgreSQL with PostGIS for durable state and S3-compatible or Azure Blob object storage for immutable evidence. The `.github/workflows/deploy-*.yml` files target Google Cloud Run and should be restricted to `workflow_dispatch` or replaced with a host-appropriate workflow before any public review. Begin with a durable task queue and scheduled finite ingestion jobs. Continuous AIS sockets and long-running video sessions need a supervised persistent worker or edge host; do not assume an ordinary request-driven API instance will maintain them reliably.
 
 Use a database outbox or equivalent reliable handoff between committed records and processing tasks. Workers must tolerate duplicate delivery, resume from checkpoints, retry temporary failures with bounded backoff, and send exhausted jobs to a reviewable failure queue. Serialize provider calls where provider limits require it.
 
@@ -274,7 +329,7 @@ Observe provider success/latency, ingestion lag, acquisition age, queue delay, i
 | C. Persistence | Migrations, PostGIS repositories, evidence storage, reviews | Restart and multiple-instance tests retain history and decisions; migration/restore test |
 | D. Jobs and sources | Durable jobs, scheduled ingestion, retry, health and coverage | Duplicate-delivery, crash/restart, quota, and provider-failure tests |
 | E. SAR workflow | Point/area request through acquisition, inference, and evidence UI | Known-scene integration test and explicit no-coverage behavior |
-| F. Training pipeline | Azure job templates, dataset registry, reproduced baseline, candidate models | Stored artifacts, leakage checks, fixed test evaluation, budget controls |
+| F. Training pipeline | Azure ML job templates, dataset registry, reproduced baseline, candidate models | Stored artifacts, leakage checks, fixed test evaluation, budget controls; artifacts exported to a container-accessible artifact store (not GCS) |
 | G. Tracking replay | Video ingestion, baseline trackers, timeline | HOTA/IDF1 and identity-switch results on held-out complete sequences |
 | H. AIS fusion | Time alignment, candidate assignment, abstention, recovery | Association precision/coverage and outage-recovery evaluation |
 | I. Alerts and review | Context rules, cases, grounded explanations | Event-level evaluation and human review traceability |
@@ -369,4 +424,26 @@ Start with source health, acquisition provenance, aggregate/observation separati
 - `ml/pipeline/replay.py` now replays timezone-aware recorded frames through the baseline tracker and writes JSON-ready track points.
 - Replay rejects unordered or timezone-free frames and preserves the distinction between measured and predicted points. This is the input path for later held-out sequence evaluation; it does not create a live camera feed.
 
-Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), and [training explanation](modules/model-training-and-evaluation.md).
+Related documents: [research roadmap](coastal-vessel-tracking-roadmap.md), [existing architecture](architecture.md), [SAR and map selection](live-sar-and-user-selection-flow.md), [training explanation](modules/model-training-and-evaluation.md), [literature review with RQ1-RQ5](literature-review.md), [GFW v5 migration runbook](gfw-v5-migration.md), [small-vessel detection plan](small-vessel-detection-plan.md), and [agent architecture plan](agent-architecture-plan.md).
+
+## 17. Finalist demo scope
+
+This section defines the honest, defensible scope for a near-term award final. Everything listed under **Show** is currently working or can be made working before 21 October 2026 without additional data downloads. Everything listed under **Do not claim** either has no measurement to back it or depends on stages not yet wired.
+
+### Show
+
+- **Live GFW activity layer** with pinned dataset version badge (`GFW_SAR_DATASET=public-global-sar-presence:v4.0`) and data-age timestamp. The version and age are reported by `/ingest/status` and visible in the provenance sentinel banner (A2).
+- **Sample cases clearly labelled** as such: "122 detections from a single xView3 scene (2024-01-15); 4 seeded GFW examples." The KPI tile, legend, and data-info tooltip carry this label.
+- **YOLO check as an unverified lead** — `coverage_status: scene_time_unverified` is shown beside any model result; the result is described as a model candidate, not a detection of a specific vessel.
+- **Agents with cited evidence** — the Ask agent cites tool-result ids; the provenance sentinel shows data state; all agents have deterministic fallbacks.
+- **GFW v4 vs v5 drift study (RQ1)** — run `app.tools.compare_gfw_versions` on two fixed historical windows over Bar Reef and a reference region before 21 October; present the cell-Jaccard, detection-ratio, and context breakdown as a research finding.
+- **Small-vessel detectability measurement (RQ2)** — run the current `best.pt` on held-out xView3 scenes with `ml/evaluation/detection_by_size.py`; report size-binned recall and confidence intervals as the baseline before any retraining.
+- **Write-route protection** — `ADMIN_API_KEY` set on any reachable deployment; `/ingest/status` reports `write_protected: true`.
+
+### Do not claim
+
+- Live dark-vessel scoring from the production pipeline (the score formula was removed from live ingestion on 25 September 2026; the only scored data are the 126 seed events).
+- Sentinel-1 accuracy on live scenes (no such measurement exists yet; it is the Phase 2 target).
+- Autonomy ("the system autonomously detects illegal fishing") — every agent result is advisory, bounded, and reviewer-triggered.
+- "Every hull" or similar coverage claims.
+- Association, alert, or tracking results from live data (Stages H, I not yet wired to production callers).

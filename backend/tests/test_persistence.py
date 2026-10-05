@@ -48,6 +48,18 @@ def test_replace_api_rejected_in_database_mode(client: TestClient) -> None:
     assert response.status_code == 409
 
 
+def test_write_routes_require_api_key_when_configured(client: TestClient) -> None:
+    with patch("app.core.security.settings.admin_api_key", "s3cret"):
+        missing = client.post("/ingest/push?mode=merge", json=[])
+        wrong = client.post("/ingest/push?mode=merge", json=[], headers={"X-API-Key": "nope"})
+        gfw = client.post("/ingest/gfw")
+        ok = client.post("/ingest/push?mode=merge", json=[], headers={"X-API-Key": "s3cret"})
+        status = client.get("/ingest/status")
+    assert (missing.status_code, wrong.status_code, gfw.status_code) == (401, 401, 401)
+    assert ok.status_code == 200
+    assert status.json()["write_protected"] is True
+
+
 def test_activity_bbox_rejects_nonfinite_coordinates(client: TestClient) -> None:
     response = client.get("/activity/gfw?bbox=nan,0,10,10")
     assert response.status_code == 422

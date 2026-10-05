@@ -6,7 +6,7 @@ from psycopg.types.json import Jsonb
 
 import psycopg
 
-from app.models.schemas import ReviewRecord, RiskEvent
+from app.models.schemas import ReviewRecord, RiskEvent, RiskSummary
 from app.store.repository import RiskEventRepository
 
 
@@ -96,6 +96,39 @@ class PostgresRiskEventRepository(RiskEventRepository):
                 (event_id, previous.review_status, status),
             )
         return updated
+
+    def summary(self) -> RiskSummary:
+        """Override: base class reads self._events which is always empty in DB mode."""
+        with self._connect() as conn:
+            total = conn.execute("SELECT count(*) AS n FROM og_events").fetchone()["n"]
+            source_rows = conn.execute(
+                "SELECT source, count(*) AS n FROM og_events GROUP BY source"
+            ).fetchall()
+            level_rows = conn.execute(
+                "SELECT risk_level, count(*) AS n FROM og_events GROUP BY risk_level"
+            ).fetchall()
+            status_rows = conn.execute(
+                "SELECT review_status, count(*) AS n FROM og_events GROUP BY review_status"
+            ).fetchall()
+            inside_mpa = conn.execute(
+                "SELECT count(*) AS n FROM og_events WHERE (payload->>'inside_mpa')::boolean"
+            ).fetchone()["n"]
+            near_mpa = conn.execute(
+                "SELECT count(*) AS n FROM og_events WHERE (payload->>'near_mpa')::boolean"
+            ).fetchone()["n"]
+            top = conn.execute(
+                "SELECT id, (payload->>'risk_score')::float AS score FROM og_events ORDER BY score DESC LIMIT 1"
+            ).fetchone()
+        return RiskSummary(
+            total_events=total,
+            source_counts={r["source"]: r["n"] for r in source_rows},
+            risk_level_counts={r["risk_level"]: r["n"] for r in level_rows},
+            review_status_counts={r["review_status"]: r["n"] for r in status_rows},
+            inside_mpa_count=inside_mpa,
+            near_mpa_count=near_mpa,
+            highest_risk_event_id=top["id"] if top else None,
+            highest_risk_score=top["score"] if top else None,
+        )
 
     def review_history(self, event_id: str) -> list[ReviewRecord]:
         with self._connect() as conn:

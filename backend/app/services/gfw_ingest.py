@@ -11,11 +11,21 @@ from app.core.config import settings
 from app.models.schemas import ActivityAggregate
 
 GFW_BASE_URL = "https://gateway.api.globalfishingwatch.org"
-SAR_DATASET = "public-global-sar-presence:latest"
+DEFAULT_SAR_DATASET = "public-global-sar-presence:v4.0"
 
 
 def ingestion_enabled() -> bool:
     return bool(settings.gfw_api_token)
+
+
+def requested_dataset() -> str:
+    """Dataset id sent to GFW (``GFW_SAR_DATASET``).
+
+    ``:latest`` is an alias that GFW re-points when a new pipeline version
+    becomes the default, so the same request can return different data on
+    different days. Pin an explicit version when results must be reproducible.
+    """
+    return settings.gfw_sar_dataset.strip() or DEFAULT_SAR_DATASET
 
 
 def _report_window() -> tuple[str, str]:
@@ -24,14 +34,27 @@ def _report_window() -> tuple[str, str]:
     return start.isoformat(), end.isoformat()
 
 
-def _fetch_sar_report() -> tuple[list[dict[str, Any]], str, str]:
-    """Fetch a spatial report; each returned row is aggregate activity."""
-    min_lon, min_lat, max_lon, max_lat = settings.gfw_region_bbox
-    start, end = _report_window()
+def _fetch_sar_report(
+    *,
+    dataset: str | None = None,
+    start: str | None = None,
+    end: str | None = None,
+    bbox: tuple[float, float, float, float] | None = None,
+) -> tuple[list[dict[str, Any]], str, str]:
+    """Fetch a spatial report; each returned row is aggregate activity.
+
+    The keyword arguments override the configured dataset, rolling window and
+    region. They exist so two dataset versions can be compared over an identical
+    fixed window (see app/tools/compare_gfw_versions.py); normal ingestion uses
+    the configured values.
+    """
+    min_lon, min_lat, max_lon, max_lat = bbox or settings.gfw_region_bbox
+    if start is None or end is None:
+        start, end = _report_window()
     params = {
         "spatial-resolution": "HIGH",
         "temporal-resolution": "ENTIRE",
-        "datasets[0]": SAR_DATASET,
+        "datasets[0]": dataset or requested_dataset(),
         "date-range": f"{start},{end}",
         "format": "JSON",
     }
@@ -69,15 +92,24 @@ def _fetch_sar_report() -> tuple[list[dict[str, Any]], str, str]:
         if "lat" in entry and "lon" in entry:
             rows.append(entry)
         else:
-            for group in entry.values():
-                if isinstance(group, list):
-                    rows.extend(row for row in group if isinstance(row, dict))
+            # Grouped entries are keyed by the dataset id GFW actually served,
+            # e.g. "public-global-sar-presence:v4.0". Keep it on each row: when
+            # the request used the ":latest" alias, this is the only record of
+            # which pipeline version produced the data.
+            for group_key, group in entry.items():
+                if not isinstance(group, list):
+                    continue
+                resolved = group_key if isinstance(group_key, str) and ":" in group_key else None
+                for row in group:
+                    if isinstance(row, dict):
+                        rows.append({**row, "_dataset": resolved} if resolved else row)
     return rows, start, end
 
 
 def fetch_activity() -> list[ActivityAggregate]:
     rows, start, end = _fetch_sar_report()
     ingested_at = datetime.now(timezone.utc)
+    requested = requested_dataset()
     activity: list[ActivityAggregate] = []
     occurrences: dict[str, int] = {}
     for row in rows:
@@ -90,14 +122,17 @@ def fetch_activity() -> list[ActivityAggregate]:
             continue
         provider_time = row.get("entryTimestamp")
         source_id = str(row.get("id") or row.get("sourceId") or "")
-        base = f"{SAR_DATASET}|{start}|{end}|{lat}|{lon}|{count}|{provider_time}|{source_id}"
+        # Prefer the version GFW reports having served over the requested alias,
+        # so v4 and v5 rows can never collapse into the same record.
+        dataset = str(row.get("_dataset") or requested)
+        base = f"{dataset}|{start}|{end}|{lat}|{lon}|{count}|{provider_time}|{source_id}"
         ordinal = occurrences.get(base, 0)
         occurrences[base] = ordinal + 1
         key = f"{base}|{ordinal}"
         row_id = sha256(key.encode("utf-8")).hexdigest()[:24]
         activity.append(ActivityAggregate(
             id=row_id,
-            dataset=SAR_DATASET,
+            dataset=dataset,
             lat=lat,
             lon=lon,
             detection_count=count,

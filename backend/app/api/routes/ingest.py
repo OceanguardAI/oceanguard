@@ -3,9 +3,10 @@ from __future__ import annotations
 
 import math
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
 from app.core.config import settings
+from app.core.security import require_admin, write_protection_enabled
 from app.models.schemas import ActivityPage, RiskEvent
 from app.services import gfw_ingest
 from app.store.activity import activity_store
@@ -19,6 +20,8 @@ def ingest_status() -> dict[str, object]:
     return {
         "live_source": "Global Fishing Watch 4Wings SAR presence report",
         "gfw_token_configured": gfw_ingest.ingestion_enabled(),
+        "requested_dataset": gfw_ingest.requested_dataset(),
+        "write_protected": write_protection_enabled(),
         "region_bbox": settings.gfw_region_bbox,
         "lookback_days": settings.gfw_lookback_days,
         "activity": activity_store.status(),
@@ -48,7 +51,7 @@ def get_gfw_activity(
     return activity_store.page(offset=offset, limit=limit, bbox=bounds)
 
 
-@router.post("/ingest/gfw")
+@router.post("/ingest/gfw", dependencies=[Depends(require_admin)])
 def ingest_gfw() -> dict[str, object]:
     if not gfw_ingest.ingestion_enabled():
         raise HTTPException(
@@ -75,7 +78,7 @@ def ingest_gfw() -> dict[str, object]:
     }
 
 
-@router.post("/ingest/push")
+@router.post("/ingest/push", dependencies=[Depends(require_admin)])
 def ingest_push(events: list[RiskEvent], mode: str = "merge") -> dict[str, object]:
     """Receive externally-computed events (e.g. live YOLO/Sentinel-1 job).
 
