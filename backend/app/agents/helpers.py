@@ -8,20 +8,25 @@ from typing import Any
 from app.models.schemas import RiskEvent
 
 
-def strip_markdown(text: str) -> str:
+def strip_markdown(text: str, *, keep_bullets: bool = False) -> str:
     """Reduce model Markdown to plain prose.
 
     The agents are prompted for plain text, but models occasionally emit
     emphasis or bullet markers anyway. Several frontend surfaces (the evidence
     card, the patrol board) render these strings raw, so literal ``**`` would
     show on screen. This is the source-side safety net for those fields.
+
+    Non-breaking hyphens some models emit inside ids (bar-reef-003) are
+    normalised so the text still matches and copies as the real id.
     """
     if not text:
         return text
+    text = text.replace("‑", "-").replace("‐", "-")
     text = re.sub(r"\*\*(.*?)\*\*", r"\1", text)      # **bold**
     text = re.sub(r"__(.*?)__", r"\1", text)            # __bold__
     text = re.sub(r"(?m)^\s*#{1,6}\s*", "", text)      # # headings
-    text = re.sub(r"(?m)^\s*[-*•]\s+", "", text)        # leading bullet markers
+    if not keep_bullets:
+        text = re.sub(r"(?m)^\s*[-*•]\s+", "", text)    # leading bullet markers
     text = re.sub(r"[*_`]+", "", text)                   # stray emphasis chars
     text = re.sub(r"\n{3,}", "\n\n", text)              # collapse blank runs
     return text.strip()

@@ -25,7 +25,8 @@ it as a Container Apps secret (`groq-key`). Nothing is printed.
 | Variable | Default | Purpose |
 |---|---|---|
 | `GROQ_API_KEY` | empty | Enables the LLM; empty means fallback mode |
-| `GROQ_MODEL` | `llama-3.3-70b-versatile` | Any Groq chat model with tool use |
+| `GROQ_MODEL` | `openai/gpt-oss-120b` | Any Groq chat model with tool use available to your key |
+| `GROQ_REASONING_EFFORT` | `low` | Reasoning budget for gpt-oss models; empty to omit |
 | `GROQ_TIMEOUT_S` | `20` | Per-request timeout |
 
 ## 3. Verify

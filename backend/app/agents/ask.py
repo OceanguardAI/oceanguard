@@ -9,6 +9,7 @@ from typing import Any
 from app.agents.client import complete, get_client
 from app.agents.helpers import (
     build_event_context,
+    strip_markdown,
     trim_to_last_sentence,
 )
 from app.core.config import settings
@@ -120,14 +121,16 @@ def _build_system_prompt() -> str:
         "",
     ]
 
-    # Full detection list — every event, sorted by risk score descending, so the
-    # agent can answer questions about any detection without a tool round-trip.
+    # Highest-risk events inline, so common questions need no tool round-trip. The
+    # live store holds hundreds of events; listing them all would cost tens of
+    # thousands of tokens per call, so the tools cover the rest.
     all_events = sorted(repo.all(), key=lambda e: e.risk_score, reverse=True)
-    lines.append(f"## All Case Records  ({len(all_events)} events)")
+    listed = all_events[:MAX_PROMPT_EVENTS]
+    lines.append(f"## Top {len(listed)} of {len(all_events)} Case Records by risk score")
     lines.append(
         "Columns: id | risk | score | lat,lon | MPA proximity | AIS | source | review"
     )
-    for e in all_events:
+    for e in listed:
         if e.inside_mpa:
             mpa = f"INSIDE {e.mpa_name or 'MPA'}"
         elif e.near_mpa and e.distance_to_mpa_km is not None:
@@ -147,14 +150,16 @@ def _build_system_prompt() -> str:
         )
     lines.append("")
     lines.append(
-        "The list above is the COMPLETE set of loaded case records (it does not include the "
-        "GFW activity cells, which are aggregate counts with no per-vessel rows). "
-        "Filter it directly to answer questions (e.g. rows marked INSIDE or 'km from' are near/inside MPAs). "
-        "Use the tools only for full per-event detail (why_flagged, recommended_action, ports, metrics)."
+        f"The list above is only the {len(listed)} highest-risk of {len(all_events)} loaded case records "
+        "(GFW activity cells are aggregate counts with no per-vessel rows). Answer from it only when "
+        "the question concerns the top risks. For counts, filters (MPA proximity, source, review "
+        "status) or any event not listed, call query_detections or get_risk_summary; use get_event "
+        "for full per-event detail (why_flagged, recommended_action)."
     )
     return "\n".join(lines)
 
 MAX_TOOL_EVENTS = 10
+MAX_PROMPT_EVENTS = 40
 EVENT_ID_PATTERN = re.compile(r"\b[a-z0-9]+(?:-[a-z0-9]+)+\b")
 
 # Tool declarations use standard JSON-Schema under "parameters"; they are
@@ -495,7 +500,7 @@ async def ask(question: str) -> AskResponse:
             if not result.tool_calls:
                 text = trim_to_last_sentence(result.text) if result.truncated else result.text
                 if text:
-                    return AskResponse(answer=text)
+                    return AskResponse(answer=strip_markdown(text, keep_bullets=True))
                 break
 
             messages.append(result.message)

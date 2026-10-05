@@ -7,6 +7,7 @@ from app.agents.client import complete, get_client
 from app.agents.helpers import (
     alertness_level,
     build_event_context,
+    strip_markdown,
     trim_to_last_sentence,
 )
 from app.core.config import settings
@@ -78,6 +79,6 @@ async def briefing(events: list[RiskEvent]) -> BriefingResponse:
             text = trim_to_last_sentence(text)
         if not text:
             return _fallback(events)
-        return BriefingResponse(briefing=text)
+        return BriefingResponse(briefing=strip_markdown(text))
     except Exception:
         return _fallback(events)

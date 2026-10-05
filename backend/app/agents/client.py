@@ -68,6 +68,8 @@ async def complete(
         "messages": [{"role": "system", "content": system}, *messages],
         "max_tokens": max_tokens,
     }
+    if settings.groq_reasoning_effort:
+        kwargs["reasoning_effort"] = settings.groq_reasoning_effort
     if tools:
         kwargs["tools"] = tools
     if json_object:

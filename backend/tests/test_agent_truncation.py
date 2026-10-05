@@ -55,3 +55,11 @@ def test_ask_trims_a_truncated_answer(monkeypatch) -> None:
     monkeypatch.setattr(ask, "get_client", lambda: FakeGroq(reply(text, finish="length")))
     result = asyncio.run(ask.ask("what is going on?"))
     assert result.answer == "There are 3 leads. The top one is near an MPA."
+
+
+def test_strip_markdown_normalises_hyphens_and_can_keep_bullets() -> None:
+    from app.agents.helpers import strip_markdown
+
+    text = "**bar‑reef‑003** is highest.\n- first\n- second"
+    assert strip_markdown(text) == "bar-reef-003 is highest.\nfirst\nsecond"
+    assert strip_markdown(text, keep_bullets=True) == "bar-reef-003 is highest.\n- first\n- second"

@@ -50,7 +50,8 @@ and any tool calls), so no agent touches the SDK response shape.
 Runtime inputs:
 
 - `GROQ_API_KEY` (empty means every agent uses its deterministic fallback)
-- `GROQ_MODEL` (default `llama-3.3-70b-versatile`)
+- `GROQ_MODEL` (default `openai/gpt-oss-120b`)
+- `GROQ_REASONING_EFFORT` (`low` by default; empty for non-reasoning models)
 - `GROQ_TIMEOUT_S`
 
 ## 4. Why the client is a singleton

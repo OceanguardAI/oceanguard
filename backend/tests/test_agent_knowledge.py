@@ -45,3 +45,17 @@ def test_agent_knowledge_does_not_score_live_activity_cells() -> None:
     assert "unscored" in ask.SYSTEM_KNOWLEDGE
     assert "SAMPLE" in ask.SYSTEM_KNOWLEDGE
     assert "0.25 baseline" not in ask.SYSTEM_KNOWLEDGE
+
+
+def test_ask_prompt_lists_only_the_top_events_and_states_the_total(monkeypatch) -> None:
+    from app.store.repository import repo
+    from tests.test_agents import _event
+
+    events = {f"e-{i:03d}": _event(id=f"e-{i:03d}", risk_score=i / 100) for i in range(100)}
+    monkeypatch.setattr(repo, "_events", events)
+
+    prompt = ask._build_system_prompt()
+
+    assert f"Top {ask.MAX_PROMPT_EVENTS} of 100 Case Records" in prompt
+    assert "- e-099 |" in prompt
+    assert "- e-000 |" not in prompt

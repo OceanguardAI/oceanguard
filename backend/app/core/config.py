@@ -10,7 +10,10 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 class Settings(BaseSettings):
     groq_api_key: str = ""
-    groq_model: str = "llama-3.3-70b-versatile"
+    groq_model: str = "openai/gpt-oss-120b"
+    # Reasoning models spend max_tokens on hidden thinking; "low" keeps the small
+    # agent budgets for visible text. Set empty for models without the option.
+    groq_reasoning_effort: str = "low"
     groq_timeout_s: float = 20.0
     agent_max_tool_rounds: int = 5
     agent_narrator_max_tokens: int = 500
