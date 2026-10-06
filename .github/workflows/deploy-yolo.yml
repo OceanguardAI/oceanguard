@@ -43,6 +43,9 @@ jobs:
       # Azure Container Apps "express" environments require registry credentials in every
       # update request body; az containerapp update does not send them, so we use az rest.
       - name: Roll out new revision
+        env:
+          SENTINELHUB_CLIENT_ID: ${{ secrets.SENTINELHUB_CLIENT_ID }}
+          SENTINELHUB_CLIENT_SECRET: ${{ secrets.SENTINELHUB_CLIENT_SECRET }}
         run: |
           SUB=$(az account show --query id -o tsv)
           ACR_PWD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
@@ -56,6 +59,8 @@ jobs:
             --arg acr    "$ACR_PWD" \
             --arg acrn   "$ACR_NAME" \
             --arg acrkey "$ACR_SECRET_NAME" \
+            --arg shid   "$SENTINELHUB_CLIENT_ID" \
+            --arg shsec  "$SENTINELHUB_CLIENT_SECRET" \
             '.properties.template.containers[0].image=$img |
              .properties.configuration.ingress.targetPort=8080 |
              .properties.configuration.registries=[{
@@ -63,9 +68,26 @@ jobs:
                "username": $acrn,
                "passwordSecretRef": $acrkey
              }] |
-             .properties.configuration.secrets|=map(
-               if .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
-               else . end)' > /tmp/spec.json
+             .properties.configuration.secrets|=(
+               map(
+                 if   .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
+                 elif .name=="sentinelhub-client-id"           then .value=$shid
+                 elif .name=="sentinelhub-client-secret"       then .value=$shsec
+                 else . end) |
+               if map(select(.name=="sentinelhub-client-id"))|length==0
+               then . + [{"name":"sentinelhub-client-id","value":$shid}] else . end |
+               if map(select(.name=="sentinelhub-client-secret"))|length==0
+               then . + [{"name":"sentinelhub-client-secret","value":$shsec}] else . end) |
+             .properties.template.containers[0].env|=(
+               (. // []) |
+               map(
+                 if   .name=="SENTINELHUB_CLIENT_ID"     then .secretRef="sentinelhub-client-id"
+                 elif .name=="SENTINELHUB_CLIENT_SECRET" then .secretRef="sentinelhub-client-secret"
+                 else . end) |
+               if map(select(.name=="SENTINELHUB_CLIENT_ID"))|length==0
+               then . + [{"name":"SENTINELHUB_CLIENT_ID","secretRef":"sentinelhub-client-id"}] else . end |
+               if map(select(.name=="SENTINELHUB_CLIENT_SECRET"))|length==0
+               then . + [{"name":"SENTINELHUB_CLIENT_SECRET","secretRef":"sentinelhub-client-secret"}] else . end)' > /tmp/spec.json
           az rest --method PUT \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-yolo?api-version=2024-03-01" \
             --body @/tmp/spec.json \

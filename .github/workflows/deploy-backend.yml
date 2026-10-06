@@ -48,6 +48,8 @@ jobs:
           GFW_API_TOKEN: ${{ secrets.GFW_API_TOKEN }}
           AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
           ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
+          SENTINELHUB_CLIENT_ID: ${{ secrets.SENTINELHUB_CLIENT_ID }}
+          SENTINELHUB_CLIENT_SECRET: ${{ secrets.SENTINELHUB_CLIENT_SECRET }}
         run: |
           SUB=$(az account show --query id -o tsv)
           ACR_PWD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
@@ -65,6 +67,8 @@ jobs:
             --arg gfw    "$GFW_API_TOKEN" \
             --arg ais    "$AISSTREAM_API_KEY" \
             --arg groq   "$GROQ_API_KEY" \
+            --arg shid   "$SENTINELHUB_CLIENT_ID" \
+            --arg shsec  "$SENTINELHUB_CLIENT_SECRET" \
             '.properties.template.containers[0].image=$img |
              .properties.configuration.ingress.targetPort=8080 |
              .properties.configuration.registries=[{
@@ -72,13 +76,30 @@ jobs:
                "username": $acrn,
                "passwordSecretRef": $acrkey
              }] |
-             .properties.configuration.secrets|=map(
-               if   .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
-               elif .name=="admin-key"  then .value=$admin
-               elif .name=="gfw-token"  then .value=$gfw
-               elif .name=="ais-key"    then .value=$ais
-               elif .name=="groq-key"   then .value=$groq
-               else . end)' > /tmp/spec.json
+             .properties.configuration.secrets|=(
+               map(
+                 if   .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
+                 elif .name=="admin-key"                       then .value=$admin
+                 elif .name=="gfw-token"                       then .value=$gfw
+                 elif .name=="ais-key"                         then .value=$ais
+                 elif .name=="groq-key"                        then .value=$groq
+                 elif .name=="sentinelhub-client-id"           then .value=$shid
+                 elif .name=="sentinelhub-client-secret"       then .value=$shsec
+                 else . end) |
+               if map(select(.name=="sentinelhub-client-id"))|length==0
+               then . + [{"name":"sentinelhub-client-id","value":$shid}] else . end |
+               if map(select(.name=="sentinelhub-client-secret"))|length==0
+               then . + [{"name":"sentinelhub-client-secret","value":$shsec}] else . end) |
+             .properties.template.containers[0].env|=(
+               (. // []) |
+               map(
+                 if   .name=="SENTINELHUB_CLIENT_ID"     then .secretRef="sentinelhub-client-id"
+                 elif .name=="SENTINELHUB_CLIENT_SECRET" then .secretRef="sentinelhub-client-secret"
+                 else . end) |
+               if map(select(.name=="SENTINELHUB_CLIENT_ID"))|length==0
+               then . + [{"name":"SENTINELHUB_CLIENT_ID","secretRef":"sentinelhub-client-id"}] else . end |
+               if map(select(.name=="SENTINELHUB_CLIENT_SECRET"))|length==0
+               then . + [{"name":"SENTINELHUB_CLIENT_SECRET","secretRef":"sentinelhub-client-secret"}] else . end)' > /tmp/spec.json
           az rest --method PUT \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
             --body @/tmp/spec.json \
