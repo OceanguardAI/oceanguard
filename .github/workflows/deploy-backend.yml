@@ -55,15 +55,23 @@ jobs:
           SPEC=$(az rest --method GET \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
             --output json)
+          ACR_SECRET_NAME="${ACR_NAME}azurecrio-${ACR_NAME}"
           echo "$SPEC" | jq \
-            --arg img "$IMAGE" \
-            --arg acr  "$ACR_PWD" \
-            --arg admin "$ADMIN_API_KEY" \
-            --arg gfw   "$GFW_API_TOKEN" \
-            --arg ais   "$AISSTREAM_API_KEY" \
-            --arg groq  "$GROQ_API_KEY" \
+            --arg img    "$IMAGE" \
+            --arg acr    "$ACR_PWD" \
+            --arg acrn   "$ACR_NAME" \
+            --arg acrkey "$ACR_SECRET_NAME" \
+            --arg admin  "$ADMIN_API_KEY" \
+            --arg gfw    "$GFW_API_TOKEN" \
+            --arg ais    "$AISSTREAM_API_KEY" \
+            --arg groq   "$GROQ_API_KEY" \
             '.properties.template.containers[0].image=$img |
              .properties.configuration.ingress.targetPort=8080 |
+             .properties.configuration.registries=[{
+               "server": ($acrn+".azurecr.io"),
+               "username": $acrn,
+               "passwordSecretRef": $acrkey
+             }] |
              .properties.configuration.secrets|=map(
                if   .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
                elif .name=="admin-key"  then .value=$admin

@@ -10,6 +10,7 @@ Endpoints:
 """
 from __future__ import annotations
 
+import asyncio
 import base64
 from contextlib import asynccontextmanager
 
@@ -24,8 +25,10 @@ from app import inference, sentinel
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Warm the model so the first officer click isn't slowed by torch load.
-    inference.warm_up()
+    # Load the model in a thread pool so uvicorn can start accepting requests
+    # (and pass the liveness probe) before the heavy torch import finishes.
+    loop = asyncio.get_event_loop()
+    loop.run_in_executor(None, inference.warm_up)
     yield
 
 
