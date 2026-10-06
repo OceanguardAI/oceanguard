@@ -31,22 +31,17 @@ jobs:
       # on the runner and pushed with the registry's admin credential.
       - name: Log in to the registry
         run: |
-          ACR_PASSWORD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
-          echo "::add-mask::$ACR_PASSWORD"
-          echo "ACR_PASSWORD=$ACR_PASSWORD" >> "$GITHUB_ENV"
-          echo "$ACR_PASSWORD" | docker login "$ACR_NAME.azurecr.io" -u "$ACR_NAME" --password-stdin
+          password=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+          echo "::add-mask::$password"
+          echo "$password" | docker login "$ACR_NAME.azurecr.io" -u "$ACR_NAME" --password-stdin
 
       - name: Build and push image
         run: |
           docker build -f frontend/Dockerfile --build-arg "VITE_API_BASE_URL=${{ vars.VITE_API_BASE_URL }}" -t "$IMAGE" frontend
           docker push "$IMAGE"
 
-      # The apps are first created with a placeholder image on port 80; this is
-      # idempotent once the real image is running on 8080.
+      # Registry credentials are stored on the app at creation time (azure_deploy.ps1).
       - name: Roll out new revision
         run: |
           az containerapp ingress update -n og-web -g "$RESOURCE_GROUP" --target-port 8080
-          az containerapp update -n og-web -g "$RESOURCE_GROUP" --image "$IMAGE" \
-            --registry-server "$ACR_NAME.azurecr.io" \
-            --registry-username "$ACR_NAME" \
-            --registry-password "$ACR_PASSWORD"
+          az containerapp update -n og-web -g "$RESOURCE_GROUP" --image "$IMAGE"
