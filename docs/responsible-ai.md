@@ -48,15 +48,20 @@ A conservation officer can look at any score and answer: "Why did this get a HIG
 
 **Gemini 2.5 Flash** (Google's generative AI model, accessed via the Google GenAI SDK) generates **explanations** of these scores in plain language. It does not generate the scores. The AI layer can be removed entirely without changing any risk assessment — the scores and levels are produced deterministically before the AI layer is ever called.
 
+> **Note (2026-10-06):** The live additive scoring formula above was removed from
+> `gfw_ingest.py` in September 2026 as part of the persistence refactor. Current
+> dashboard events come from the seed file `backend/data/risk_events.json` with
+> pre-set scores. Reconnecting live scoring is pending work.
+
 ---
 
 ## Limitations and Uncertainty
 
 ### SAR Detection
-- The YOLO11n model was trained on HRSID (multi-sensor SAR) and validated on xView3 (Sentinel-1). Real-world performance on other sensors or in different sea-state conditions may vary.
-- Confidence threshold 0.45 is tuned for **recall** — the system prefers false alarms over missed detections. This means conservation officers will see some false positives.
+- The YOLO11n model was trained on HRSID (multi-sensor SAR, ~0.5–3 m pixels). It has **not yet been validated on real Sentinel-1 imagery** (10 m pixels). The xView3 baseline evaluation is pending. Do not quote HRSID metrics (mAP@50=0.838) as real-world Sentinel-1 accuracy.
+- Confidence threshold 0.25 is used for the on-demand verification path. Tuned value from live Sentinel-1 data is pending the xView3 baseline.
 - SAR detections cannot determine vessel type, flag, identity, or crew. A detection is only a "vessel-like object."
-- The live Sentinel-1 → YOLO path is marked **experimental** due to a domain gap: the model fires at ~0.15 confidence on Sentinel-1 GRD imagery, below the 0.45 production threshold. The primary production detection feed is the Global Fishing Watch API.
+- The live Sentinel-1 → YOLO path is marked **experimental** due to a domain gap: HRSID training resolution differs from Sentinel-1 GRD resolution. The primary planned detection feed is the Global Fishing Watch API.
 
 ### AIS Non-Match
 - AIS absence does not prove intent to evade. Causes include: equipment failure, poor signal propagation, fishing vessels under the voluntary reporting threshold, legitimate AIS exemptions.

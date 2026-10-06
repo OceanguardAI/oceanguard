@@ -1,5 +1,8 @@
 # OceanGuard AI — System Architecture
 
+> **Status as of 2026-10-06.** Sections marked ⚠️ describe intended design; the
+> actual code state differs. See the "Actual vs Intended" table at the bottom.
+
 See also: `docs/live-sar-and-user-selection-flow.md` for the detailed live SAR, point-scan, and area-sweep request flow.
 
 ## Overview
@@ -95,7 +98,12 @@ The risk score and risk level are computed by a deterministic function with expl
 
 ### 2. GFW as Primary Detection Feed
 
-The live system uses the Global Fishing Watch SAR API as its primary detection source. GFW does the Sentinel-1 SAR processing and AIS cross-matching server-side. OceanGuard ingests the pre-processed results at startup (`GFW_INGEST_ON_STARTUP=true`) and applies its own risk scoring on top.
+The live system uses the Global Fishing Watch SAR API as its primary detection source. GFW does the Sentinel-1 SAR processing server-side. OceanGuard ingests the pre-processed aggregate cells at startup (`GFW_INGEST_ON_STARTUP=true`).
+
+**Current code state:** `gfw_ingest.py` stores `ActivityAggregate` records (raw cell counts).
+Risk scoring and AIS cross-matching were removed in commit `8f07b9e` (25 Sep 2026).
+The dashboard currently shows the 126-event seed file (`backend/data/risk_events.json`),
+not live GFW detections. Reconnecting the pipeline (scoring + DB) is the next required step.
 
 **YOLO is on-demand only.** The YOLO service runs when an officer clicks "Run YOLO Check" (single point) or "Sweep Area" (viewport grid). It is not the primary detection pipeline.
 
@@ -110,11 +118,17 @@ Sweep contacts are classified:
 - **teal diamond** — confirmed (matches a known GFW detection within 2 km)
 - **red pulsing diamond** — new (no known detection nearby → dark-vessel candidate the GFW feed missed)
 
-Agreement boost: when YOLO confirms a GFW detection, `risk_score += 0.10`.
+⚠️ Agreement boost (`risk_score += 0.10`) was in an earlier version of the code but
+was removed along with live risk scoring. It is not active in the current codebase.
 
 ### 4. Right-Sized Persistence
 
-The live store is in-memory (repository.py). Reviews written via `POST /risk-events/{id}/review` are in-memory only (`persist=False`) to preserve the seed file as offline fallback. Upgrade path: JSON → SQLite → PostgreSQL+PostGIS.
+The live store is in-memory (`repository.py`). Reviews via `POST /risk-events/{id}/review`
+are in-memory only (`persist=False`) and lost on restart.
+
+**Current state:** `config.py` has `database_url = ""` — no DB is connected. All state
+lives in the seed JSON file and in-memory. A PostgreSQL + PostGIS container is the
+next required infrastructure step. Upgrade path: JSON → SQLite → PostgreSQL+PostGIS.
 
 ### 5. Twelve-Factor Friendly
 
@@ -198,23 +212,39 @@ POST /agents/ask  { question: "Which is highest risk?" }
 
 ## Component Responsibilities
 
-| Component | Responsibility | Does NOT do |
+| Component | Responsibility | Does NOT do (current) |
 |---|---|---|
-| `gfw_ingest.py` | Pull SAR detections from GFW API at startup | AIS broadcasts |
-| `ais_stream.py` | WebSocket AIS feed, dark-vessel cross-check | Risk scoring |
+| `gfw_ingest.py` | Pull SAR aggregate cells from GFW API at startup | Risk scoring, AIS cross-match (removed) |
+| `ais_stream.py` | WebSocket AIS feed | Cross-matching (not wired to ingest) |
 | `mpa_index.py` | Shapely STRtree spatial lookup for MPA distance | Serving polygons |
 | `repository.py` | In-memory store, CRUD, upsert | Business logic |
 | `narrator.py` | Plain-language explanation via Gemini | Risk scoring |
 | `briefing.py` | Situational summary via Gemini | Individual event detail |
 | `patrol.py` | Priority ranking via Gemini | Scoring |
 | `ask.py` | Tool-calling Q&A via Gemini | Serving events directly |
-| `verify.py` | YOLO point + sweep endpoints, agreement boost | Primary detection |
+| `verify.py` | YOLO point + sweep endpoints | Agreement boost (removed) |
 | `MapView.tsx` | Leaflet map, scan mode, sweep mode, bounds reporting | Sidebar content |
 | `EvidenceCard.tsx` | Full event detail, YOLO verify trigger, review | Map rendering |
 | `YoloResultView.tsx` | Renders SAR chip + YOLO bounding boxes | Triggering YOLO |
 | `DailyBriefing.tsx` | Fetches + displays Gemini briefing | Agent logic |
 | `PatrolBoard.tsx` | Fetches + displays Gemini patrol ranking | Map interaction |
 | `AskOceanGuard.tsx` | Chat interface for Gemini Q&A | Agent logic |
+
+---
+
+## Actual vs Intended State (2026-10-06)
+
+| Feature | Intended | Actual |
+|---|---|---|
+| Dashboard data | Live GFW detections, scored | 126 seed events from `backend/data/risk_events.json` (2024-01-15) |
+| Risk scoring | Deterministic formula on each GFW cell | Removed from code; seed JSON has pre-set scores |
+| AIS cross-match | `ais_matched=True` when AIS seen | Hard-coded `False` everywhere |
+| Database | PostgreSQL + PostGIS | Not connected (`database_url=""`) |
+| GFW ingest | Returns scored `RiskEvent` list | Returns unscored `ActivityAggregate` list |
+| YOLO verification | On-demand, real Sentinel-1 chips | Works if Sentinel Hub credentials set |
+| AI agents | Reason over live events | Reason over seed events |
+| GFW dataset | Pinned to `v4.0` | ✅ Done — pinned in config and env |
+| YOLO model | Tested on real Sentinel-1 | ⚠️ Only tested on HRSID; xView3 baseline pending |
 
 ---
 

@@ -1,6 +1,6 @@
 # OceanGuard End-to-End Development and Architecture Plan
 
-Status: proposed implementation plan, not a statement that these capabilities are deployed. Reviewed and corrected on October 2, 2026; see section 1a.
+Status: proposed implementation plan, not a statement that these capabilities are deployed. Reviewed and corrected on October 2, 2026; see section 1a. Last status check: October 6, 2026 — see `docs/PROJECT_CONTEXT.md` for current vs. intended state.
 
 This is the main planning document for upgrading OceanGuard from a demo-style vessel detection dashboard into a research-grade and industry-ready maritime intelligence system. It is intentionally written as an implementation guide: another engineer or agent should be able to follow it without choosing a new architecture.
 

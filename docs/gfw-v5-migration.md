@@ -94,10 +94,24 @@ The tool makes two live API calls with your token and respects GFW report limits
 (date range at most one year). It was unit-tested on synthetic data only; it has
 not been run against the live API.
 
+## Status (2026-10-06) — 15 days until flip
+
+- ✅ `GFW_SAR_DATASET` pinned to `public-global-sar-presence:v4.0` in `config.py`
+  and `gfw_ingest.py`. The alias flip on 21 October will not affect us silently.
+- ✅ Resolved dataset stored on every `ActivityAggregate` record.
+- ✅ `/ingest/status` reports `requested_dataset`.
+- ⚠️ **Comparison runbook NOT yet run.** Requires a valid `GFW_API_TOKEN` in
+  `backend/.env`. This is the RQ1 research dataset — run before 21 Oct.
+- ⚠️ GFW release notes for v5 still not published as of today.
+
 ## After 21 October
 
 - Re-read the GFW release notes for the v5 entry and update this document with what
   they say.
+- Run the comparison runbook (above) on a window ending before the flip so both
+  versions have the same data.
+- Switch `GFW_SAR_DATASET` to `public-global-sar-presence:v5.0` only after the
+  comparison and only if differences are within your stated tolerance.
 - Confirm `/ingest/status` shows the version you intend and the dashboard still
   loads activity cells.
 - Treat any change in `ActivityAggregate.dataset` over time as a provenance event:

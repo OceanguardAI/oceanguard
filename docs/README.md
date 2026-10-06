@@ -2,12 +2,17 @@
 
 This folder is the reference set for understanding how OceanGuard AI is built.
 
+> **Starting a new chat session?** Read `PROJECT_CONTEXT.md` first — it is a single
+> file that describes current (not intended) system state, architecture, the YOLO
+> model, live data status, and the full pending work list.
+
 If you want to learn the project after having developed it with agents, start here and move from top to bottom.
 
 ## Recommended reading order
 
-1. `PROJECT_GUIDE.md`
-2. `architecture.md`
+1. `PROJECT_CONTEXT.md` ← **start here for any new session**
+2. `PROJECT_GUIDE.md`
+3. `architecture.md`
 3. `CODEBASE_MAP.md`
 4. `modules/dashboard-and-interface.md`
 5. `modules/live-ingestion-and-risk-scoring.md`
