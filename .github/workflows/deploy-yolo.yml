@@ -40,8 +40,27 @@ jobs:
           docker build -f yolo-service/Dockerfile -t "$IMAGE" yolo-service
           docker push "$IMAGE"
 
-      # Registry credentials are stored on the app at creation time (azure_deploy.ps1).
+      # Azure Container Apps "express" environments require registry credentials in every
+      # update request body; az containerapp update does not send them, so we use az rest.
       - name: Roll out new revision
         run: |
-          az containerapp ingress update -n og-yolo -g "$RESOURCE_GROUP" --target-port 8080
-          az containerapp update -n og-yolo -g "$RESOURCE_GROUP" --image "$IMAGE"
+          SUB=$(az account show --query id -o tsv)
+          ACR_PWD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
+          echo "::add-mask::$ACR_PWD"
+          SPEC=$(az rest --method GET \
+            --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-yolo?api-version=2024-03-01" \
+            --output json)
+          SPEC=$(echo "$SPEC" | python3 -c "
+          import json,sys
+          s=json.load(sys.stdin)
+          s['properties']['template']['containers'][0]['image']='$IMAGE'
+          s['properties']['configuration']['ingress']['targetPort']=8080
+          for sec in s['properties']['configuration'].get('secrets',[]):
+              if sec['name']=='ogacr901adazurecrio-ogacr901ad':
+                  sec['value']='$ACR_PWD'
+          print(json.dumps(s))")
+          echo "$SPEC" > /tmp/spec.json
+          az rest --method PUT \
+            --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-yolo?api-version=2024-03-01" \
+            --body @/tmp/spec.json \
+            --headers "Content-Type=application/json"
