@@ -50,18 +50,14 @@ jobs:
           SPEC=$(az rest --method GET \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-web?api-version=2024-03-01" \
             --output json)
-          SPEC=$(echo "$SPEC" | python3 - <<'PYEOF'
-import json,sys,os
-s=json.load(sys.stdin)
-s['properties']['template']['containers'][0]['image']=os.environ['IMAGE']
-s['properties']['configuration']['ingress']['targetPort']=8080
-for sec in s['properties']['configuration'].get('secrets',[]):
-    if sec['name']=='ogacr901adazurecrio-ogacr901ad':
-        sec['value']=os.environ['ACR_PWD']
-print(json.dumps(s))
-PYEOF
-          )
-          echo "$SPEC" > /tmp/spec.json
+          echo "$SPEC" | jq \
+            --arg img "$IMAGE" \
+            --arg acr  "$ACR_PWD" \
+            '.properties.template.containers[0].image=$img |
+             .properties.configuration.ingress.targetPort=8080 |
+             .properties.configuration.secrets|=map(
+               if .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
+               else . end)' > /tmp/spec.json
           az rest --method PUT \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-web?api-version=2024-03-01" \
             --body @/tmp/spec.json \

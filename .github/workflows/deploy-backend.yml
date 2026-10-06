@@ -55,25 +55,22 @@ jobs:
           SPEC=$(az rest --method GET \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
             --output json)
-          SPEC=$(echo "$SPEC" | python3 - <<'PYEOF'
-import json,sys,os
-s=json.load(sys.stdin)
-s['properties']['template']['containers'][0]['image']=os.environ['IMAGE']
-s['properties']['configuration']['ingress']['targetPort']=8080
-secret_vals={
-    'ogacr901adazurecrio-ogacr901ad': os.environ['ACR_PWD'],
-    'admin-key':  os.environ.get('ADMIN_API_KEY',''),
-    'gfw-token':  os.environ.get('GFW_API_TOKEN',''),
-    'ais-key':    os.environ.get('AISSTREAM_API_KEY',''),
-    'groq-key':   os.environ.get('GROQ_API_KEY',''),
-}
-for sec in s['properties']['configuration'].get('secrets',[]):
-    if sec['name'] in secret_vals:
-        sec['value']=secret_vals[sec['name']]
-print(json.dumps(s))
-PYEOF
-          )
-          echo "$SPEC" > /tmp/spec.json
+          echo "$SPEC" | jq \
+            --arg img "$IMAGE" \
+            --arg acr  "$ACR_PWD" \
+            --arg admin "$ADMIN_API_KEY" \
+            --arg gfw   "$GFW_API_TOKEN" \
+            --arg ais   "$AISSTREAM_API_KEY" \
+            --arg groq  "$GROQ_API_KEY" \
+            '.properties.template.containers[0].image=$img |
+             .properties.configuration.ingress.targetPort=8080 |
+             .properties.configuration.secrets|=map(
+               if   .name=="ogacr901adazurecrio-ogacr901ad" then .value=$acr
+               elif .name=="admin-key"  then .value=$admin
+               elif .name=="gfw-token"  then .value=$gfw
+               elif .name=="ais-key"    then .value=$ais
+               elif .name=="groq-key"   then .value=$groq
+               else . end)' > /tmp/spec.json
           az rest --method PUT \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
             --body @/tmp/spec.json \
