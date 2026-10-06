@@ -219,7 +219,7 @@ export default function MapView({
         maxBoundsViscosity={1.0}
       >
         <TileLayer
-          url={`https://basemaps.cartocdn.com/rastertiles/dark_matter/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_KEY ?? ''}`}
+          url={`https://basemaps.cartocdn.com/rastertiles/dark_all/{z}/{x}/{y}.png?key=${import.meta.env.VITE_CARTO_KEY ?? ''}`}
           attribution='&copy; <a href="https://carto.com/">CARTO</a>'
           noWrap={true}
         />
