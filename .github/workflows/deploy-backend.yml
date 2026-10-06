@@ -43,6 +43,11 @@ jobs:
       # Azure Container Apps "express" environments require registry credentials in every
       # update request body; az containerapp update does not send them, so we use az rest.
       - name: Roll out new revision
+        env:
+          GROQ_API_KEY: ${{ secrets.GROQ_API_KEY }}
+          GFW_API_TOKEN: ${{ secrets.GFW_API_TOKEN }}
+          AISSTREAM_API_KEY: ${{ secrets.AISSTREAM_API_KEY }}
+          ADMIN_API_KEY: ${{ secrets.ADMIN_API_KEY }}
         run: |
           SUB=$(az account show --query id -o tsv)
           ACR_PWD=$(az acr credential show -n "$ACR_NAME" --query "passwords[0].value" -o tsv)
@@ -50,15 +55,24 @@ jobs:
           SPEC=$(az rest --method GET \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
             --output json)
-          SPEC=$(echo "$SPEC" | python3 -c "
-          import json,sys
-          s=json.load(sys.stdin)
-          s['properties']['template']['containers'][0]['image']='$IMAGE'
-          s['properties']['configuration']['ingress']['targetPort']=8080
-          for sec in s['properties']['configuration'].get('secrets',[]):
-              if sec['name']=='ogacr901adazurecrio-ogacr901ad':
-                  sec['value']='$ACR_PWD'
-          print(json.dumps(s))")
+          SPEC=$(echo "$SPEC" | python3 - <<'PYEOF'
+import json,sys,os
+s=json.load(sys.stdin)
+s['properties']['template']['containers'][0]['image']=os.environ['IMAGE']
+s['properties']['configuration']['ingress']['targetPort']=8080
+secret_vals={
+    'ogacr901adazurecrio-ogacr901ad': os.environ['ACR_PWD'],
+    'admin-key':  os.environ.get('ADMIN_API_KEY',''),
+    'gfw-token':  os.environ.get('GFW_API_TOKEN',''),
+    'ais-key':    os.environ.get('AISSTREAM_API_KEY',''),
+    'groq-key':   os.environ.get('GROQ_API_KEY',''),
+}
+for sec in s['properties']['configuration'].get('secrets',[]):
+    if sec['name'] in secret_vals:
+        sec['value']=secret_vals[sec['name']]
+print(json.dumps(s))
+PYEOF
+          )
           echo "$SPEC" > /tmp/spec.json
           az rest --method PUT \
             --url "https://management.azure.com/subscriptions/$SUB/resourceGroups/$RESOURCE_GROUP/providers/Microsoft.App/containerApps/og-backend?api-version=2024-03-01" \
