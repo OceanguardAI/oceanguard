@@ -10,6 +10,8 @@ This folder is the reference set for understanding how OceanGuard AI is built.
 > architecture analysis, data flow traces, AI model breakdown, and a learning guide
 > written from the actual code.
 
+> **Presenting this project?** Read `PRESENTATION_BRIEF.md` — plain-language flow, what is live vs sample, limitations, Sri Lanka / India use cases, and likely Q&A.
+
 If you want to learn the project after having developed it with agents, start here and move from top to bottom.
 
 ## Recommended reading order
