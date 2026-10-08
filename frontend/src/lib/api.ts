@@ -117,7 +117,7 @@ export async function fetchOperationalAlerts(status = "open"): Promise<Operation
 export async function fetchGfwActivity(bbox: [number, number, number, number]): Promise<ActivityPage> {
   const pageSize = 1000;
   const maxPages = 10;
-  let merged: ActivityPage | null = null;
+  let merged: ActivityPage | undefined;
   for (let i = 0; i < maxPages; i++) {
     const params = new URLSearchParams({
       bbox: bbox.join(","), limit: String(pageSize), offset: String(i * pageSize),
@@ -125,7 +125,8 @@ export async function fetchGfwActivity(bbox: [number, number, number, number]): 
     const res = await fetch(`${API_BASE}/activity/gfw?${params}`);
     if (!res.ok) throw new Error("Failed to fetch GFW activity");
     const page: ActivityPage = await res.json();
-    merged = merged ? { ...merged, items: [...merged.items, ...page.items] } : page;
+    const prev: ActivityPage | undefined = merged;
+    merged = prev ? { ...prev, items: [...prev.items, ...page.items] } : page;
     if (merged.items.length >= page.total || page.items.length === 0) break;
   }
   return merged as ActivityPage;
