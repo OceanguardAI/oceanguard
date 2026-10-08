@@ -33,7 +33,9 @@ const BoundsReporter = ({
   const map = useMap();
   const emit = () => {
     const b = map.getBounds();
-    onChange([b.getWest(), b.getSouth(), b.getEast(), b.getNorth()]);
+    // A zoomed-out or wrapped map reports longitudes beyond ±180, which the API rejects.
+    const clamp = (v: number, lim: number) => Math.max(-lim, Math.min(lim, v));
+    onChange([clamp(b.getWest(), 180), clamp(b.getSouth(), 90), clamp(b.getEast(), 180), clamp(b.getNorth(), 90)]);
   };
   useMapEvents({ moveend: emit, zoomend: emit });
   // eslint-disable-next-line react-hooks/exhaustive-deps
