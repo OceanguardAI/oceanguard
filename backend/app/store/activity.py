@@ -74,6 +74,7 @@ class ActivityStore:
             if bbox:
                 west, south, east, north = bbox
                 items = [a for a in items if west <= a.lon <= east and south <= a.lat <= north]
+            items = sorted(items, key=lambda a: (-a.detection_count, a.id))
             total = len(items)
             state = "not_loaded" if self._succeeded_at is None else "available" if self._items else "empty"
             if self._succeeded_at and (

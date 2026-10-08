@@ -116,7 +116,7 @@ export async function fetchOperationalAlerts(status = "open"): Promise<Operation
 
 export async function fetchGfwActivity(bbox: [number, number, number, number]): Promise<ActivityPage> {
   const pageSize = 1000;
-  const maxPages = 10;
+  const maxPages = 3;
   let merged: ActivityPage | undefined;
   for (let i = 0; i < maxPages; i++) {
     const params = new URLSearchParams({
