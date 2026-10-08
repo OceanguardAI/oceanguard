@@ -39,13 +39,16 @@ def get_gfw_activity(
     if bbox:
         try:
             values = tuple(float(part) for part in bbox.split(","))
-            if (
-                len(values) != 4 or not all(math.isfinite(v) for v in values)
-                or not (-180 <= values[0] < values[2] <= 180)
-                or not (-90 <= values[1] < values[3] <= 90)
-            ):
+            if len(values) != 4 or not all(math.isfinite(v) for v in values):
                 raise ValueError
-            bounds = values
+            # Zoomed-out or wrapped maps report out-of-range longitudes; clamp, don't reject.
+            west, south, east, north = (
+                max(-180.0, values[0]), max(-90.0, values[1]),
+                min(180.0, values[2]), min(90.0, values[3]),
+            )
+            if not (west < east and south < north):
+                raise ValueError
+            bounds = (west, south, east, north)
         except ValueError as exc:
             raise HTTPException(status_code=422, detail="bbox must be west,south,east,north") from exc
     return activity_store.page(offset=offset, limit=limit, bbox=bounds)
