@@ -65,6 +65,11 @@ class Settings(BaseSettings):
     # Base URL of the oceanguard-yolo service. When empty, the "Run YOLO check"
     # action is disabled and the endpoint reports not-configured.
     yolo_service_url: str = ""
+    # After each GFW ingest, run YOLO on the top cells (MPA proximity, then GFW count).
+    # Each cell costs one Sentinel Hub request, so keep this small on the free tier.
+    yolo_scan_enabled: bool = True
+    yolo_scan_top_n: int = 8
+    yolo_scan_min_cell_detections: int = 1
 
     @field_validator("gfw_region_bbox", mode="before")
     @classmethod

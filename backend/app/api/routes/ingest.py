@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from app.core.config import settings
 from app.core.security import require_admin, write_protection_enabled
 from app.models.schemas import ActivityPage, RiskEvent
-from app.services import gfw_ingest
+from app.services import gfw_ingest, yolo_scan
 from app.store.activity import activity_store
 from app.store.repository import repo
 
@@ -76,6 +76,17 @@ def ingest_gfw() -> dict[str, object]:
         "source": "Global Fishing Watch 4Wings SAR presence report",
         "record_type": "activity_aggregate",
     }
+
+
+@router.post("/ingest/yolo-scan", dependencies=[Depends(require_admin)])
+def ingest_yolo_scan(top_n: int = Query(default=8, ge=1, le=25)) -> dict[str, object]:
+    """Run YOLO on the top GFW cells now and store the contacts as YOLO_SAR events."""
+    if not yolo_scan.scan_enabled():
+        raise HTTPException(status_code=503, detail="YOLO scan needs YOLO_SERVICE_URL and YOLO_SCAN_ENABLED.")
+    cells = activity_store.page(limit=1000).items
+    if not cells:
+        raise HTTPException(status_code=409, detail="No GFW activity loaded yet; run /ingest/gfw first.")
+    return yolo_scan.scan_cells(cells, top_n=top_n)
 
 
 @router.post("/ingest/push", dependencies=[Depends(require_admin)])

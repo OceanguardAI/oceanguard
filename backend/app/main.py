@@ -9,7 +9,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.api.routes import agents as agents_router
 from app.api.routes import ais, events, geo, ingest, metrics, operations, sar, sources, verify
 from app.core.config import settings
-from app.services import gfw_ingest, mpa_index
+from app.services import gfw_ingest, mpa_index, yolo_scan
 from app.store.activity import activity_store
 from app.store.repository import repo
 
@@ -38,6 +38,12 @@ def _run_ingest() -> None:
         print(f"GFW activity: loaded {len(aggregates)} aggregate cells.")
     except Exception:
         print("GFW activity could not be stored.")
+        return
+    if yolo_scan.scan_enabled():
+        try:
+            print(f"YOLO scan: {yolo_scan.scan_cells(aggregates)}")
+        except Exception as exc:
+            print(f"YOLO scan failed: {type(exc).__name__}")
 
 
 @asynccontextmanager
