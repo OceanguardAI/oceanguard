@@ -31,15 +31,27 @@ const BoundsReporter = ({
   onChange,
 }: { onChange: (bbox: [number, number, number, number]) => void }) => {
   const map = useMap();
+  const last = useRef("");
   const emit = () => {
     const b = map.getBounds();
     // A zoomed-out or wrapped map reports longitudes beyond ±180, which the API rejects.
     const clamp = (v: number, lim: number) => Math.max(-lim, Math.min(lim, v));
-    onChange([clamp(b.getWest(), 180), clamp(b.getSouth(), 90), clamp(b.getEast(), 180), clamp(b.getNorth(), 90)]);
+    const next: [number, number, number, number] = [
+      clamp(b.getWest(), 180), clamp(b.getSouth(), 90), clamp(b.getEast(), 180), clamp(b.getNorth(), 90),
+    ];
+    const key = next.map((v) => v.toFixed(3)).join(",");
+    if (key === last.current) return;
+    last.current = key;
+    onChange(next);
   };
-  useMapEvents({ moveend: emit, zoomend: emit, resize: emit });
+  useMapEvents({ moveend: emit, zoomend: emit, resize: emit, load: emit });
+  useEffect(() => {
+    emit();
+    // Safety net: programmatic fits and container resizes can skip map events.
+    const timer = setInterval(emit, 1500);
+    return () => clearInterval(timer);
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  useEffect(() => { emit(); }, []);
+  }, []);
   return null;
 };
 
