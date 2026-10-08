@@ -99,6 +99,20 @@ class RiskEventRepository:
     def get(self, event_id: str) -> RiskEvent | None:
         return self._events.get(event_id)
 
+    def update_ais(self, event_id: str, *, matched: bool, method: str) -> RiskEvent | None:
+        with self._lock:
+            event = self._events.get(event_id)
+            if event is None:
+                return None
+            updated = event.model_copy(update={"ais_matched": matched, "matching_method": method})
+            self._events[event_id] = updated
+            try:
+                self.save()
+            except Exception:
+                self._events[event_id] = event
+                raise
+            return updated
+
     def update_review(self, event_id: str, status: str) -> RiskEvent | None:
         with self._lock:
             event = self._events.get(event_id)

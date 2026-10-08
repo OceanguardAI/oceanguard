@@ -130,12 +130,16 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
     }
   };
 
-  const aisLabel =
-    event.ais_matched
-      ? { text: "Matched", className: "text-risk-low" }
-      : event.ais_data_available
-      ? { text: "No AIS identity reported", className: "text-risk-high" }
-      : { text: "No Coverage", className: "text-slate-400" };
+  // Three-state AIS badge.
+  // "matched"  → a broadcasting vessel was found nearby in a live AISStream sample.
+  // "checked"  → AISStream was sampled but no match; NOT proof of being dark (short sample).
+  // "unchecked"→ no live AIS sample has been run for this event.
+  const aisCheckedByStream = Boolean(event.matching_method?.includes("AISStream"));
+  const aisBadge = event.ais_matched
+    ? { text: "Broadcasting — AIS Match", className: "text-risk-low", icon: "🟢" }
+    : aisCheckedByStream
+    ? { text: "Checked — not broadcasting (short sample)", className: "text-yellow-400", icon: "🟡" }
+    : { text: "Not checked", className: "text-slate-400", icon: "⚪" };
 
   // Source tags
   const tags = [
@@ -277,7 +281,22 @@ export default function EvidenceCard({ event, onUpdate }: EvidenceCardProps) {
         <FieldRow
           label="AIS Status"
           icon={<Activity className="w-2.5 h-2.5" />}
-          value={<span className={aisLabel.className}>{aisLabel.text}</span>}
+          value={
+            <span className={`${aisBadge.className} flex items-center gap-1`}>
+              <span>{aisBadge.icon}</span>
+              <span>{aisBadge.text}</span>
+              {aisCheckedByStream && !event.ais_matched && (
+                <Tooltip
+                  title="Short sample caveat"
+                  body="AISStream was sampled for ~10–20 seconds near this point. No match was found in that window. This does not confirm the vessel is dark — AIS coverage may be unavailable offshore."
+                  icon={Info}
+                  align="center"
+                >
+                  <Info className="w-3 h-3 text-slate-500 cursor-help inline" />
+                </Tooltip>
+              )}
+            </span>
+          }
         />
         <FieldRow
           label="SAR Confidence"

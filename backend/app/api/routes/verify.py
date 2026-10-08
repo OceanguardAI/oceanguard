@@ -1,15 +1,21 @@
 """On-demand YOLO point scans; model hits do not prove event identity or risk."""
 from __future__ import annotations
 
+import asyncio
+import logging
 import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
+from datetime import datetime, timezone
 
 import httpx
 from fastapi import APIRouter, HTTPException, Query
 
 from app.core.config import settings
+from app.services import ais_stream
 from app.services.acquisition import parse_request_time, provenance
 from app.store.repository import repo
+
+_log = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -33,6 +39,27 @@ def _configured() -> bool:
     return bool(settings.yolo_service_url)
 
 
+async def _background_ais_check(lat: float, lon: float, timestamp: str, seconds: int = 10) -> None:
+    """Best-effort AIS cross-match fired after a YOLO detect. Never blocks the response."""
+    try:
+        vessels = await ais_stream.collect_ais(seconds=seconds)
+        status, candidates = ais_stream.sample_association(lat, lon, timestamp, vessels)
+        if status not in ("matched", "ambiguous"):
+            return
+        # Find the closest stored event to this YOLO contact and update its AIS field.
+        best_id, best_km = None, None
+        for event in repo.all():
+            km = _haversine_km(lat, lon, event.lat, event.lon)
+            if best_km is None or km < best_km:
+                best_id, best_km = event.id, km
+        if best_id is not None and best_km is not None and best_km <= _SWEEP_MATCH_KM:
+            method = f"AISStream auto {seconds}s after YOLO | candidates: {','.join(candidates)}"
+            repo.update_ais(best_id, matched=(status == "matched"), method=method)
+            _log.info("AIS %s for event %s (%.2f km, mmsi: %s)", status, best_id, best_km, candidates)
+    except Exception as exc:
+        _log.debug("Background AIS check failed (non-fatal): %s", exc)
+
+
 def _haversine_km(lat1: float, lon1: float, lat2: float, lon2: float) -> float:
     r = 6371.0
     p1, p2 = math.radians(lat1), math.radians(lat2)
@@ -48,7 +75,7 @@ def verify_status() -> dict[str, object]:
 
 
 @router.post("/verify/yolo")
-def verify_yolo(
+async def verify_yolo(
     lat: float = Query(..., ge=-90, le=90, description="Latitude of the point to verify"),
     lon: float = Query(..., ge=-180, le=180, description="Longitude of the point to verify"),
     date: str = Query(..., description="ISO timestamp used to pick the Sentinel-1 scene"),
@@ -98,6 +125,12 @@ def verify_yolo(
         nearby and event and _haversine_km(lat, lon, event.lat, event.lon) <= _SWEEP_MATCH_KM
     )
 
+    # Fire a short AIS sample in the background when YOLO found contacts and AIS is configured.
+    # Best-effort: any failure is logged and swallowed; the YOLO response is not delayed.
+    if ais_stream.ais_enabled() and result.get("detections"):
+        detection_time = datetime.now(timezone.utc).isoformat().replace("+00:00", "Z")
+        asyncio.create_task(_background_ais_check(lat, lon, detection_time, seconds=10))
+
     return {
         "event_id": event_id,
         "agreement": False,
@@ -106,6 +139,7 @@ def verify_yolo(
         "provenance": provenance(lat=lat, lon=lon, requested_at=requested_at, result=result),
         "yolo": result,
         "updated_event": None,
+        "ais_check": "triggered" if ais_stream.ais_enabled() and result.get("detections") else "skipped",
     }
 
 

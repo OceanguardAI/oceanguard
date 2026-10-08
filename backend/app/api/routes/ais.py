@@ -36,7 +36,13 @@ async def ais_live(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str, o
 
 @router.post("/ais/verify-dark")
 async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str, object]:
-    """Look for recent AIS candidates without treating a short sample as full coverage."""
+    """Sample AIS for `seconds`, cross-match against stored events, and persist results.
+
+    A short sample cannot prove absence — "unmatched" in a 20-second window does NOT
+    confirm a vessel is dark; it only means no broadcasting vessel was nearby in that window.
+    GFW aggregate cells are skipped because they represent counts per grid cell, not
+    individual vessels.
+    """
     if not ais_stream.ais_enabled():
         raise HTTPException(status_code=400, detail="AISSTREAM_API_KEY is not configured.")
     try:
@@ -45,6 +51,8 @@ async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str
         raise HTTPException(status_code=502, detail=f"AIS sampling failed: {exc}") from exc
 
     results = []
+    matched_count = 0
+    ambiguous_count = 0
     for event in repo.all():
         if event.ais_matched:
             continue
@@ -54,6 +62,13 @@ async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str
             if event.source == "GFW"
             else ais_stream.sample_association(event.lat, event.lon, event.timestamp, vessels)
         )
+        if status in ("matched", "ambiguous"):
+            method = f"AISStream sample {seconds}s | candidates: {','.join(candidates)}"
+            repo.update_ais(event.id, matched=(status == "matched"), method=method)
+            if status == "matched":
+                matched_count += 1
+            else:
+                ambiguous_count += 1
         results.append({
             "id": event.id,
             "lat": event.lat,
@@ -66,6 +81,8 @@ async def verify_dark(seconds: int = Query(default=20, ge=5, le=60)) -> dict[str
     return {
         "live_ais_vessels": len(vessels),
         "dark_candidates_checked": len(results),
+        "matched": matched_count,
+        "ambiguous": ambiguous_count,
         "dark_confirmed": 0,
         "sample_complete_for_absence": False,
         "results": results,
