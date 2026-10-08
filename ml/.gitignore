@@ -1,5 +1,16 @@
 # Azure ML job outputs
 outputs/
 
-# Trained weights are shipped through yolo-service/models, not committed here
+# Large binary training data — too big for git, stored locally in ml/data/
+data/
+
+# Training image crops
+data/crops/
+data/hrsid_more/
+data/xview3/
+
+# Model weights: only named release models are committed; training intermediates are not
 models/*.pt
+# Allow committed release weights (override the pattern above)
+!models/best.pt
+!models/finetuned_runE.pt

@@ -1,0 +1,60 @@
+{
+  "match_radius_m": 30.0,
+  "min_confidence": 0.25,
+  "bins": [
+    {
+      "label": "0-15 m",
+      "truth": 0,
+      "detected": 0,
+      "recall": null,
+      "recall_ci95": null
+    },
+    {
+      "label": "15-30 m",
+      "truth": 40,
+      "detected": 11,
+      "recall": 0.275,
+      "recall_ci95": [
+        0.1610785343314309,
+        0.4283525083312457
+      ]
+    },
+    {
+      "label": "30-60 m",
+      "truth": 126,
+      "detected": 53,
+      "recall": 0.42063492063492064,
+      "recall_ci95": [
+        0.3380368812599529,
+        0.5079292805864816
+      ]
+    },
+    {
+      "label": "60-120 m",
+      "truth": 158,
+      "detected": 87,
+      "recall": 0.5506329113924051,
+      "recall_ci95": [
+        0.47278388265903637,
+        0.626078214601495
+      ]
+    },
+    {
+      "label": ">=120 m",
+      "truth": 240,
+      "detected": 149,
+      "recall": 0.6208333333333333,
+      "recall_ci95": [
+        0.5580016762847224,
+        0.6798576553469597
+      ]
+    }
+  ],
+  "overall_truth": 930,
+  "overall_detected": 368,
+  "overall_recall": 0.3956989247311828,
+  "predictions": 586,
+  "false_positives": 218,
+  "precision": 0.6279863481228669,
+  "false_positives_per_100km2": 0.884097279900332
+}

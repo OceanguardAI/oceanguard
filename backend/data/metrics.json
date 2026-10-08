@@ -9,36 +9,49 @@
   "confidence_threshold": 0.45,
   "validation_scene": "xView3 590dd08f71056cacv",
   "detections_on_real_scene": 122,
+  "note": "HRSID-only baseline. See xview3_baseline and xview3_finetuned for real Sentinel-1 results.",
   "training_history": [
-    {
-      "epoch": 1,
-      "map50": 0.61,
-      "loss": 1.8
+    { "epoch": 1,  "map50": 0.61, "loss": 1.8 },
+    { "epoch": 10, "map50": 0.72, "loss": 1.2 },
+    { "epoch": 20, "map50": 0.78, "loss": 0.9 },
+    { "epoch": 30, "map50": 0.81, "loss": 0.7 },
+    { "epoch": 40, "map50": 0.83, "loss": 0.6 },
+    { "epoch": 50, "map50": 0.838, "loss": 0.55 }
+  ],
+  "xview3_baseline": {
+    "model": "best.pt (HRSID baseline)",
+    "dataset": "xView3 validation (3 scenes, 930 ground-truth vessels)",
+    "overall_recall": 0.3086,
+    "precision": 0.7593,
+    "false_positives_per_100km2": 0.369,
+    "recall_by_size": {
+      "0-15m":   { "truth": 0,   "recall": null },
+      "15-30m":  { "truth": 40,  "recall": 0.05,   "ci95": [0.014, 0.165] },
+      "30-60m":  { "truth": 126, "recall": 0.095,  "ci95": [0.055, 0.159] },
+      "60-120m": { "truth": 158, "recall": 0.532,  "ci95": [0.454, 0.608] },
+      ">=120m":  { "truth": 240, "recall": 0.654,  "ci95": [0.592, 0.711] }
     },
-    {
-      "epoch": 10,
-      "map50": 0.72,
-      "loss": 1.2
+    "source": "ml/training/runs/run_B/xview3_eval_base.json"
+  },
+  "xview3_finetuned": {
+    "model": "finetuned_runE.pt (xView3 fine-tune, accepted)",
+    "training_run": "run_E",
+    "epochs": 20,
+    "hrsid_map50_before": 0.9131,
+    "hrsid_map50_after": 0.9063,
+    "hrsid_map50_drop": 0.0068,
+    "accept": true,
+    "accept_reason": "HRSID mAP drop 0.007 <= 0.02 gate; xView3 overall recall improved +11.3pp",
+    "overall_recall": 0.4215,
+    "precision": 0.6343,
+    "false_positives_per_100km2": 0.917,
+    "recall_by_size": {
+      "0-15m":   { "truth": 0,   "recall": null },
+      "15-30m":  { "truth": 40,  "recall": 0.25,   "ci95": [0.142, 0.402] },
+      "30-60m":  { "truth": 126, "recall": 0.437,  "ci95": [0.353, 0.524] },
+      "60-120m": { "truth": 158, "recall": 0.601,  "ci95": [0.523, 0.674] },
+      ">=120m":  { "truth": 240, "recall": 0.663,  "ci95": [0.601, 0.719] }
     },
-    {
-      "epoch": 20,
-      "map50": 0.78,
-      "loss": 0.9
-    },
-    {
-      "epoch": 30,
-      "map50": 0.81,
-      "loss": 0.7
-    },
-    {
-      "epoch": 40,
-      "map50": 0.83,
-      "loss": 0.6
-    },
-    {
-      "epoch": 50,
-      "map50": 0.838,
-      "loss": 0.55
-    }
-  ]
+    "source": "ml/training/runs/run_E/xview3_eval_finetuned.json"
+  }
 }

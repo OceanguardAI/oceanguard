@@ -1,0 +1,9 @@
+{
+  "hrsid_map50_base": 0.9130866020424001,
+  "hrsid_map50_finetuned": 0.8837843792365592,
+  "xview3_recall_base": 0.3086021505376344,
+  "xview3_precision_base": 0.7592592592592593,
+  "xview3_recall_finetuned": 0.41935483870967744,
+  "xview3_precision_finetuned": 0.6689536878216124,
+  "accept": false
+}
